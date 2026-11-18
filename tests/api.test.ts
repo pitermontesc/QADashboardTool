@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { orchestratorCommand } from '../src/server/orchestrator';
 import { Store } from '../src/server/store';
 import { fakeJira, lastBoardJql, startServer } from './helpers';
 
@@ -111,5 +112,29 @@ describe('API', () => {
 
     const bad = await srv.call('PUT', '/api/jira/config', { site: '', email: 'qa@example.com', board: 'https://example.com/x', jql: '' });
     expect(bad.status).toBe(400);
+  });
+});
+
+describe('Orquestador QA', () => {
+  const launched: string[] = [];
+  let srv: Awaited<ReturnType<typeof startServer>>;
+  beforeAll(async () => {
+    srv = await startServer({ fetchImpl: fakeJira, launchOrchestrator: async (key) => void launched.push(key) });
+    await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
+    await srv.call('POST', '/api/jira/refresh', {});
+  });
+  afterAll(() => srv.close());
+
+  it('solo se lanza para tickets cargados en On QA u On Staging', async () => {
+    expect(await srv.call('POST', '/api/orchestrator/AVM-101', {})).toMatchObject({ status: 200, body: { key: 'AVM-101' } });
+    expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // estado "Test"
+    expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
+    expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
+    expect(launched).toEqual(['AVM-101']);
+  });
+
+  it('arma el comando de Claude Code con el skill', () => {
+    expect(orchestratorCommand('AVM-7057')).toBe("claude '/avm-qa-orchestrator AVM-7057'");
+    expect(() => orchestratorCommand("x'y")).toThrow();
   });
 });

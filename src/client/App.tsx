@@ -59,6 +59,7 @@ function blankRun(settings: Settings, overrides: Partial<TestRunInput> = {}): Te
 export function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [launching, setLaunching] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
@@ -220,6 +221,18 @@ export function App() {
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
   };
 
+  const runOrchestrator = async (ticket: JiraTicket): Promise<void> => {
+    setLaunching(ticket.key);
+    try {
+      await api.runOrchestrator(ticket.key);
+      notify(`Orquestador QA abierto en Terminal para ${ticket.key}`, 'info');
+    } catch (err) {
+      notify((err as Error).message, 'error');
+    } finally {
+      setLaunching(null);
+    }
+  };
+
   const toInput = ({ id: _id, createdAt: _createdAt, ...input }: TestRun): TestRunInput => input;
   const newRun = (): void => openForm(blankRun(state.settings));
 
@@ -270,6 +283,8 @@ export function App() {
             jiraLoading={jiraLoading}
             onRefreshJira={refreshJira}
             onTicket={newFromTicket}
+            onOrchestrate={runOrchestrator}
+            launching={launching}
             onNewRun={newRun}
             onOpenSettings={() => setTab('config')}
           />

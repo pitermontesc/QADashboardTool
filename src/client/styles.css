@@ -127,6 +127,11 @@ main{max-width:1240px;margin:0 auto;padding:26px 28px 70px}
 .tk-main:hover .tk-cta,.tk-main:focus-visible .tk-cta{opacity:1;transform:none}
 .tk-open{position:absolute;top:9px;right:9px;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;color:var(--muted)}
 .tk-open:hover{background:var(--muted-bg);color:var(--accent)}
+.tk.has-run{display:flex;flex-direction:column}
+.tk.has-run .tk-main{flex:1;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.tk-run{display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;background:var(--panel);color:var(--accent);font:inherit;font-size:12.5px;font-weight:600;padding:7px 10px;cursor:pointer;transition:background .15s,color .15s}
+.tk-run:hover:not(:disabled){background:var(--accent);color:#fff}
+.tk-run:disabled{opacity:.6;cursor:progress}
 .chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;margin-left:auto}
 .tone-ok{--c:var(--ok);--cb:var(--ok-bg)} .tone-bad{--c:var(--bad);--cb:var(--bad-bg)} .tone-warn{--c:var(--warn);--cb:var(--warn-bg)}
 .tone-prog{--c:var(--prog);--cb:var(--prog-bg)} .tone-stage{--c:var(--stage);--cb:var(--stage-bg)} .tone-muted{--c:var(--muted);--cb:var(--muted-bg)}

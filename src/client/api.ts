@@ -27,5 +27,6 @@ export const api = {
   saveSettings: (settings: Settings) => request<Settings>('PUT', '/api/settings', settings),
   importBackup: (backup: Backup) => request<AppState>('POST', '/api/import', backup),
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
+  runOrchestrator: (key: string) => request<{ key: string }>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
 };

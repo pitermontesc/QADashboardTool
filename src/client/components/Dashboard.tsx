@@ -5,6 +5,7 @@ import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
+import { ORCHESTRATOR_SKILL, canOrchestrate } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
@@ -24,6 +25,9 @@ interface DashboardProps {
   jiraLoading: boolean;
   onRefreshJira: () => void;
   onTicket: (ticket: JiraTicket) => void;
+  onOrchestrate: (ticket: JiraTicket) => void;
+  /** Ticket cuyo orquestador se está abriendo. */
+  launching: string | null;
   onNewRun: () => void;
   onOpenSettings: () => void;
 }
@@ -77,11 +81,13 @@ interface TicketsProps {
   perTicket: Map<string, number>;
   onRefresh: () => void;
   onTicket: (ticket: JiraTicket) => void;
+  onOrchestrate: (ticket: JiraTicket) => void;
+  launching: string | null;
   onOpenSettings: () => void;
 }
 
 /** Tickets de Jira como tarjetas: el punto de partida habitual para registrar un test. */
-function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOpenSettings }: TicketsProps) {
+function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings }: TicketsProps) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const tickets = q
@@ -152,8 +158,9 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
         <div className="tickets">
           {tickets.map((ticket) => {
             const logged = perTicket.get(ticket.key) ?? 0;
+            const ready = canOrchestrate(ticket.status);
             return (
-              <div key={ticket.key} className="tk">
+              <div key={ticket.key} className={`tk${ready ? ' has-run' : ''}`}>
                 <button
                   className="tk-main"
                   title={`Registrar un test para ${ticket.key}`}
@@ -184,6 +191,17 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
                   >
                     <Icon name="external" size={14} />
                   </a>
+                )}
+                {ready && (
+                  <button
+                    className="tk-run"
+                    onClick={() => onOrchestrate(ticket)}
+                    disabled={launching !== null}
+                    title={`Abre Terminal con Claude Code: ${ORCHESTRATOR_SKILL} ${ticket.key}`}
+                  >
+                    <Icon name="play" size={13} />
+                    {launching === ticket.key ? 'Abriendo Terminal…' : 'Ejecutar orquestador QA'}
+                  </button>
                 )}
               </div>
             );
@@ -221,7 +239,7 @@ function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
@@ -289,6 +307,8 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onNewRu
         perTicket={view.perTicket}
         onRefresh={onRefreshJira}
         onTicket={onTicket}
+        onOrchestrate={onOrchestrate}
+        launching={launching}
         onOpenSettings={onOpenSettings}
       />
 

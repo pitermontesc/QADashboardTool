@@ -61,6 +61,8 @@ https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=assign
 
 La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Jira y omite los que ya están terminados. El campo JQL pasa a ser un filtro adicional opcional. **Actualizar desde Jira** en el dashboard vuelve a consultar el board.
 
+Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator <TICKET>` (solo macOS; requiere el comando `claude` y el skill instalado).
+
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 
 ## Datos y seguridad

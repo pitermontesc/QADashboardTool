@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.4.0] - 2026-11-18
+
+### Agregado
+- Botón **Ejecutar orquestador QA** en los tickets On QA y On Staging: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator` sobre ese ticket, en modo interactivo para aprobar cada cambio en Jira.
+
 ## [1.3.0] - 2026-11-18
 
 ### Cambiado

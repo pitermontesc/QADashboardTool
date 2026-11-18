@@ -12,6 +12,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 2. [Primer inicio](#2-primer-inicio)
 3. [Conectar Jira](#3-conectar-jira)
 4. [Registrar un test desde un ticket](#4-registrar-un-test-desde-un-ticket)
+   - [Validar un ticket con el orquestador QA](#validar-un-ticket-con-el-orquestador-qa)
 5. [Registrar un test sin ticket (Smoke, Regression…)](#5-registrar-un-test-sin-ticket-smoke-regression)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
@@ -158,6 +159,25 @@ Al guardar aparece el aviso **Registro guardado** y la tarjeta del ticket suma e
 
 `Esc` o **Cancelar** cierran el formulario sin guardar.
 
+### Validar un ticket con el orquestador QA
+
+Los tickets en **On QA** u **On Staging** tienen debajo el botón **▷ Ejecutar orquestador QA**. Lanza el skill `/avm-qa-orchestrator` de Claude Code sobre ese ticket:
+
+![Tarjetas de tickets On QA y On Staging, cada una con el botón «Ejecutar orquestador QA» debajo](img/17-orquestador.png)
+
+1. **Pulsa «Ejecutar orquestador QA»** en la tarjeta del ticket. El botón muestra «Abriendo Terminal…».
+2. Se abre una **ventana nueva de Terminal** con Claude Code ejecutando, por ejemplo, `claude '/avm-qa-orchestrator AVM-7057'`. En la app aparece el aviso **Orquestador QA abierto en Terminal para AVM-7057**.
+3. **Sigue el orquestador en Terminal.** Analiza el ticket, ejecuta los casos en qa.alpinevm.com, revisa el impacto y la regresión, y cierra con un veredicto **PASSED / PASSED W/F / FAILED / BLOCKED**.
+4. **Aprueba cada paso que toca Jira.** El orquestador se asigna el ticket, publica el comentario de QA y puede crear TCs y bugs. Por eso corre en modo interactivo: tú decides en Terminal antes de cada cambio.
+5. Cuando termine, **registra el resultado** en la app pulsando la tarjeta del ticket (pasos de arriba), para que cuente en tus KPIs.
+
+Requisitos y límites:
+
+- **Claude Code instalado** y con sesión iniciada (el comando `claude` debe funcionar en Terminal), con el skill `avm-qa-orchestrator` disponible.
+- Solo funciona en **macOS**. En otros sistemas la app muestra el comando para que lo copies en tu terminal.
+- El botón solo aparece en tickets **On QA** u **On Staging**. Si el ticket cambió de estado en Jira, pulsa **Actualizar desde Jira** primero; la app no lanza el orquestador para un ticket que ya no está en esos estados.
+- Puedes lanzar el orquestador para varios tickets: cada uno se abre en su propia ventana de Terminal.
+
 ## 5. Registrar un test sin ticket (Smoke, Regression…)
 
 Para suites grandes o tests que no dependen de un ticket:
@@ -283,5 +303,7 @@ Las teclas sueltas (`N`, `/`) no actúan mientras escribes en un campo.
 | **Falta un ticket que esperaba** | La app omite los tickets terminados y trae como máximo 100. Ajusta el filtro para acotar. |
 | **Los tickets no reflejan cambios recientes** | Pulsa **Actualizar desde Jira** (`⌘R`); la app no se actualiza sola. |
 | **«El puerto 8765 está ocupado»** al abrir | Otro programa usa ese puerto. Ciérralo, o abre la app desde la Terminal con otro puerto: `QA_DASH_PORT=8770 "/Applications/QA Dashboard.app/Contents/MacOS/QA Dashboard"`. |
+| **Terminal dice `command not found: claude`** | Instala Claude Code o añade `~/.local/bin` a tu PATH, y vuelve a pulsar **Ejecutar orquestador QA**. |
+| **«No se pudo abrir Terminal»** | Al primer uso macOS pide permiso para que QA Dashboard controle Terminal. Concédelo en **Ajustes del Sistema → Privacidad y seguridad → Automatización**. |
 | **macOS dice que la app no se puede abrir** | La primera vez ábrela con **clic derecho → Abrir**. |
 | **La app se ve muy grande o muy pequeña** | `⌘0` vuelve al tamaño real; `⌘+` / `⌘-` ajustan el zoom. |

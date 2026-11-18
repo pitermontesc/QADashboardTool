@@ -2,6 +2,8 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
 import { fetchJiraTickets } from './jira.js';
+import { launchInTerminal, type OrchestratorLauncher } from './orchestrator.js';
+import { canOrchestrate, isTicketKey } from '../shared/orchestrator.js';
 import { backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
 
@@ -10,6 +12,8 @@ export interface AppOptions {
   clientDir?: string;
   /** Inyectable para probar la integración con Jira sin red. */
   fetchImpl?: typeof fetch;
+  /** Inyectable para probar el orquestador sin abrir Terminal. */
+  launchOrchestrator?: OrchestratorLauncher;
 }
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -108,6 +112,18 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       throw err;
     }
     res.json(store.getJiraState());
+  });
+
+  api.post('/orchestrator/:key', async (req, res) => {
+    const key = String(req.params.key);
+    if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
+    const ticket = store.getJiraState().tickets.find((t) => t.key === key);
+    if (!ticket) throw new HttpError(404, `${key} no está entre los tickets cargados de Jira`);
+    if (!canOrchestrate(ticket.status)) {
+      throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
+    }
+    await (options.launchOrchestrator ?? launchInTerminal)(key);
+    res.json({ key });
   });
 
   api.use((_req, _res, next) => {
