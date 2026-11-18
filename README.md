@@ -4,6 +4,8 @@ Aplicación local para registrar los tests del día a día (funcional, explorato
 
 Escrita en TypeScript de punta a punta: interfaz en React, servidor en Node (Express) y un modelo de dominio compartido entre ambos.
 
+> 📘 **¿Vas a usar la app?** Lee la [guía de uso paso a paso](docs/GUIA-DE-USO.md), con capturas de cada pantalla.
+
 ## Requisitos
 
 Node.js 20 o superior.
