@@ -63,6 +63,8 @@ La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Ji
 
 Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator <TICKET>` (solo macOS; requiere el comando `claude` y el skill instalado).
 
+La tarjeta de la suite **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y abre Terminal con `/avm-qa-skills:avm-regression-runner`.
+
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 
 ## Datos y seguridad

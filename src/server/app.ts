@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
 import { fetchJiraTickets } from './jira.js';
-import { launchInTerminal, type OrchestratorLauncher } from './orchestrator.js';
+import { launchInTerminal, orchestratorCommand, regressionCommand, type TerminalLauncher } from './orchestrator.js';
 import { canOrchestrate, isTicketKey } from '../shared/orchestrator.js';
 import { backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
@@ -12,8 +12,8 @@ export interface AppOptions {
   clientDir?: string;
   /** Inyectable para probar la integración con Jira sin red. */
   fetchImpl?: typeof fetch;
-  /** Inyectable para probar el orquestador sin abrir Terminal. */
-  launchOrchestrator?: OrchestratorLauncher;
+  /** Inyectable para probar los skills de QA sin abrir Terminal. */
+  launchTerminal?: TerminalLauncher;
 }
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -114,6 +114,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     res.json(store.getJiraState());
   });
 
+  const launch = options.launchTerminal ?? launchInTerminal;
+
   api.post('/orchestrator/:key', async (req, res) => {
     const key = String(req.params.key);
     if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
@@ -122,8 +124,15 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!canOrchestrate(ticket.status)) {
       throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
     }
-    await (options.launchOrchestrator ?? launchInTerminal)(key);
+    await launch(orchestratorCommand(key));
     res.json({ key });
+  });
+
+  api.post('/regression', async (req, res) => {
+    const body = (req.body ?? {}) as { run?: unknown };
+    const run = typeof body.run === 'string' ? body.run.trim() : '';
+    await launch(regressionCommand(run));
+    res.json({ run });
   });
 
   api.use((_req, _res, next) => {

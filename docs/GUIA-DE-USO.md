@@ -14,6 +14,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 4. [Registrar un test desde un ticket](#4-registrar-un-test-desde-un-ticket)
    - [Validar un ticket con el orquestador QA](#validar-un-ticket-con-el-orquestador-qa)
 5. [Registrar un test sin ticket (Smoke, Regression…)](#5-registrar-un-test-sin-ticket-smoke-regression)
+   - [Ejecutar la regresión con Claude Code](#ejecutar-la-regresión-con-claude-code)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
 8. [Personalizar tipos de test y ambientes](#8-personalizar-tipos-de-test-y-ambientes)
@@ -189,6 +190,22 @@ Para suites grandes o tests que no dependen de un ticket:
 ![Formulario de un registro libre: Smoke post-deploy release 2.14 en Staging con 22 casos passed](img/09-nuevo-registro.png)
 
 Los tipos marcados con ★ aparecen destacados en el dashboard con su última ejecución (sección 6).
+
+### Ejecutar la regresión con Claude Code
+
+La tarjeta **★ Regression** del dashboard tiene el botón **▷ Ejecutar regresión**. Lanza el skill `/avm-qa-skills:avm-regression-runner` de Claude Code, que ejecuta un test run de testomat.io contra staging:
+
+![Tarjetas de suites Smoke y Regression; la de Regression tiene el botón «Ejecutar regresión»](img/18-regresion-boton.png)
+
+1. **Pulsa «Ejecutar regresión»** en la tarjeta Regression.
+2. **Pega el test run de testomat.io**: el link del run o su ID, por ejemplo `#b333fb92`. Es opcional; si lo dejas vacío, el skill te lo pide en Terminal. Debajo ves el comando exacto que se va a ejecutar.
+3. Pulsa **Abrir en Terminal**. Se abre una ventana nueva de Terminal con Claude Code y en la app aparece el aviso **Regresión abierta en Terminal**.
+4. **Sigue la regresión en Terminal.** El skill valida cada TC en el navegador, marca los resultados en testomat.io, documenta los bugs, crea el epic en Jira con sus work items y cierra con un veredicto **GO / NO-GO**. Aprueba cada paso que publica en Jira o testomat.io.
+5. Al terminar, **registra la ejecución** en la app: **Nuevo registro** → tipo **★ Regression**, ambiente **Staging** y los casos passed / failed / blocked del run.
+
+![Diálogo «Ejecutar regresión» con el test run #b333fb92 y el comando que se ejecutará](img/19-regresion-dialogo.png)
+
+El botón aparece en cualquier tipo de test cuyo nombre contenga «Regres» y que esté marcado con ★. Los requisitos son los del orquestador (sección 4): macOS, Claude Code instalado y el skill disponible. La app solo acepta links de testomat.io o IDs de run, para que no se cuele otro comando en Terminal.
 
 ## 6. Leer el dashboard
 

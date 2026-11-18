@@ -5,6 +5,7 @@ import type {
 } from '../shared/types';
 import { api } from './api';
 import { Dashboard } from './components/Dashboard';
+import { RegressionDialog } from './components/RegressionDialog';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
@@ -60,6 +61,7 @@ export function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
+  const [regressionOpen, setRegressionOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
@@ -233,6 +235,17 @@ export function App() {
     }
   };
 
+  const runRegression = async (run: string): Promise<boolean> => {
+    try {
+      await api.runRegression(run);
+      notify(run ? `Regresión abierta en Terminal para ${run}` : 'Regresión abierta en Terminal', 'info');
+      return true;
+    } catch (err) {
+      notify((err as Error).message, 'error');
+      return false;
+    }
+  };
+
   const toInput = ({ id: _id, createdAt: _createdAt, ...input }: TestRun): TestRunInput => input;
   const newRun = (): void => openForm(blankRun(state.settings));
 
@@ -285,6 +298,7 @@ export function App() {
             onTicket={newFromTicket}
             onOrchestrate={runOrchestrator}
             launching={launching}
+            onRegression={() => setRegressionOpen(true)}
             onNewRun={newRun}
             onOpenSettings={() => setTab('config')}
           />
@@ -319,6 +333,7 @@ export function App() {
           onClose={() => setForm(null)}
         />
       )}
+      {regressionOpen && <RegressionDialog onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
       <div className={`toast${toast ? ` on ${toast.kind}` : ''}`} role={toast?.kind === 'error' ? 'alert' : 'status'}>
         {toast && (
           <>

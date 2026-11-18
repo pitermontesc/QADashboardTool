@@ -1,23 +1,27 @@
 import { execFile } from 'node:child_process';
-import { ORCHESTRATOR_SKILL, isTicketKey } from '../shared/orchestrator.js';
+import { ORCHESTRATOR_SKILL, REGRESSION_SKILL, isTestRunRef, isTicketKey } from '../shared/orchestrator.js';
 import { HttpError } from './errors.js';
 
-/** Abre el orquestador para un ticket; inyectable para probar sin abrir Terminal. */
-export type OrchestratorLauncher = (key: string) => Promise<void>;
+/** Ejecuta un comando en una ventana nueva de Terminal; inyectable para probar sin abrirla. */
+export type TerminalLauncher = (command: string) => Promise<void>;
 
-/** Comando que se escribe en Terminal: Claude Code interactivo con el skill y el ticket. */
+/** Claude Code interactivo con el orquestador sobre un ticket. */
 export function orchestratorCommand(key: string): string {
   if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
   return `claude '${ORCHESTRATOR_SKILL} ${key}'`;
 }
 
+/** Claude Code interactivo con el runner de regresión; sin test run, el skill lo pregunta. */
+export function regressionCommand(run: string): string {
+  if (!isTestRunRef(run)) throw new HttpError(400, 'Test run inválido: pega el link de testomat.io o su ID (p. ej. #b333fb92)');
+  return `claude '${run ? `${REGRESSION_SKILL} ${run}` : REGRESSION_SKILL}'`;
+}
+
 /**
- * Abre una ventana nueva de Terminal con Claude Code ejecutando el orquestador.
- * Es interactivo a propósito: el orquestador asigna el ticket y publica en Jira,
- * así que cada paso se puede seguir y aprobar.
+ * Abre una ventana nueva de Terminal con el comando. Es interactivo a propósito:
+ * los skills de QA publican en Jira y testomat.io, así que cada paso se sigue y aprueba.
  */
-export const launchInTerminal: OrchestratorLauncher = (key) => {
-  const command = orchestratorCommand(key);
+export const launchInTerminal: TerminalLauncher = (command) => {
   if (process.platform !== 'darwin') {
     return Promise.reject(new HttpError(501, `Abre una terminal y ejecuta: ${command}`));
   }

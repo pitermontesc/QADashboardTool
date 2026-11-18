@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.5.0] - 2026-11-18
+
+### Agregado
+- Botón **Ejecutar regresión** en la tarjeta de la suite Regression: pide el test run de testomat.io (link o ID, opcional) y abre Terminal con Claude Code ejecutando `/avm-qa-skills:avm-regression-runner`.
+
 ## [1.4.0] - 2026-11-18
 
 ### Agregado

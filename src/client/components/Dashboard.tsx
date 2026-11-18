@@ -5,7 +5,7 @@ import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { ORCHESTRATOR_SKILL, canOrchestrate } from '../../shared/orchestrator';
+import { ORCHESTRATOR_SKILL, canOrchestrate, isRegressionType } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
@@ -28,6 +28,7 @@ interface DashboardProps {
   onOrchestrate: (ticket: JiraTicket) => void;
   /** Ticket cuyo orquestador se está abriendo. */
   launching: string | null;
+  onRegression: () => void;
   onNewRun: () => void;
   onOpenSettings: () => void;
 }
@@ -239,7 +240,7 @@ function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
@@ -354,6 +355,11 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                   <div className="meta">Aún no hay ejecuciones de {type.name}.</div>
                 )}
                 <div className="meta">{view.inPeriod.filter((r) => r.typeId === type.id).length} en el período</div>
+                {isRegressionType(type.name) && (
+                  <button className="btn small major-run" onClick={onRegression} title="Abre Terminal con Claude Code y el skill de regresión">
+                    <Icon name="play" size={13} /> Ejecutar regresión
+                  </button>
+                )}
               </div>
             );
           })}

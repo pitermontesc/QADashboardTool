@@ -28,5 +28,6 @@ export const api = {
   importBackup: (backup: Backup) => request<AppState>('POST', '/api/import', backup),
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
   runOrchestrator: (key: string) => request<{ key: string }>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
+  runRegression: (run: string) => request<{ run: string }>('POST', '/api/regression', { run }),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
 };

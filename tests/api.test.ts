@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { orchestratorCommand } from '../src/server/orchestrator';
+import { orchestratorCommand, regressionCommand } from '../src/server/orchestrator';
 import { Store } from '../src/server/store';
 import { fakeJira, lastBoardJql, startServer } from './helpers';
 
@@ -119,7 +119,7 @@ describe('Orquestador QA', () => {
   const launched: string[] = [];
   let srv: Awaited<ReturnType<typeof startServer>>;
   beforeAll(async () => {
-    srv = await startServer({ fetchImpl: fakeJira, launchOrchestrator: async (key) => void launched.push(key) });
+    srv = await startServer({ fetchImpl: fakeJira, launchTerminal: async (command) => void launched.push(command) });
     await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
     await srv.call('POST', '/api/jira/refresh', {});
   });
@@ -130,11 +130,27 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // estado "Test"
     expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
     expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
-    expect(launched).toEqual(['AVM-101']);
+    expect(launched).toEqual(["claude '/avm-qa-orchestrator AVM-101'"]);
+    launched.length = 0;
+  });
+
+  it('lanza la regresión con el test run de testomat.io o sin él', async () => {
+    expect((await srv.call('POST', '/api/regression', { run: '#b333fb92' })).status).toBe(200);
+    expect((await srv.call('POST', '/api/regression', { run: 'https://app.testomat.io/projects/avm/runs/b333fb92' })).status).toBe(200);
+    expect((await srv.call('POST', '/api/regression', {})).status).toBe(200);
+    expect((await srv.call('POST', '/api/regression', { run: "#abc'; rm -rf ~" })).status).toBe(400);
+    expect((await srv.call('POST', '/api/regression', { run: 'https://evil.example/runs/1' })).status).toBe(400);
+    expect(launched).toEqual([
+      "claude '/avm-qa-skills:avm-regression-runner #b333fb92'",
+      "claude '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92'",
+      "claude '/avm-qa-skills:avm-regression-runner'",
+    ]);
   });
 
   it('arma el comando de Claude Code con el skill', () => {
     expect(orchestratorCommand('AVM-7057')).toBe("claude '/avm-qa-orchestrator AVM-7057'");
     expect(() => orchestratorCommand("x'y")).toThrow();
+    expect(regressionCommand('')).toBe("claude '/avm-qa-skills:avm-regression-runner'");
+    expect(() => regressionCommand("#a b'c")).toThrow();
   });
 });

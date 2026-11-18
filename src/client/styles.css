@@ -100,6 +100,12 @@ main{max-width:1240px;margin:0 auto;padding:26px 28px 70px}
 .major .name{font-weight:700;font-size:15px}
 .major .meta{color:var(--muted);font-size:13px;margin-top:8px}
 .major .meta b{color:var(--ink-2);font-weight:600}
+.major{display:flex;flex-direction:column}
+.btn.small{padding:5px 10px;font-size:12.5px}
+.major-run{align-self:flex-start;margin-top:auto;color:var(--accent)}
+.major .meta+.major-run{margin-top:12px}
+dialog.narrow{width:min(520px,94vw)}
+.cmd-preview code{display:block;margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--muted-bg);color:var(--ink-2);font-size:12px;overflow-wrap:anywhere}
 .star{color:var(--warn)}
 
 /* Onboarding */
