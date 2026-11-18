@@ -3,7 +3,7 @@ import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync } from 
 import os from 'node:os';
 import path from 'node:path';
 import { HttpError } from './errors.js';
-import type { ActivityItem } from '../shared/types.js';
+import type { ActivityItem, Lang, ReportTranslation } from '../shared/types.js';
 
 /** Carpeta de trabajo de las ejecuciones con Claude; ahí quedan sus reportes y, en `logs/`, su registro. */
 export const RUNS_DIR = path.join(os.homedir(), 'qa-dashboard-runs');
@@ -101,6 +101,54 @@ export const launchClaude: ClaudeLauncher = (job) => {
       clearTimeout(limit);
       job.onExit({ code, lastMessage: lastMessage(logFile) });
     });
+  });
+};
+
+/** Traduce el resumen y el reporte de una ejecución; devuelve el JSON tal cual (se valida al guardarlo). */
+export type ReportTranslator = (report: ReportTranslation, lang: Lang) => Promise<unknown>;
+
+const TRANSLATE_MS = 4 * 60_000;
+const LANG_NAME: Record<Lang, string> = { es: 'Spanish', en: 'English' };
+
+/**
+ * Claude Haiku sin herramientas ni MCP: recibe el reporte por stdin y responde solo
+ * con el JSON traducido. Se mantienen claves, estados, números, links, claves de
+ * tickets y los nombres de pantallas del producto.
+ */
+export const translateReport: ReportTranslator = (report, lang) => {
+  const bin = findClaude();
+  mkdirSync(RUNS_DIR, { recursive: true });
+  const prompt =
+    `Translate the JSON QA report on stdin into ${LANG_NAME[lang]}. Reply with only the translated JSON, no code fences or comments.` +
+    ' Keep exactly the same keys and structure. Translate every human-readable text value (summary, names, notes, titles, build) completely: no word may stay in the original language except the names below.' +
+    ' Do not change keys, status values (passed, failed, blocked, skipped), numbers, URLs, ticket keys (e.g. AVM-123), code, file paths, HTTP codes,' +
+    ' product and screen names (e.g. Work Orders, Issue Files, Main Shop) or QA terms (GO, NO-GO, PASSED, FAILED, BLOCKED, smoke, regression).';
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, ['-p', '--model', 'haiku', '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'text', prompt], {
+      cwd: RUNS_DIR,
+      env: cleanEnv(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let err = '';
+    const limit = setTimeout(() => child.kill('SIGTERM'), TRANSLATE_MS);
+    child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => (err += chunk.toString('utf8')));
+    child.once('error', (e) => {
+      clearTimeout(limit);
+      reject(new HttpError(500, `No se pudo traducir el reporte: ${e.message}`));
+    });
+    child.once('close', (code) => {
+      clearTimeout(limit);
+      const json = out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1);
+      try {
+        if (code !== 0 || !json) throw new Error(err.trim() || out.trim() || `exit ${code}`);
+        resolve(JSON.parse(json));
+      } catch (e) {
+        reject(new HttpError(502, `No se pudo traducir el reporte: ${short(e instanceof Error ? e.message : String(e), 300)}`));
+      }
+    });
+    child.stdin.end(JSON.stringify(report));
   });
 };
 

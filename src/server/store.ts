@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_JQL, defaultSettings } from '../shared/defaults.js';
+import { DEFAULT_JQL, defaultSettings, guessLang, localizeTypes } from '../shared/defaults.js';
+import { automationTitle, runText, titleSubject } from './automation.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
-import type {
-  AppState, Automation, Backup, JiraConnection, JiraState, JiraTicket, Settings, TestRun, TestRunInput,
+import {
+  LANGUAGES, type AppState, type Automation, type Backup, type JiraConnection, type JiraState, type JiraTicket, type Lang,
+  type ReportTranslation, type Settings, type TestRun, type TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
@@ -46,6 +48,14 @@ export class Store {
 
   constructor(private readonly file: string) {
     this.data = this.load();
+    // Datos de versiones anteriores pueden tener textos de la app en el otro idioma.
+    this.localizeAll();
+  }
+
+  /** Tipos por defecto, títulos y notas de la app en el idioma actual (no toca lo que editó el usuario). */
+  private localizeAll(): void {
+    this.data.settings = { ...this.data.settings, types: localizeTypes(this.data.settings.types, this.data.settings.language) };
+    for (const automation of this.data.automations) this.localizeAutomation(automation);
   }
 
   private load(): StoreData {
@@ -62,7 +72,17 @@ export class Store {
       jira: { ...base.jira, ...saved.jira },
       jiraCache: { ...base.jiraCache, ...saved.jiraCache },
       // Las ejecuciones de la v1.7.0 no traían título.
-      automations: (saved.automations ?? []).map((a) => ({ ...a, title: a.title ?? '', details: a.details ?? null, pid: a.pid ?? null, logFile: a.logFile ?? '' })),
+      automations: (saved.automations ?? []).map((a) => ({
+        ...a,
+        title: a.title ?? '',
+        details: a.details ? { ...a.details, jiraComment: a.details.jiraComment ?? null } : null,
+        pid: a.pid ?? null,
+        logFile: a.logFile ?? '',
+        // Antes de la v1.9.2 no se guardaba en qué idioma escribió Claude.
+        // El título lo generó la app en el idioma con que se lanzó: es la mejor pista.
+        lang: a.lang ?? guessLang([a.title, a.summary, a.details?.notes, ...(a.details?.modules ?? []).map((m) => m.name)].join(' ')),
+        translations: a.translations ?? {},
+      })),
     };
     } catch (cause) {
       // No se sobrescribe un archivo ilegible: podría contener datos recuperables.
@@ -79,7 +99,7 @@ export class Store {
   }
 
   getState(): AppState {
-    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations };
+    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, translating: 0 };
   }
 
   getJiraState(): JiraState {
@@ -99,6 +119,7 @@ export class Store {
   startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'>, runFor: (a: Automation) => TestRunInput): Automation {
     const automation: Automation = {
       ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
+      lang: this.data.settings.language, translations: {},
     };
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
     this.data.runs.push(run);
@@ -173,10 +194,60 @@ export class Store {
     return true;
   }
 
+  /** Guarda los ajustes; si cambia el idioma, también traduce lo que escribió la app (tipos por defecto, títulos y notas). */
   saveSettings(settings: Settings): Settings {
+    const changed = settings.language !== this.data.settings.language;
     this.data.settings = settings;
+    if (changed) this.localizeAll();
     this.persist();
-    return settings;
+    return this.data.settings;
+  }
+
+  /** Resumen de una ejecución en un idioma: el original o su traducción, si la hay. */
+  private summaryIn(automation: Automation, lang: Lang): string {
+    return automation.lang === lang ? automation.summary : automation.translations[lang]?.summary ?? automation.summary;
+  }
+
+  /**
+   * Pone en el idioma de la app el título de la ejecución y el de su registro y sus notas.
+   * Solo cambia el registro si conserva el texto que generó la app (en cualquier idioma): si el usuario lo editó, se respeta.
+   */
+  private localizeAutomation(automation: Automation): void {
+    const lang = this.data.settings.language;
+    if (!automation.title) return;
+    const subject = titleSubject(automation.title);
+    const titleIn = (l: Lang): string => automationTitle(automation.kind, automation.target, l, subject);
+    const finished = automation.finishedAt !== null;
+    const run = this.data.runs.find((r) => r.id === automation.runId);
+    if (run) {
+      const generated = LANGUAGES.flatMap((l) =>
+        [automation.summary, this.summaryIn(automation, l)].map((summary) => runText({ ...automation, title: titleIn(l) }, l, summary, finished)),
+      );
+      const next = runText({ ...automation, title: titleIn(lang) }, lang, this.summaryIn(automation, lang), finished);
+      if (generated.some((g) => g.title === run.title)) run.title = next.title;
+      if (generated.some((g) => g.notes === run.notes)) run.notes = next.notes;
+    }
+    automation.title = titleIn(lang);
+  }
+
+  /** Guarda la traducción de un reporte y, si es la del idioma de la app, actualiza las notas de su registro. */
+  saveTranslation(id: string, lang: Lang, translation: ReportTranslation): Automation | null {
+    const automation = this.getAutomation(id);
+    if (!automation) return null;
+    automation.translations = { ...automation.translations, [lang]: translation };
+    if (lang === this.data.settings.language) this.localizeAutomation(automation);
+    this.persist();
+    return automation;
+  }
+
+  /** Marca como publicado el comentario de Jira de una ejecución (con el texto que se publicó). */
+  saveJiraCommentPosted(id: string, body: string, url: string): Automation | null {
+    const automation = this.getAutomation(id);
+    const comment = automation?.details?.jiraComment;
+    if (!automation || !comment) return null;
+    automation.details = { ...automation.details!, jiraComment: { ...comment, body, posted: true, url } };
+    this.persist();
+    return automation;
   }
 
   importBackup({ runs, ...settings }: Backup): void {

@@ -113,6 +113,17 @@ export interface ReportBug {
   module: string;
 }
 
+/** Comentario de QA para Jira que Claude deja listo; la app lo publica con un clic si Claude no pudo. */
+export interface JiraComment {
+  /** Ticket donde va el comentario (p. ej. AVM-6926). */
+  key: string;
+  /** Texto en Markdown, tal como lo redactó el skill. */
+  body: string;
+  posted: boolean;
+  /** Link al comentario publicado desde la app. */
+  url: string;
+}
+
 /** Reporte QA detallado que Claude envía al terminar: módulos, pasos y bugs. */
 export interface AutomationDetails {
   /** Versión o build probado, si se ve en el sitio. */
@@ -121,6 +132,13 @@ export interface AutomationDetails {
   bugs: ReportBug[];
   /** Observaciones, riesgos o lo que quedó sin probar. */
   notes: string;
+  jiraComment: JiraComment | null;
+}
+
+/** Resumen y reporte traducidos a otro idioma (el comentario de Jira no se traduce). */
+export interface ReportTranslation {
+  summary: string;
+  details: AutomationDetails | null;
 }
 
 /** Ejecución lanzada con Claude Code desde la app (smoke, regresión u orquestador); Claude reporta el resultado al terminar. */
@@ -145,6 +163,10 @@ export interface Automation {
   pid: number | null;
   /** Log de la ejecución (stream-json de Claude Code). */
   logFile: string;
+  /** Idioma en que Claude escribió el resumen y el reporte. */
+  lang: Lang;
+  /** Traducciones del resumen y el reporte, hechas al ver la app en otro idioma. */
+  translations: Partial<Record<Lang, ReportTranslation>>;
 }
 
 /** Paso de lo que va haciendo Claude, leído de su log. */
@@ -158,6 +180,8 @@ export interface AppState {
   runs: TestRun[];
   jira: JiraState;
   automations: Automation[];
+  /** Reportes que se están traduciendo al idioma de la app. */
+  translating: number;
 }
 
 export interface Backup extends Settings {

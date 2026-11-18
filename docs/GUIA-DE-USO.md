@@ -166,7 +166,12 @@ Al guardar aparece el aviso **Registro guardado** y la tarjeta del ticket suma e
 
 ### Idioma: español o inglés
 
-La app funciona en español o en inglés. Cambia el idioma con el selector **ES / EN** de la cabecera o en **Tipos y ajustes → Idioma**. El cambio aplica a toda la interfaz, las fechas, los mensajes de error, el menú de la app de escritorio y el CSV exportado. Claude también escribe sus reportes en ese idioma. Los nombres de tus tipos de test y ambientes no se traducen: son tus datos.
+La app funciona en español o en inglés. Cambia el idioma con el selector **ES / EN** de la cabecera o en **Tipos y ajustes → Idioma**. El cambio aplica a toda la interfaz, las fechas, los mensajes de error, el menú de la app de escritorio y el CSV exportado. También se traducen:
+
+- **Lo que escribe la app**: los títulos y notas de los registros de las ejecuciones con Claude (por ejemplo «Smoke STG con Claude · GO» pasa a «Smoke STG with Claude · GO») y los tipos de test por defecto que no hayas renombrado («Funcional» pasa a «Functional»). Un registro que editaste a mano conserva tu texto.
+- **Lo que escribe Claude**: las ejecuciones nuevas se escriben en el idioma de la app. Las anteriores se traducen solas en segundo plano con Claude (modelo Haiku) al cambiar de idioma, una sola vez por reporte; mientras tanto el reporte muestra el original con el aviso «Traduciendo el reporte…». El comentario para Jira no se traduce.
+
+Los tipos de test que renombraste y los ambientes no se traducen: son tus datos. La actividad en vivo y el log muestran lo que Claude escribió, tal cual.
 
 ### Validar un ticket con el orquestador QA
 
@@ -280,10 +285,11 @@ Pulsa cualquiera de esos indicadores para abrir la ejecución. Verás la **activ
 - **Módulos y pasos**: cada área probada (Login, Work Orders, Reports…) con su estado, los pasos OK sobre el total y sus minutos. Los módulos con fallos o bloqueos se abren solos y muestran cada paso con su estado y la nota de lo que pasó; los que pasaron se despliegan con un clic.
 - **Bugs encontrados**: clave de Jira, título, severidad y módulo, con un link a cada bug.
 - **Observaciones**: lo que quedó sin probar y por qué, riesgos y notas de Claude.
+- **Comentario de QA para Jira**: el comentario que redactó el skill para el ticket. Si Claude no pudo publicarlo (por ejemplo, porque la herramienta de Jira pide aprobación y en segundo plano nadie puede darla), revísalo, edítalo si hace falta y pulsa **Publicar en AVM-…** (pide confirmación). La app lo publica con tu email y API token de Jira, el mismo de la lista de tickets, y deja el link **Ver en Jira**. **Copiar** lo copia al portapapeles.
 
 Las ejecuciones anteriores a esta versión solo traen el resumen; el reporte lo indica.
 
-Cómo llega el resultado: al lanzar el skill, la app añade al prompt una última instrucción para que Claude, al terminar, envíe el resultado con un POST a `http://127.0.0.1:8765/api/automation/<id>/result`. Como Claude Code corre en modo interactivo, **te pedirá permiso para hacer esa llamada; apruébala**.
+Cómo llega el resultado: al lanzar el skill, la app añade al prompt una última instrucción para que Claude, al terminar, envíe el resultado con un POST a `http://127.0.0.1:8765/api/automation/<id>/result`. Claude corre en segundo plano y hace esa llamada sin pedir permiso.
 
 **BLOCKED** significa que Claude no pudo probar (por ejemplo, sin la extensión Claude in Chrome conectada o sin acceso al sitio). No es un fallo del build: conecta lo que falte y vuelve a lanzar la ejecución.
 
@@ -409,5 +415,7 @@ Las teclas sueltas (`N`, `/`) no actúan mientras escribes en un campo.
 | **«No se encontró Claude Code (claude) en esta Mac»** | Instala Claude Code (queda en `~/.local/bin/claude`), inicia sesión con `claude` una vez en Terminal y vuelve a lanzar la ejecución. |
 | **La ejecución termina en BLOCKED «sin navegador»** | Abre Chrome, comprueba que la extensión **Claude in Chrome** está instalada y conectada a tu cuenta de Claude, inicia sesión en QA o STG y vuelve a lanzar la ejecución desde la app. Si lanzaste `claude` a mano, usa `claude --chrome` o ejecuta `/chrome` dentro de la sesión. |
 | **Una ejecución termina en BLOCKED «sin reportar el resultado»** | Abre su reporte: en **Actividad · Log** están los últimos pasos de Claude y la ruta del log completo en `~/qa-dashboard-runs/logs/`. |
+| **Un reporte sigue en el idioma original** | La traducción falló (por ejemplo, sin conexión). Abre el reporte y pulsa **Reintentar**. |
+| **«Publicar en AVM-…» da error** | Revisa en **Tipos y ajustes** que Jira esté conectado: el comentario se publica con el mismo email y API token. |
 | **macOS dice que la app no se puede abrir** | La primera vez ábrela con **clic derecho → Abrir**. |
 | **La app se ve muy grande o muy pequeña** | `⌘0` vuelve al tamaño real; `⌘+` / `⌘-` ajustan el zoom. |

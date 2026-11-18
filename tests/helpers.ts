@@ -8,7 +8,11 @@ import { Store } from '../src/server/store';
 /** Levanta la API real en un puerto libre con un archivo de datos temporal. */
 export async function startServer(options: AppOptions = {}) {
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
-  const server = createApp(new Store(file), options).listen(0, '127.0.0.1');
+  // Nunca se lanza Claude de verdad para traducir en las pruebas.
+  const translateReport: AppOptions['translateReport'] = async () => {
+    throw new Error('sin traductor en las pruebas');
+  };
+  const server = createApp(new Store(file), { translateReport, ...options }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {

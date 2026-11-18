@@ -15,6 +15,19 @@ export function runningOf(automations: Automation[], kind: AutomationKind, targe
   return automations.find((a) => a.finishedAt === null && a.kind === kind && (target === undefined || a.target === target));
 }
 
+/**
+ * Resumen y reporte de una ejecución en el idioma de la app: el original si Claude lo
+ * escribió en ese idioma, o su traducción. `pending` indica que aún falta traducirlo.
+ */
+export function reportIn(a: Automation, lang: Lang): { summary: string; details: Automation['details']; pending: boolean } {
+  if (a.lang === lang || a.finishedAt === null) return { summary: a.summary, details: a.details, pending: false };
+  const translation = a.translations[lang];
+  if (!translation) return { summary: a.summary, details: a.details, pending: a.summary !== '' || a.details !== null };
+  // El comentario de Jira no se traduce: siempre el original.
+  const details = translation.details && a.details ? { ...translation.details, jiraComment: a.details.jiraComment } : a.details;
+  return { summary: translation.summary || a.summary, details, pending: false };
+}
+
 /** Minutos desde que empezó, para «Running · 5 min». */
 export const elapsedMin = (a: Automation, now = Date.now()): number => Math.max(0, Math.floor((now - a.startedAt) / 60_000));
 
@@ -106,7 +119,10 @@ export function Automations({ automations, runs, onDismiss, onOpen }: Automation
                 ) : (
                   <>
                     {counts(run) && <span>{counts(run)}</span>}
-                    {a.summary && <span className="hint auto-summary" title={a.summary}>{a.summary}</span>}
+                    {(() => {
+                      const { summary } = reportIn(a, lang);
+                      return summary && <span className="hint auto-summary" title={summary}>{summary}</span>;
+                    })()}
                     <span className="hint">{relativeTime(a.finishedAt!, now, lang)}</span>
                   </>
                 )}

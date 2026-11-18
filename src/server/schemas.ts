@@ -124,6 +124,22 @@ export const automationDetailsSchema = z.object({
     .max(100)
     .default([]),
   notes: text(5000),
+  /** Comentario de QA para Jira; si Claude no pudo publicarlo, la app lo publica con un clic. */
+  jiraComment: z
+    .object({
+      key: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]+-\d+$/, 'La clave del ticket de Jira no es válida (p. ej. AVM-123)'),
+      body: z.string().trim().min(1).max(30000),
+      posted: z.boolean().default(false),
+      url: httpUrlOrEmpty.default(''),
+    })
+    .nullable()
+    .default(null),
+});
+
+/** Traducción que devuelve Claude: el resumen y el reporte, con la misma forma. */
+export const reportTranslationSchema = z.object({
+  summary: z.string().trim().max(5000).default(''),
+  details: automationDetailsSchema.omit({ jiraComment: true }).nullable().default(null),
 });
 
 /** Resultado que Claude reporta al terminar un smoke o una regresión. */

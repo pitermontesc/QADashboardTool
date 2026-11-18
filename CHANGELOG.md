@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.9.2] - 2026-11-18
+
+### Agregado
+- **Comentario de QA para Jira con un clic.** Si Claude redacta el comentario de QA pero no puede publicarlo (por ejemplo, porque la herramienta de Jira pide aprobación y en segundo plano nadie puede darla), lo deja en el reporte. Ahí se revisa, se edita y se publica con **Publicar en AVM-…**, usando el email y el API token de Jira configurados.
+
+### Corregido
+- **Al pasar a inglés, todo queda en inglés.** Se traducen los títulos y notas que genera la app («Smoke STG con Claude · GO», «Veredicto GO.») y los tipos de test por defecto que no se renombraron. Los reportes que Claude escribió en el otro idioma (resumen, módulos, pasos, bugs y observaciones) se traducen en segundo plano con Claude Haiku, una vez por reporte. Lo mismo al volver a español.
+
 ## [1.9.1] - 2026-11-18
 
 ### Corregido

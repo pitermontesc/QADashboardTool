@@ -17,7 +17,7 @@ import { SettingsView } from './components/SettingsView';
 import { Icon, type IconName } from './components/icons';
 import { RavnLogo } from './components/RavnLogo';
 import { Kbd, MOD } from './components/ui';
-import { KIND_LABEL, elapsedMin } from './components/Automations';
+import { KIND_LABEL, elapsedMin, reportIn } from './components/Automations';
 
 /** Cada cuánto se consulta el resultado de un smoke o una regresión en curso. */
 const AUTOMATION_POLL_MS = 10_000;
@@ -171,8 +171,8 @@ export function App() {
     };
   }, []);
 
-  // Mientras Claude corre un smoke o una regresión, se consulta su resultado cada pocos segundos.
-  const running = state?.automations.some((a) => a.finishedAt === null) ?? false;
+  // Mientras Claude corre una ejecución o se traducen reportes, se consulta el estado cada pocos segundos.
+  const running = (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0;
   const stateRef = useRef(state);
   stateRef.current = state;
   useEffect(() => {
@@ -182,12 +182,13 @@ export function App() {
         .getState()
         .then((next) => {
           const before = new Map(stateRef.current?.automations.map((a) => [a.id, a]));
-          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations } : s));
+          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, translating: next.translating } : s));
           for (const a of next.automations) {
             if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
               const what =
                 a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
-              announce(`${what}: ${a.verdict}`, a.summary || TEXT[stateRef.current?.settings.language ?? 'es'].resultSaved);
+              const current = stateRef.current?.settings.language ?? 'es';
+              announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
             }
           }
         })
@@ -281,7 +282,12 @@ export function App() {
     const previous = state.settings;
     patch({ settings }); // Optimista: los ajustes responden al instante y se revierten si el guardado falla.
     try {
-      patch({ settings: await api.saveSettings(settings) });
+      const saved = await api.saveSettings(settings);
+      if (saved.language !== previous.language) {
+        // Al cambiar de idioma el servidor traduce tipos, títulos y notas, y empieza a traducir los reportes de Claude.
+        const next = await api.getState();
+        patch({ settings: next.settings, runs: next.runs, automations: next.automations, translating: next.translating });
+      } else patch({ settings: saved });
     } catch (error) {
       patch({ settings: previous });
       fail(error);
@@ -353,7 +359,7 @@ export function App() {
   };
 
   const newFromTicket = (ticket: JiraTicket): void => {
-    const functional = state.settings.types.find((t) => /funcional/i.test(t.name));
+    const functional = state.settings.types.find((t) => /funcional|functional/i.test(t.name));
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
   };
 
@@ -544,6 +550,8 @@ export function App() {
           run={state.runs.find((r) => r.id === report.runId)}
           onClose={() => setReportId(null)}
           onStop={stopAutomation}
+          onUpdate={(updated) => patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) })}
+          onError={fail}
         />
       )}
       <div className={`toast${toast ? ` on ${toast.kind}` : ''}`} role={toast?.kind === 'error' ? 'alert' : 'status'}>

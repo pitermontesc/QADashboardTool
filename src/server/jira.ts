@@ -3,6 +3,7 @@ import { parseJiraBoardUrl, type JiraBoardRef } from '../shared/jiraBoard.js';
 import type { JiraTicket } from '../shared/types.js';
 import { HttpError } from './errors.js';
 import type { JiraCredentials } from './store.js';
+import { markdownToJira } from './jiraMarkup.js';
 
 interface JiraIssue {
   key?: string;
@@ -110,3 +111,41 @@ const toTicket = (issue: JiraIssue): JiraTicket => ({
   status: issue.fields?.status?.name ?? '',
   type: issue.fields?.issuetype?.name ?? '',
 });
+
+/**
+ * Publica un comentario en un ticket con la API REST v2 (acepta wiki markup) y
+ * devuelve el link al comentario. Usa el mismo email + API token que la lista de tickets.
+ */
+export async function postJiraComment(
+  creds: JiraCredentials,
+  key: string,
+  markdown: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  if (!/^https?:\/\//i.test(creds.site) || !creds.email || !creds.token) {
+    throw new HttpError(400, 'Configura Jira (sitio, email y API token) en Tipos y ajustes para publicar comentarios');
+  }
+  const site = creds.site.replace(/\/+$/, '');
+  const auth = `Basic ${Buffer.from(`${creds.email}:${creds.token}`).toString('base64')}`;
+  let response: Response;
+  try {
+    response = await fetchImpl(`${site}/rest/api/2/issue/${encodeURIComponent(key)}/comment`, {
+      method: 'POST',
+      headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: markdownToJira(markdown) }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new HttpError(502, 'No se pudo conectar con Jira (revisa el sitio y tu conexión)');
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new HttpError(502, 'Jira rechazó las credenciales (revisa email y API token)');
+  }
+  const body = (await response.json().catch(() => ({}))) as { id?: string; errorMessages?: string[]; errors?: Record<string, string> };
+  if (response.status === 404) throw new HttpError(502, `Jira no encontró el ticket ${key} (o no tienes acceso)`);
+  if (!response.ok) {
+    const detail = [...(body.errorMessages ?? []), ...Object.values(body.errors ?? {})].join('; ');
+    throw new HttpError(502, `Jira respondió ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+  return `${site}/browse/${encodeURIComponent(key)}${body.id ? `?focusedCommentId=${body.id}` : ''}`;
+}

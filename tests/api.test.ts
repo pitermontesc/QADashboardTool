@@ -232,6 +232,7 @@ describe('Orquestador QA', () => {
     expect(done.details).toEqual({
       build: '2.14.0',
       notes: '',
+      jiraComment: null,
       modules: [{
         name: 'Work Orders', status: 'passed', minutes: 4, notes: '',
         steps: [{ name: 'Abrir listado', status: 'passed', notes: '' }, { name: 'Filtrar por estado', status: 'skipped', notes: 'Sin datos' }],

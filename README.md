@@ -112,3 +112,5 @@ tests/       Estadísticas, API (servidor real en puerto temporal) e interfaz (j
 | POST | `/api/import` | Reemplaza los datos con un respaldo |
 | PUT | `/api/jira/config` | Guarda la conexión con Jira |
 | POST | `/api/jira/refresh` | Recarga los tickets desde Jira |
+| POST | `/api/automation/:id/translate` | Traduce el reporte de Claude al idioma pedido (`{lang}`) |
+| POST | `/api/automation/:id/jira-comment` | Publica en Jira el comentario de QA que dejó Claude (`{body}` opcional, editado) |

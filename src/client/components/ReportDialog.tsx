@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import type { ActivityItem, Automation, ReportModule, StepStatus, TestRun } from '../../shared/types';
-import { KIND_LABEL, VERDICT_TONE, elapsedMin } from './Automations';
+import type { ActivityItem, Automation, JiraComment, ReportModule, StepStatus, TestRun } from '../../shared/types';
+import { KIND_LABEL, VERDICT_TONE, elapsedMin, reportIn } from './Automations';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
 import { dateTime } from '../../shared/dates';
@@ -11,6 +11,9 @@ interface ReportDialogProps {
   run: TestRun | undefined;
   onClose: () => void;
   onStop: (automation: Automation) => Promise<void>;
+  /** La ejecución cambió (traducción o comentario publicado). */
+  onUpdate: (automation: Automation) => void;
+  onError: (error: unknown) => void;
 }
 
 /** Cada cuánto se refresca la actividad de una ejecución en curso. */
@@ -33,6 +36,13 @@ const TEXT = {
     bugs: 'Bugs encontrados', openBug: 'Abrir el bug', openBugOf: (key: string) => `Abrir ${key}`,
     bugsNoDetail: (n: number) => `${n} reportados, sin detalle.`, none: 'Ninguno.',
     notes: 'Observaciones', external: 'Abrir reporte externo',
+    translating: 'Traduciendo el reporte al español con Claude… Mientras tanto se muestra el original.',
+    translateFailed: 'No se pudo traducir el reporte; se muestra el original.', retry: 'Reintentar',
+    jira: (key: string) => `Comentario de QA para ${key}`,
+    jiraPending: 'Claude no pudo publicarlo en Jira. Revísalo (puedes editarlo) y publícalo con tu cuenta de Jira.',
+    jiraPosted: 'Publicado en Jira.', jiraPostedByClaude: 'Claude ya lo publicó en Jira.', openComment: 'Ver en Jira',
+    publish: (key: string) => `Publicar en ${key}`, publishing: 'Publicando…', confirmPublish: (key: string) => `¿Publicar en ${key}?`,
+    copy: 'Copiar', copied: 'Copiado',
   },
   en: {
     status: { passed: 'Passed', failed: 'Failed', blocked: 'Blocked', skipped: 'Not tested' } as Record<StepStatus, string>,
@@ -48,6 +58,13 @@ const TEXT = {
     bugs: 'Bugs found', openBug: 'Open the bug', openBugOf: (key: string) => `Open ${key}`,
     bugsNoDetail: (n: number) => `${n} reported, no details.`, none: 'None.',
     notes: 'Notes', external: 'Open external report',
+    translating: 'Translating the report into English with Claude… The original is shown meanwhile.',
+    translateFailed: 'Could not translate the report; the original is shown.', retry: 'Retry',
+    jira: (key: string) => `QA comment for ${key}`,
+    jiraPending: 'Claude could not post it on Jira. Review it (you can edit it) and post it with your Jira account.',
+    jiraPosted: 'Posted on Jira.', jiraPostedByClaude: 'Claude already posted it on Jira.', openComment: 'View on Jira',
+    publish: (key: string) => `Post on ${key}`, publishing: 'Posting…', confirmPublish: (key: string) => `Post on ${key}?`,
+    copy: 'Copy', copied: 'Copied',
   },
 };
 type Text = typeof TEXT.es;
@@ -112,6 +129,87 @@ function useActivity(a: Automation): { items: ActivityItem[]; logFile: string } 
   return activity;
 }
 
+/** Comentario de QA para Jira: se puede revisar, editar, copiar y publicar con un clic. */
+function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
+  automation: Automation; comment: JiraComment; t: Text; onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
+}) {
+  const [body, setBody] = useState(comment.body);
+  const [state, setState] = useState<'idle' | 'armed' | 'posting'>('idle');
+  const [copied, setCopied] = useState(false);
+  const publish = async (): Promise<void> => {
+    if (state !== 'armed') {
+      setState('armed');
+      return;
+    }
+    setState('posting');
+    try {
+      onUpdate(await api.postJiraComment(automation.id, body));
+    } catch (error) {
+      onError(error);
+    }
+    setState('idle');
+  };
+  return (
+    <>
+      <h3 className="rep-h">{t.jira(comment.key)}</h3>
+      <div className={`rep-jira${comment.posted ? ' posted' : ''}`}>
+        <p className="hint">
+          {comment.posted ? (comment.url ? t.jiraPosted : t.jiraPostedByClaude) : t.jiraPending}
+          {comment.url && (
+            <> <a href={comment.url} target="_blank" rel="noopener noreferrer">{t.openComment}</a></>
+          )}
+        </p>
+        <textarea
+          aria-label={t.jira(comment.key)}
+          value={body}
+          readOnly={comment.posted}
+          rows={10}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        <div className="rep-jira-actions">
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => {
+              void navigator.clipboard?.writeText(body).then(() => setCopied(true), () => undefined);
+            }}
+          >
+            {copied ? t.copied : t.copy}
+          </button>
+          {!comment.posted && (
+            <button type="button" className="btn small primary" disabled={state === 'posting' || !body.trim()} onClick={() => void publish()}>
+              {state === 'posting' ? t.publishing : state === 'armed' ? t.confirmPublish(comment.key) : t.publish(comment.key)}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Pide la traducción del reporte si Claude lo escribió en otro idioma. */
+function useTranslation(a: Automation, onUpdate: (a: Automation) => void): { failed: boolean; retry: () => void } {
+  const lang = useLang();
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const pending = reportIn(a, lang).pending;
+  const update = useRef(onUpdate);
+  update.current = onUpdate;
+  useEffect(() => {
+    if (!pending) return;
+    let alive = true;
+    setFailed(false);
+    api.translateAutomation(a.id, lang).then(
+      (next) => alive && update.current(next),
+      () => alive && setFailed(true),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [a.id, lang, pending, attempt]);
+  return { failed: pending && failed, retry: () => setAttempt((n) => n + 1) };
+}
+
 function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: boolean }) {
   const list = useRef<HTMLOListElement>(null);
   useEffect(() => {
@@ -131,10 +229,12 @@ function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: bo
   );
 }
 
-export function ReportDialog({ automation: a, run, onClose, onStop }: ReportDialogProps) {
+export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, onError }: ReportDialogProps) {
   const lang = useLang();
   const t = useText(TEXT);
   const activity = useActivity(a);
+  const { summary, details, pending } = reportIn(a, lang);
+  const translation = useTranslation(a, onUpdate);
   const [stopState, setStopState] = useState<'idle' | 'armed' | 'stopping'>('idle');
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -143,7 +243,6 @@ export function ReportDialog({ automation: a, run, onClose, onStop }: ReportDial
   }, []);
 
   const running = a.finishedAt === null;
-  const details = a.details;
   const minutes = run?.minutes ?? (a.finishedAt ? Math.max(1, Math.round((a.finishedAt - a.startedAt) / 60_000)) : null);
   const bugCount = details?.bugs.length || run?.bugs || 0;
   const stats = [
@@ -209,7 +308,20 @@ export function ReportDialog({ automation: a, run, onClose, onStop }: ReportDial
               ))}
             </div>
 
-            {a.summary && <p className="rep-summary">{a.summary}</p>}
+            {pending && (
+              <p className="rep-translating hint">
+                {translation.failed ? (
+                  <>
+                    {t.translateFailed}{' '}
+                    <button type="button" className="link-btn" onClick={translation.retry}>{t.retry}</button>
+                  </>
+                ) : (
+                  <><span className="spinner" /> {t.translating}</>
+                )}
+              </p>
+            )}
+
+            {summary && <p className="rep-summary">{summary}</p>}
 
             <h3 className="rep-h">{t.modules} {details && details.modules.length > 0 && <span className="hint">({details.modules.length})</span>}</h3>
             {details && details.modules.length > 0 ? (
@@ -250,6 +362,10 @@ export function ReportDialog({ automation: a, run, onClose, onStop }: ReportDial
                 <h3 className="rep-h">{t.notes}</h3>
                 <p className="rep-notes">{details.notes}</p>
               </>
+            )}
+
+            {details?.jiraComment && (
+              <JiraCommentBlock key={details.jiraComment.posted ? 'posted' : 'draft'} automation={a} comment={details.jiraComment} t={t} onUpdate={onUpdate} onError={onError} />
             )}
 
             {activity.items.some((i) => i.kind !== 'start') && (

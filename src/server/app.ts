@@ -2,13 +2,15 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
-import type { Lang } from '../shared/types.js';
-import { fetchJiraTickets } from './jira.js';
+import type { Automation, AutomationDetails, Lang } from '../shared/types.js';
+import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
-import { launchClaude, readActivity, stopPid, type ClaudeHandle, type ClaudeLauncher } from './claudeRunner.js';
+import { launchClaude, readActivity, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
 import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
-import { envFor, reportInstruction, runForAutomation } from './automation.js';
-import { automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
+import { automationTitle, envFor, reportInstruction, runForAutomation } from './automation.js';
+import {
+  automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportTranslationSchema, runInputSchema, settingsSchema,
+} from './schemas.js';
 import type { Store } from './store.js';
 
 export interface AppOptions {
@@ -18,6 +20,31 @@ export interface AppOptions {
   fetchImpl?: typeof fetch;
   /** Inyectable para probar los skills de QA sin ejecutar Claude Code. */
   launchClaude?: ClaudeLauncher;
+  /** Inyectable para probar la traducción de reportes sin ejecutar Claude Code. */
+  translateReport?: ReportTranslator;
+}
+
+/**
+ * Reporte traducido sobre el original: de la traducción solo se toman los textos
+ * (por posición); estados, minutos, claves y links salen siempre del original.
+ */
+function mergeTranslation(original: AutomationDetails, translated: ReturnType<typeof reportTranslationSchema.parse>['details']): AutomationDetails {
+  if (!translated) return original;
+  return {
+    ...original,
+    build: translated.build || original.build,
+    notes: translated.notes || original.notes,
+    modules: original.modules.map((m, i) => {
+      const t = translated.modules[i];
+      return {
+        ...m,
+        name: t?.name || m.name,
+        notes: t?.notes || m.notes,
+        steps: m.steps.map((step, j) => ({ ...step, name: t?.steps[j]?.name || step.name, notes: t?.steps[j]?.notes || step.notes })),
+      };
+    }),
+    bugs: original.bugs.map((b, i) => ({ ...b, title: translated.bugs[i]?.title || b.title, module: translated.bugs[i]?.module || b.module })),
+  };
 }
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -79,7 +106,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.get('/state', (_req, res) => {
-    res.json(store.getState());
+    res.json({ ...store.getState(), translating: translating.size });
   });
 
   api.post('/runs', (req, res) => {
@@ -98,8 +125,63 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.put('/settings', (req, res) => {
-    res.json(store.saveSettings(settingsSchema.parse(req.body)));
+    const before = lang();
+    const settings = store.saveSettings(settingsSchema.parse(req.body));
+    if (settings.language !== before) translateAll(settings.language);
+    res.json(settings);
   });
+
+  const translate = options.translateReport ?? translateReport;
+  /** Traducciones en cola o en curso («id:idioma»); las fallidas no se reintentan solas. */
+  const translating = new Map<string, Promise<Automation | null>>();
+  const failedTranslations = new Set<string>();
+  const needsTranslation = (a: Automation, to: Lang): boolean =>
+    a.finishedAt !== null && a.lang !== to && !a.translations[to] && (a.summary !== '' || a.details !== null);
+
+  /** Traduce el resumen y el reporte de una ejecución con Claude y guarda la traducción. */
+  const translateOne = (id: string, to: Lang): Promise<Automation | null> => {
+    const key = `${id}:${to}`;
+    const current = translating.get(key);
+    if (current) return current;
+    const automation = store.getAutomation(id);
+    if (!automation || !needsTranslation(automation, to)) return Promise.resolve(automation);
+    // El comentario de Jira no se traduce: va al ticket tal como lo redactó el skill.
+    const job = translate({ summary: automation.summary, details: automation.details ? { ...automation.details, jiraComment: null } : null }, to)
+      .then((raw) => {
+        const result = reportTranslationSchema.parse(raw);
+        const latest = store.getAutomation(id);
+        if (!latest?.details && !latest?.summary) return latest;
+        return store.saveTranslation(id, to, {
+          summary: result.summary || latest.summary,
+          details: latest.details ? mergeTranslation(latest.details, result.details) : null,
+        });
+      })
+      .catch((err: unknown) => {
+        failedTranslations.add(key);
+        throw err instanceof HttpError ? err : new HttpError(502, `No se pudo traducir el reporte: ${err instanceof Error ? err.message : String(err)}`);
+      })
+      .finally(() => translating.delete(key));
+    translating.set(key, job);
+    return job;
+  };
+
+  /** Al cambiar de idioma se traducen, de a una, las ejecuciones que Claude escribió en el otro. */
+  let queue: Promise<unknown> = Promise.resolve();
+  const translateAll = (to: Lang): void => {
+    for (const a of store.getState().automations) {
+      const key = `${a.id}:${to}`;
+      if (!needsTranslation(a, to) || failedTranslations.has(key) || translating.has(key)) continue;
+      let release: (value: Automation | null) => void = () => undefined;
+      // Se reserva el lugar en la cola para que el estado cuente las pendientes.
+      translating.set(key, new Promise((resolve) => (release = resolve)));
+      queue = queue.then(async () => {
+        translating.delete(key);
+        const result = lang() === to ? await translateOne(a.id, to).catch(() => null) : null;
+        release(result);
+      });
+    }
+  };
+  translateAll(lang());
 
   api.post('/import', (req, res) => {
     store.importBackup(backupSchema.parse(req.body));
@@ -142,7 +224,6 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!automation || automation.finishedAt !== null) return;
     complete(id, automationResultSchema.parse({ verdict: 'BLOCKED', summary: summary.slice(0, 4900) }));
   };
-  const withClaude = (): string => (lang() === 'en' ? 'with Claude' : 'con Claude');
 
   api.post('/orchestrator/:key', async (req, res) => {
     const key = String(req.params.key);
@@ -153,7 +234,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
     }
     const env = envFor(/stag/i.test(ticket.status) ? 'staging' : 'qa', store.getState().settings);
-    const title = `${lang() === 'en' ? 'QA orchestrator' : 'Orquestador QA'}: ${ticket.summary}`.slice(0, 250);
+    const title = automationTitle('orchestrator', key, lang(), ticket.summary);
     res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env, title }, (extra) => orchestratorPrompt(key, extra)));
   });
 
@@ -204,7 +285,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const body = (req.body ?? {}) as { run?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
     const env = envFor('staging', store.getState().settings);
-    const title = `Regression ${run || 'testomat.io'} ${withClaude()}`;
+    const title = automationTitle('regression', run, lang());
     res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionPrompt(run, extra)));
   });
 
@@ -213,7 +294,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
     const env = envFor(site === 'qa' ? 'qa' : 'staging', store.getState().settings);
     const { label } = SMOKE_SITES[site];
-    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: `Smoke ${label} ${withClaude()}` }, (extra) => smokePrompt(site, extra)));
+    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: automationTitle('smoke', label, lang()) }, (extra) => smokePrompt(site, extra)));
   });
 
   api.post('/automation/:id/result', (req, res) => {
@@ -225,6 +306,28 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const automation = store.getAutomation(String(req.params.id));
     if (!automation) throw new HttpError(404, 'Esa ejecución ya no existe');
     res.json({ items: automation.logFile ? readActivity(automation.logFile) : [], logFile: automation.logFile });
+  });
+
+  /** Traduce el reporte al idioma pedido (o al de la app) si Claude lo escribió en otro. */
+  api.post('/automation/:id/translate', async (req, res) => {
+    const id = String(req.params.id);
+    if (!store.getAutomation(id)) throw new HttpError(404, 'Esa ejecución ya no existe');
+    const { lang: to = lang() } = (req.body ?? {}) as { lang?: Lang };
+    const target: Lang = to === 'en' ? 'en' : 'es';
+    failedTranslations.delete(`${id}:${target}`);
+    res.json(await translateOne(id, target));
+  });
+
+  /** Publica en Jira el comentario de QA que Claude dejó listo (con el texto editado, si se envía). */
+  api.post('/automation/:id/jira-comment', async (req, res) => {
+    const id = String(req.params.id);
+    const comment = store.getAutomation(id)?.details?.jiraComment;
+    if (!comment) throw new HttpError(404, 'Esta ejecución no tiene comentario para Jira');
+    if (comment.posted) throw new HttpError(409, 'Ese comentario ya está publicado en Jira');
+    const { body } = (req.body ?? {}) as { body?: unknown };
+    const text = typeof body === 'string' && body.trim() ? body.trim().slice(0, 30000) : comment.body;
+    const url = await postJiraComment(store.getJiraCredentials(), comment.key, text, options.fetchImpl);
+    res.json(store.saveJiraCommentPosted(id, text, url));
   });
 
   /** Detiene una ejecución en curso; queda como BLOCKED. */

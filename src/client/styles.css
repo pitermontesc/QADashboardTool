@@ -321,3 +321,11 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .rep-activity span{white-space:pre-wrap;overflow-wrap:anywhere}
 .rep-log{margin-top:16px}
 .rep-log summary{cursor:pointer;font-weight:700;font-size:13px;margin-bottom:8px}
+.rep-translating{display:flex;align-items:center;gap:8px;margin:10px 0 0}
+.rep-translating .spinner{width:12px;height:12px}
+.link-btn{background:none;border:0;padding:0;color:var(--accent);font:inherit;cursor:pointer;text-decoration:underline}
+.rep-jira{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel-2)}
+.rep-jira.posted{opacity:.85}
+.rep-jira p{margin:0 0 8px}
+.rep-jira textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;min-height:140px}
+.rep-jira-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}

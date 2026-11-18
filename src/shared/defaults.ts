@@ -19,32 +19,49 @@ export function resultLabel(result: Result, lang: Lang): string {
 
 export const DEFAULT_JQL = 'assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC';
 
-const DEFAULT_TYPES: ReadonlyArray<readonly [name: string, major: boolean]> = [
-  ['Smoke', true],
-  ['Regression', true],
-  ['Funcional', false],
-  ['Exploratorio', false],
-  ['Re-test / Verificación de bug', false],
-  ['Sanity', false],
-  ['Integración', false],
-  ['End-to-End', false],
-  ['API', false],
-  ['Performance', false],
-  ['Seguridad', false],
-  ['Usabilidad', false],
-  ['Accesibilidad', false],
-  ['UAT', false],
+/** Tipos de test por defecto, en español e inglés; al cambiar de idioma se traducen los que no se editaron. */
+export const DEFAULT_TYPES: ReadonlyArray<readonly [es: string, en: string, major: boolean]> = [
+  ['Smoke', 'Smoke', true],
+  ['Regression', 'Regression', true],
+  ['Funcional', 'Functional', false],
+  ['Exploratorio', 'Exploratory', false],
+  ['Re-test / Verificación de bug', 'Re-test / Bug verification', false],
+  ['Sanity', 'Sanity', false],
+  ['Integración', 'Integration', false],
+  ['End-to-End', 'End-to-End', false],
+  ['API', 'API', false],
+  ['Performance', 'Performance', false],
+  ['Seguridad', 'Security', false],
+  ['Usabilidad', 'Usability', false],
+  ['Accesibilidad', 'Accessibility', false],
+  ['UAT', 'UAT', false],
 ];
 
 export function colorForIndex(index: number): string {
   return PALETTE[index % PALETTE.length]!;
 }
 
-export function defaultSettings(): Settings {
+export function defaultSettings(language: Lang = 'es'): Settings {
   return {
-    types: DEFAULT_TYPES.map(([name, major], i) => ({ id: `t${i}`, name, major, color: colorForIndex(i) })),
+    types: DEFAULT_TYPES.map(([es, en, major], i) => ({ id: `t${i}`, name: language === 'en' ? en : es, major, color: colorForIndex(i) })),
     envs: ['QA', 'STG', 'PROD', 'Local'],
     ticketBase: '',
-    language: 'es',
+    language,
   };
+}
+
+/** Tipos por defecto en el idioma elegido; los que el usuario renombró quedan como están. */
+export function localizeTypes(types: Settings['types'], lang: Lang): Settings['types'] {
+  return types.map((type) => {
+    const match = /^t(\d+)$/.exec(type.id);
+    const names = match ? DEFAULT_TYPES[Number(match[1])] : undefined;
+    return names && (type.name === names[0] || type.name === names[1]) ? { ...type, name: lang === 'en' ? names[1] : names[0] } : type;
+  });
+}
+
+/** Idioma probable de un texto de Claude (para reportes guardados antes de que se registrara el idioma). */
+export function guessLang(text: string): Lang {
+  const es = (text.match(/[áéíóúñ¿¡]|\b(de|del|los|las|el|en|con|sin|para|que|una?|pasos?|se|no)\b/gi) ?? []).length;
+  const en = (text.match(/\b(the|of|and|with|without|for|to|is|are|was|steps?|not|no)\b/gi) ?? []).length;
+  return es > en ? 'es' : 'en';
 }
