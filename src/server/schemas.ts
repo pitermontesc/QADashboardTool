@@ -1,3 +1,4 @@
+import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import { z } from 'zod';
 import { RESULTS } from '../shared/types.js';
 
@@ -48,6 +49,12 @@ export const backupSchema = settingsSchema.extend({ runs: z.array(runSchema) });
 export const jiraConfigSchema = z.object({
   site: httpUrlOrEmpty,
   email: z.string().trim().max(200),
+  board: z
+    .string()
+    .trim()
+    .max(4000)
+    .refine((v) => v === '' || parseJiraBoardUrl(v) !== null, 'No es un link de board de Jira (…/boards/<número>)')
+    .default(''),
   jql: z.string().trim().max(2000),
   token: z.string().trim().max(500).optional(),
 });

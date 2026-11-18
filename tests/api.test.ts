@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/server/store';
-import { fakeJira, startServer } from './helpers';
+import { fakeJira, lastBoardJql, startServer } from './helpers';
 
 const RUN = { date: '2026-11-17', typeId: 't0', title: '  Smoke release 2.14 ', result: 'passed', passed: 20, failed: 0 };
 
@@ -59,18 +59,24 @@ describe('API', () => {
 
   it('carga tickets de Jira sin exponer nunca el token', async () => {
     expect((await srv.call('POST', '/api/jira/refresh', {})).status).toBe(400); // sin configurar
+    expect((await srv.call('GET', '/api/state')).body.jira.connection).toBe('none');
 
     const config = { site: 'https://example.atlassian.net/', email: 'qa@example.com', jql: '', token: 'bad' };
-    await srv.call('PUT', '/api/jira/config', config);
+    expect((await srv.call('PUT', '/api/jira/config', config)).body.connection).toBe('pending');
     const rejected = await srv.call('POST', '/api/jira/refresh', {});
     expect(rejected).toMatchObject({ status: 502, body: { error: expect.stringContaining('credenciales') } });
+    expect((await srv.call('GET', '/api/state')).body.jira).toMatchObject({
+      connection: 'error', error: expect.stringContaining('credenciales'),
+    });
 
     const saved = await srv.call('PUT', '/api/jira/config', { ...config, token: 'good' });
     expect(saved.body).toMatchObject({ site: 'https://example.atlassian.net', hasToken: true });
     expect(saved.body.jql).toContain('currentUser()'); // JQL por defecto
     expect(JSON.stringify(saved.body)).not.toContain('good');
 
+    expect(saved.body).toMatchObject({ connection: 'pending', error: null });
     const refreshed = await srv.call('POST', '/api/jira/refresh', {});
+    expect(refreshed.body).toMatchObject({ connection: 'connected', error: null });
     expect(refreshed.body.tickets).toEqual([
       { key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story' },
       { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug' },
@@ -84,5 +90,26 @@ describe('API', () => {
     expect(JSON.stringify((await srv.call('GET', '/api/state')).body)).not.toContain('"token"');
     expect(readFileSync(srv.file, 'utf8')).toContain('"token": "good"');
     if (process.platform !== 'win32') expect(statSync(srv.file).mode & 0o777).toBe(0o600);
+  });
+
+  it('carga los tickets de un board pegando su link', async () => {
+    const board =
+      'https://example.atlassian.net/jira/software/projects/AVM/boards/1?filter=assignee+IN+%28abc%2C+empty%29&groupBy=none';
+    const saved = await srv.call('PUT', '/api/jira/config', {
+      site: '', email: 'qa@example.com', board, jql: 'assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC', token: 'good',
+    });
+    // El sitio sale del board y el JQL por defecto deja de aplicarse.
+    expect(saved.body).toMatchObject({ site: 'https://example.atlassian.net', board, jql: '' });
+
+    const refreshed = await srv.call('POST', '/api/jira/refresh', {});
+    expect(refreshed.body.tickets).toHaveLength(60);
+    expect(lastBoardJql).toBe('(assignee IN (abc, empty)) AND (statusCategory != Done)');
+
+    await srv.call('PUT', '/api/jira/config', { site: '', email: 'qa@example.com', board, jql: 'type = Bug ORDER BY key', token: '' });
+    await srv.call('POST', '/api/jira/refresh', {});
+    expect(lastBoardJql).toBe('(assignee IN (abc, empty)) AND (type = Bug) AND (statusCategory != Done)');
+
+    const bad = await srv.call('PUT', '/api/jira/config', { site: '', email: 'qa@example.com', board: 'https://example.com/x', jql: '' });
+    expect(bad.status).toBe(400);
   });
 });

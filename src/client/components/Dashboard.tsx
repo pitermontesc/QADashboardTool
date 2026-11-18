@@ -5,7 +5,8 @@ import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
+import { parseJiraBoardUrl } from '../../shared/jiraBoard';
+import { RESULTS, type AppState, type JiraConnection, type JiraTicket } from '../../shared/types';
 import { findType, ResultPill, RunsTable } from './ui';
 
 const PERIODS: ReadonlyArray<{ value: Period; label: string }> = [
@@ -20,6 +21,27 @@ interface DashboardProps {
   jiraLoading: boolean;
   onRefreshJira: () => void;
   onTicket: (ticket: JiraTicket) => void;
+}
+
+const JIRA_STATUS: Record<JiraConnection, { label: string; color: string }> = {
+  none: { label: 'No conectado', color: 'var(--muted)' },
+  pending: { label: 'Sin probar', color: 'var(--warn)' },
+  connected: { label: 'Conectado', color: 'var(--ok)' },
+  error: { label: 'Error de conexión', color: 'var(--bad)' },
+};
+
+/** Indicador del estado de la conexión con Jira, con el sitio y el board como detalle. */
+function JiraStatus({ jira, loading }: { jira: AppState['jira']; loading: boolean }) {
+  const meta = loading ? { label: 'Conectando…', color: 'var(--prog)' } : JIRA_STATUS[jira.connection];
+  const board = parseJiraBoardUrl(jira.board);
+  const where = jira.site ? `${jira.site.replace(/^https?:\/\//, '')}${board ? ` · board ${board.boardId}` : ''}` : '';
+  return (
+    <span className="jira-status" role="status" title={jira.connection === 'error' ? jira.error ?? '' : where}>
+      <i style={{ background: meta.color }} />
+      {meta.label}
+      {where && jira.connection !== 'none' ? <span className="hint"> · {where}</span> : null}
+    </span>
+  );
 }
 
 /** Segmentos apilados por resultado; se usa en ambos gráficos. */
@@ -154,7 +176,8 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: Dashb
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="row" style={{ marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>Tickets de Jira</h3>
-          {jira.fetchedAt !== null && (
+          <JiraStatus jira={jira} loading={jiraLoading} />
+          {jira.connection === 'connected' && jira.fetchedAt !== null && (
             <span className="hint">
               {jira.tickets.length} tickets · actualizado {new Date(jira.fetchedAt).toLocaleString()}
             </span>
@@ -167,9 +190,13 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: Dashb
         <div className="tickets">
           {jira.tickets.length === 0 ? (
             <div className="empty-msg" style={{ gridColumn: '1 / -1' }}>
-              {jira.hasToken
-                ? 'Pulsa “Actualizar desde Jira” para cargar tus tickets.'
-                : 'Conecta Jira en “Tipos y ajustes” para ver aquí tus tickets como botones.'}
+              {jira.connection === 'none'
+                ? 'Conecta Jira en “Tipos y ajustes” para ver aquí tus tickets como botones.'
+                : jira.connection === 'error'
+                  ? `No se pudo conectar con Jira: ${jira.error ?? ''} Revisa la conexión en “Tipos y ajustes”.`
+                  : jira.connection === 'connected'
+                    ? 'Jira está conectado, pero no hay tickets abiertos que coincidan con el filtro.'
+                    : 'Pulsa “Actualizar desde Jira” para cargar tus tickets.'}
             </div>
           ) : (
             jira.tickets.map((ticket) => {

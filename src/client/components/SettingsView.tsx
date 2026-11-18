@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
-import { colorForIndex } from '../../shared/defaults';
+import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
+import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import type { AppState, Backup, JiraConfigInput, Settings } from '../../shared/types';
 import { exportBackup, exportCsv } from '../exporters';
 
@@ -20,12 +21,25 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
   const [newType, setNewType] = useState('');
   const [newEnv, setNewEnv] = useState('');
   const [ticketBase, setTicketBase] = useState(settings.ticketBase);
-  const [jiraForm, setJiraForm] = useState({ site: jira.site, email: jira.email, jql: jira.jql, token: '' });
+  const [jiraForm, setJiraForm] = useState({ site: jira.site, email: jira.email, board: jira.board, jql: jira.jql, token: '' });
+  const boardRef = parseJiraBoardUrl(jiraForm.board);
+  const boardInvalid = jiraForm.board.trim() !== '' && !boardRef;
+
+  /** Al pegar un link de board se toma su sitio y el JQL pasa a ser solo un filtro adicional. */
+  const setBoard = (board: string): void => {
+    const ref = parseJiraBoardUrl(board);
+    setJiraForm({
+      ...jiraForm,
+      board,
+      site: ref?.site ?? jiraForm.site,
+      jql: ref && jiraForm.jql === DEFAULT_JQL ? '' : jiraForm.jql,
+    });
+  };
 
   useEffect(() => setTicketBase(settings.ticketBase), [settings.ticketBase]);
   useEffect(() => {
-    setJiraForm({ site: jira.site, email: jira.email, jql: jira.jql, token: '' });
-  }, [jira.site, jira.email, jira.jql, jira.hasToken]);
+    setJiraForm({ site: jira.site, email: jira.email, board: jira.board, jql: jira.jql, token: '' });
+  }, [jira.site, jira.email, jira.board, jira.jql, jira.hasToken]);
 
   const usage = useMemo(() => {
     const counts = new Map<string, number>();
@@ -166,10 +180,26 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
               (archivo qa-tests.json); se crea en id.atlassian.com → Seguridad → API tokens.
             </p>
             <label className="f">
+              Board (opcional: pega el link del board, con o sin filtro)
+              <input
+                placeholder="https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=…"
+                value={jiraForm.board}
+                onChange={(e) => setBoard(e.target.value)}
+              />
+            </label>
+            {boardInvalid && <p className="hint">Ese link no es de un board (debe contener …/boards/&lt;número&gt;).</p>}
+            {boardRef && (
+              <p className="hint">
+                Board {boardRef.boardId}
+                {boardRef.filter ? ` con filtro: ${boardRef.filter}` : ' sin filtro'}. Se omiten los tickets terminados.
+              </p>
+            )}
+            <label className="f" style={{ marginTop: 8 }}>
               Sitio
               <input
                 placeholder="https://tu-sitio.atlassian.net"
                 value={jiraForm.site}
+                disabled={boardRef !== null}
                 onChange={(e) => setJiraForm({ ...jiraForm, site: e.target.value })}
               />
             </label>
@@ -188,11 +218,11 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
               />
             </label>
             <label className="f" style={{ marginTop: 8 }}>
-              JQL (qué tickets cargar)
+              {boardRef ? 'JQL adicional (opcional, se suma al filtro del board)' : 'JQL (qué tickets cargar)'}
               <textarea rows={2} value={jiraForm.jql} onChange={(e) => setJiraForm({ ...jiraForm, jql: e.target.value })} />
             </label>
             <div className="actions" style={{ marginTop: 10 }}>
-              <button className="btn primary" onClick={() => onSaveJira(jiraForm)}>Guardar y cargar tickets</button>
+              <button className="btn primary" disabled={boardInvalid} onClick={() => onSaveJira(jiraForm)}>Guardar y cargar tickets</button>
             </div>
           </div>
 

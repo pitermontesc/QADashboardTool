@@ -2,13 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_JQL, defaultSettings } from '../shared/defaults.js';
+import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import type {
-  AppState, Backup, JiraState, JiraTicket, Settings, TestRun, TestRunInput,
+  AppState, Backup, JiraConnection, JiraState, JiraTicket, Settings, TestRun, TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
   site: string;
   email: string;
+  board: string;
   jql: string;
   token: string;
 }
@@ -18,15 +20,15 @@ interface StoreData {
   settings: Settings;
   runs: TestRun[];
   jira: JiraCredentials;
-  jiraCache: { tickets: JiraTicket[]; fetchedAt: number | null };
+  jiraCache: { tickets: JiraTicket[]; fetchedAt: number | null; ok: boolean | null; error: string | null };
 }
 
 const emptyData = (): StoreData => ({
   version: 1,
   settings: defaultSettings(),
   runs: [],
-  jira: { site: '', email: '', jql: DEFAULT_JQL, token: '' },
-  jiraCache: { tickets: [], fetchedAt: null },
+  jira: { site: '', email: '', board: '', jql: DEFAULT_JQL, token: '' },
+  jiraCache: { tickets: [], fetchedAt: null, ok: null, error: null },
 });
 
 /**
@@ -44,7 +46,15 @@ export class Store {
   private load(): StoreData {
     if (!existsSync(this.file)) return emptyData();
     try {
-      return { ...emptyData(), ...(JSON.parse(readFileSync(this.file, 'utf8')) as Partial<StoreData>) };
+      const saved = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<StoreData>;
+    const base = emptyData();
+    // Archivos de versiones anteriores no traen `board`.
+    return {
+      ...base,
+      ...saved,
+      jira: { ...base.jira, ...saved.jira },
+      jiraCache: { ...base.jiraCache, ...saved.jiraCache },
+    };
     } catch (cause) {
       // No se sobrescribe un archivo ilegible: podría contener datos recuperables.
       throw new Error(`No se pudo leer ${this.file}. Corrígelo o muévelo para empezar de cero.`, { cause });
@@ -64,8 +74,11 @@ export class Store {
   }
 
   getJiraState(): JiraState {
-    const { site, email, jql, token } = this.data.jira;
-    return { site, email, jql, hasToken: token !== '', ...this.data.jiraCache };
+    const { site, email, board, jql, token } = this.data.jira;
+    const { tickets, fetchedAt, ok, error } = this.data.jiraCache;
+    const configured = site !== '' && email !== '' && token !== '';
+    const connection: JiraConnection = !configured ? 'none' : ok === null ? 'pending' : ok ? 'connected' : 'error';
+    return { site, email, board, jql, hasToken: token !== '', tickets, fetchedAt, connection, error: connection === 'error' ? error : null };
   }
 
   getJiraCredentials(): JiraCredentials {
@@ -109,18 +122,30 @@ export class Store {
     this.persist();
   }
 
-  saveJiraConfig(config: { site: string; email: string; jql: string; token?: string }): void {
+  saveJiraConfig(config: { site: string; email: string; board: string; jql: string; token?: string }): void {
+    const board = parseJiraBoardUrl(config.board);
     this.data.jira = {
-      site: config.site.replace(/\/+$/, ''),
+      // El sitio del board manda: así no pueden quedar desalineados.
+      site: board?.site ?? config.site.replace(/\/+$/, ''),
       email: config.email,
-      jql: config.jql || DEFAULT_JQL,
+      board: board ? config.board : '',
+      // Con board, el JQL es un filtro adicional opcional; sin board, la búsqueda completa.
+      jql: board ? (config.jql === DEFAULT_JQL ? '' : config.jql) : config.jql || DEFAULT_JQL,
       token: config.token || this.data.jira.token,
     };
+    // La configuración cambió: hay que volver a probar la conexión.
+    this.data.jiraCache = { ...this.data.jiraCache, ok: null, error: null };
     this.persist();
   }
 
   saveJiraTickets(tickets: JiraTicket[]): void {
-    this.data.jiraCache = { tickets, fetchedAt: Date.now() };
+    this.data.jiraCache = { tickets, fetchedAt: Date.now(), ok: true, error: null };
+    this.persist();
+  }
+
+  /** Registra que la última consulta a Jira falló; se conservan los tickets anteriores. */
+  saveJiraError(error: string): void {
+    this.data.jiraCache = { ...this.data.jiraCache, ok: false, error };
     this.persist();
   }
 }

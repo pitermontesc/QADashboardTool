@@ -41,6 +41,14 @@ En **Tipos y ajustes → Conexión con Jira** indica el sitio (`https://tu-sitio
 assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC
 ```
 
+Para traer los tickets de un **board**, pega su link en el campo *Board* tal como lo copias del navegador, incluido el filtro de personas si lo tiene:
+
+```
+https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=assignee+IN+(...)
+```
+
+La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Jira y omite los que ya están terminados. El campo JQL pasa a ser un filtro adicional opcional. **Actualizar desde Jira** en el dashboard vuelve a consultar el board.
+
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 
 ## Datos y seguridad

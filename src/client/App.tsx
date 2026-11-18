@@ -53,6 +53,18 @@ export function App() {
   const formKey = useRef(0);
 
   const notify = useCallback((text: string) => setToast({ text, id: Date.now() }), []);
+  /** Aviso importante: toast y, si el sistema lo permite (la app de escritorio sí), notificación nativa. */
+  const announce = useCallback(
+    (title: string, body: string) => {
+      notify(`${title}: ${body}`);
+      try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body });
+      } catch {
+        // Sin notificaciones del sistema basta con el toast.
+      }
+    },
+    [notify],
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -109,11 +121,18 @@ export function App() {
   const refreshJira = async (): Promise<void> => {
     setJiraLoading(true);
     try {
+      const wasConnected = state.jira.connection === 'connected';
       const jira = await api.refreshJira();
       patch({ jira });
-      notify(`${jira.tickets.length} tickets cargados`);
+      if (wasConnected) {
+        notify(`${jira.tickets.length} tickets cargados`);
+      } else {
+        announce('Jira conectado', `${jira.tickets.length} tickets cargados desde ${jira.site.replace(/^https?:\/\//, '')}`);
+      }
     } catch (error) {
       notify(errorMessage(error));
+      // El servidor guardó el error de conexión: se recarga el estado para mostrarlo.
+      api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined);
     } finally {
       setJiraLoading(false);
     }

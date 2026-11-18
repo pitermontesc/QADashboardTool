@@ -50,15 +50,26 @@ export interface JiraTicket {
 export interface JiraState {
   site: string;
   email: string;
+  /** Link del board de Jira; si está, los tickets salen de ese board. */
+  board: string;
   jql: string;
   hasToken: boolean;
   tickets: JiraTicket[];
   fetchedAt: number | null;
+  /**
+   * none: falta sitio, email o token · pending: configurado pero aún sin probar ·
+   * connected: la última consulta funcionó · error: la última consulta falló (ver `error`).
+   */
+  connection: JiraConnection;
+  error: string | null;
 }
+
+export type JiraConnection = 'none' | 'pending' | 'connected' | 'error';
 
 export interface JiraConfigInput {
   site: string;
   email: string;
+  board: string;
   jql: string;
   /** Vacío u omitido = conservar el token guardado. */
   token?: string;

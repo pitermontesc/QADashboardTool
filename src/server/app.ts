@@ -100,7 +100,13 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.post('/jira/refresh', async (_req, res) => {
-    store.saveJiraTickets(await fetchJiraTickets(store.getJiraCredentials(), options.fetchImpl));
+    try {
+      store.saveJiraTickets(await fetchJiraTickets(store.getJiraCredentials(), options.fetchImpl));
+    } catch (err) {
+      // Solo los fallos de Jira cambian el estado de conexión; "falta configurar" no es una conexión fallida.
+      if (err instanceof HttpError && err.status === 502) store.saveJiraError(err.message);
+      throw err;
+    }
     res.json(store.getJiraState());
   });
 
