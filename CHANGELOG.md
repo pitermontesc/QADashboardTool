@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.9.1] - 2026-11-18
+
+### Corregido
+- Si Claude reporta los minutos con decimales (por ejemplo `4.5`), la app los redondea en vez de rechazar el reporte; antes Claude tenía que corregirlo y reenviarlo.
+
 ## [1.9.0] - 2026-11-18
 
 ### Agregado

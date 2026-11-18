@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { LANGUAGES, RESULTS, STEP_STATUSES, VERDICTS } from '../shared/types.js';
 
 const count = z.number().int().min(0).nullable().default(null);
+/** Minutos que reporta Claude: acepta decimales y los redondea (lo que dure algo cuenta como 1 min). */
+const reportedMinutes = z
+  .number()
+  .min(0)
+  .transform((v) => (v === 0 ? 0 : Math.max(1, Math.round(v))))
+  .nullable()
+  .default(null);
 const httpUrlOrEmpty = z
   .string()
   .trim()
@@ -94,7 +101,7 @@ export const automationDetailsSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(200),
         status: stepStatus,
-        minutes: count,
+        minutes: reportedMinutes,
         notes: text(2000),
         steps: z
           .array(z.object({ name: z.string().trim().min(1).max(500), status: stepStatus, notes: text(2000) }))
@@ -130,7 +137,7 @@ export const automationResultSchema = z.object({
   failed: count,
   blocked: count,
   bugs: count,
-  minutes: count,
+  minutes: reportedMinutes,
   summary: z.string().trim().max(5000).default(''),
   link: httpUrlOrEmpty.default(''),
   details: automationDetailsSchema.nullable().default(null),

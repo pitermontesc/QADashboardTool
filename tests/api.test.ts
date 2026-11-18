@@ -219,15 +219,15 @@ describe('Orquestador QA', () => {
     const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     expect(launched[0]).toContain('details, el reporte QA completo');
     const url = `/api/automation/${automation.id}/result`;
-    const module = { name: 'Work Orders', status: 'PASS', minutes: 4, steps: [{ name: 'Abrir listado', status: 'ok' }, { name: 'Filtrar por estado', status: 'not tested', notes: 'Sin datos' }] };
+    const module = { name: 'Work Orders', status: 'PASS', minutes: 3.6, steps: [{ name: 'Abrir listado', status: 'ok' }, { name: 'Filtrar por estado', status: 'not tested', notes: 'Sin datos' }] };
 
     const bad = await srv.call('POST', url, { verdict: 'GO', details: { modules: [{ ...module, status: 'quizás' }] } });
     expect(bad.status).toBe(400);
     expect(bad.body.error).toMatch(/passed, failed, blocked, skipped/);
 
     const { body: done } = await srv.call('POST', url, {
-      verdict: 'NO-GO', passed: 7, failed: 1, bugs: 1, summary: 'Reports no carga',
-      details: { build: '2.14.0', modules: [module], bugs: [{ title: 'Reports da 500', severity: 'High', key: 'AVM-9000', module: 'Reports' }] },
+      verdict: 'NO-GO', passed: 7, failed: 1, bugs: 1, minutes: 12.4, summary: 'Reports no carga',
+      details: { build: '2.14.0', modules: [module, { name: 'Admin', status: 'passed', minutes: 0.3 }], bugs: [{ title: 'Reports da 500', severity: 'High', key: 'AVM-9000', module: 'Reports' }] },
     });
     expect(done.details).toEqual({
       build: '2.14.0',
@@ -235,11 +235,13 @@ describe('Orquestador QA', () => {
       modules: [{
         name: 'Work Orders', status: 'passed', minutes: 4, notes: '',
         steps: [{ name: 'Abrir listado', status: 'passed', notes: '' }, { name: 'Filtrar por estado', status: 'skipped', notes: 'Sin datos' }],
-      }],
+      }, { name: 'Admin', status: 'passed', minutes: 1, notes: '', steps: [] }],
       bugs: [{ title: 'Reports da 500', severity: 'High', key: 'AVM-9000', link: '', module: 'Reports' }],
     });
     const { body: state } = await srv.call('GET', '/api/state');
-    expect(state.automations.find((a: { id: string }) => a.id === automation.id).details.modules).toHaveLength(1);
+    // Los minutos con decimales se redondean en vez de rechazar el reporte.
+    expect(state.runs.find((r: { id: string }) => r.id === automation.runId).minutes).toBe(12);
+    expect(state.automations.find((a: { id: string }) => a.id === automation.id).details.modules).toHaveLength(2);
   });
 
   it('registra el orquestador de un ticket y descarta el registro de una ejecución sin terminar', async () => {
