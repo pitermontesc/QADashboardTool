@@ -163,7 +163,7 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
             <h3>Conexión con Jira</h3>
             <p className="hint">
               Carga tus tickets como botones en el dashboard. El API token se guarda solo en esta máquina
-              (data/qa-tests.json); se crea en id.atlassian.com → Seguridad → API tokens.
+              (archivo qa-tests.json); se crea en id.atlassian.com → Seguridad → API tokens.
             </p>
             <label className="f">
               Sitio
@@ -215,7 +215,7 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
           <div className="card">
             <h3>Respaldo de datos</h3>
             <p className="hint">
-              Los datos se guardan en data/qa-tests.json dentro de la carpeta de la app. Importar un respaldo reemplaza
+              Los datos se guardan en qa-tests.json, en la carpeta de datos de usuario del sistema (en macOS: ~/Library/Application Support/QA Dashboard). Importar un respaldo reemplaza
               los datos actuales.
             </p>
             <div className="row" style={{ margin: 0 }}>

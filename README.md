@@ -19,10 +19,19 @@ En macOS también sirve el doble clic en `Iniciar QA Dashboard.command` (la prim
 
 La app se abre en su propia ventana. Deja la terminal abierta mientras la uses; `Ctrl+C` la cierra.
 
+### App de escritorio
+
+```bash
+npm run desktop        # compila y abre la app en una ventana de Electron (sin terminal ni navegador)
+npm run desktop:pack   # genera release/mac-*/QA Dashboard.app
+```
+
+Arrastra `QA Dashboard.app` a `/Applications` y ábrela como cualquier otra app. No está firmada: la primera vez, clic derecho → Abrir. Los enlaces a Jira se abren en el navegador. Si `npm start` ya está corriendo, la app de escritorio reutiliza ese servidor.
+
 | Variable | Para qué | Por defecto |
 | --- | --- | --- |
 | `QA_DASH_PORT` | Puerto del servidor | `8765` |
-| `QA_DASH_DATA` | Carpeta de datos | `./data` |
+| `QA_DASH_DATA` | Carpeta de datos | macOS: `~/Library/Application Support/QA Dashboard` |
 
 ## Tickets de Jira
 
@@ -36,7 +45,7 @@ Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro
 
 ## Datos y seguridad
 
-- Todo se guarda en `data/qa-tests.json`, fuera del repositorio (`.gitignore`). Ese archivo contiene el API token de Jira y se crea con permisos `0600`.
+- Todo se guarda en `qa-tests.json` dentro de la carpeta de datos (ver `QA_DASH_DATA`), fuera del repositorio; el navegador y la app de escritorio comparten el mismo archivo. Ese archivo contiene el API token de Jira y se crea con permisos `0600`.
 - El servidor escucha solo en `127.0.0.1` y rechaza peticiones con `Host` u `Origin` externos.
 - El token nunca se envía a la interfaz; la API solo informa si hay uno guardado.
 - **Tipos y ajustes → Respaldo de datos** exporta JSON o CSV e importa un respaldo JSON.
@@ -56,6 +65,7 @@ npm run build       # compila a dist/
 src/
   shared/    Modelo de dominio y lógica pura (tipos, fechas, estadísticas)
   server/    API REST: validación (zod), persistencia, cliente de Jira
+  desktop/   Proceso principal de Electron (ventana de escritorio)
   client/    Interfaz React
 tests/       Estadísticas, API (servidor real en puerto temporal) e interfaz (jsdom)
 ```

@@ -2,14 +2,10 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createApp } from './app.js';
-import { Store } from './store.js';
+import { DEFAULT_PORT, HOST, defaultDataDir, startServer } from './start.js';
 
-const HOST = '127.0.0.1';
-const PORT = Number(process.env.QA_DASH_PORT ?? 8765);
+const PORT = Number(process.env.QA_DASH_PORT ?? DEFAULT_PORT);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const DATA_FILE = path.join(process.env.QA_DASH_DATA ?? path.join(ROOT, 'data'), 'qa-tests.json');
-const CLIENT_DIR = path.join(ROOT, 'dist/client');
 const URL_ = `http://${HOST}:${PORT}`;
 const shouldOpen = process.argv.includes('--open');
 
@@ -29,22 +25,22 @@ function openWindow(): void {
     .unref();
 }
 
-const hasClient = existsSync(CLIENT_DIR);
-const app = createApp(new Store(DATA_FILE), hasClient ? { clientDir: CLIENT_DIR } : {});
-
-const server = app.listen(PORT, HOST, () => {
+try {
+  const { dataFile, hasClient } = await startServer({
+    port: PORT,
+    dataDir: defaultDataDir(),
+    clientDir: path.join(ROOT, 'dist/client'),
+  });
   console.log(`QA Test Dashboard en ${URL_}`);
-  console.log(`Datos: ${DATA_FILE}`);
+  console.log(`Datos: ${dataFile}`);
   if (!hasClient) console.log('Interfaz sin compilar: usa "npm run dev" o "npm start".');
   console.log('Deja esta ventana abierta; Ctrl+C cierra la app.');
   if (shouldOpen && hasClient) openWindow();
-});
-
-server.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EADDRINUSE') {
+} catch (err) {
+  if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
     console.error(`El puerto ${PORT} ya está en uso (¿la app ya está abierta?). Otro puerto: QA_DASH_PORT=8770 npm start`);
     if (shouldOpen) openWindow();
     process.exit(1);
   }
   throw err;
-});
+}
