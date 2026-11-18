@@ -45,6 +45,21 @@ describe('App', () => {
     expect(body.runs).toMatchObject([{ ticket: 'AVM-102', title: 'Vendor <import> & export', typeId: 't2', passed: 4, result: 'passed' }]);
   });
 
+  it('sugiere el resultado según los casos hasta que se elige a mano', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /AVM-101/ }));
+    const checked = () => screen.getByRole('radio', { checked: true }).textContent;
+
+    fireEvent.change(screen.getByLabelText('Casos passed'), { target: { value: '5' } });
+    expect(checked()).toBe('Passed');
+    fireEvent.change(screen.getByLabelText('Casos failed'), { target: { value: '1' } });
+    expect(checked()).toBe('Failed');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Blocked' }));
+    fireEvent.change(screen.getByLabelText('Casos failed'), { target: { value: '3' } });
+    expect(checked()).toBe('Blocked');
+  });
+
   it('muestra el registro en la lista y lo borra con doble confirmación', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Registros' }));

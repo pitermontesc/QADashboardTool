@@ -8,13 +8,26 @@ import { Dashboard } from './components/Dashboard';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
+import { Icon, type IconName } from './components/icons';
+import { Kbd, MOD } from './components/ui';
 
 type Tab = 'dash' | 'runs' | 'config';
-const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
-  { id: 'dash', label: 'Dashboard' },
-  { id: 'runs', label: 'Registros' },
-  { id: 'config', label: 'Tipos y ajustes' },
+const TABS: ReadonlyArray<{ id: Tab; label: string; icon: IconName; key: string }> = [
+  { id: 'dash', label: 'Dashboard', icon: 'dashboard', key: '1' },
+  { id: 'runs', label: 'Registros', icon: 'list', key: '2' },
+  { id: 'config', label: 'Tipos y ajustes', icon: 'settings', key: '3' },
 ];
+
+type ToastKind = 'ok' | 'error' | 'info';
+interface Toast { text: string; kind: ToastKind; id: number }
+
+/** En la app de escritorio la cabecera hace de barra de título (se arrastra la ventana desde ella). */
+const IS_DESKTOP = typeof navigator !== 'undefined' && /Electron/.test(navigator.userAgent);
+if (IS_DESKTOP) document.documentElement.classList.add('desktop');
+
+/** ¿El foco está en un campo de texto? Entonces las teclas sueltas no son atajos. */
+const typing = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 
 /** Formulario abierto: `id` presente = edición; ausente = registro nuevo. */
 interface FormState {
@@ -49,10 +62,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
-  const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const formKey = useRef(0);
 
-  const notify = useCallback((text: string) => setToast({ text, id: Date.now() }), []);
+  const notify = useCallback((text: string, kind: ToastKind = 'ok') => setToast({ text, kind, id: Date.now() }), []);
+  const fail = useCallback((error: unknown) => notify(errorMessage(error), 'error'), [notify]);
   /** Aviso importante: toast y, si el sistema lo permite (la app de escritorio sí), notificación nativa. */
   const announce = useCallback(
     (title: string, body: string) => {
@@ -68,7 +82,8 @@ export function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3500);
+    // Los errores se quedan más tiempo: hay que poder leerlos.
+    const timer = setTimeout(() => setToast(null), toast.kind === 'error' ? 7000 : 3200);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -76,8 +91,47 @@ export function App() {
     api.getState().then(setState, (error: unknown) => setLoadError(errorMessage(error)));
   }, []);
 
-  if (loadError) return <main><div className="empty-msg">{loadError}</div></main>;
-  if (!state) return <main><div className="empty-msg">Cargando…</div></main>;
+  // Comandos del menú de la app de escritorio y atajos de teclado. Se guardan en una ref
+  // para que el listener (registrado una sola vez) use siempre el estado actual.
+  const commands = useRef<(command: string) => void>(() => undefined);
+  useEffect(() => {
+    const onCommand = (event: Event): void => commands.current((event as CustomEvent<string>).detail);
+    const onKey = (event: KeyboardEvent): void => {
+      if (document.querySelector('dialog[open]')) return;
+      const mod = event.metaKey || event.ctrlKey;
+      // En escritorio el menú ya atiende ⌘N, ⌘1… (no llegan aquí); en el navegador sí.
+      if (mod && /^[123]$/.test(event.key)) {
+        event.preventDefault();
+        commands.current(`tab:${TABS[Number(event.key) - 1]!.id}`);
+      } else if (!mod && !event.altKey && !typing(event.target)) {
+        if (event.key === 'n' || event.key === 'N') {
+          event.preventDefault();
+          commands.current('new-run');
+        } else if (event.key === '/') {
+          event.preventDefault();
+          commands.current('search');
+        }
+      }
+    };
+    window.addEventListener('app-command', onCommand);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('app-command', onCommand);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  if (loadError) {
+    return (
+      <main>
+        <div className="empty-state">
+          <p className="text-bad">No se pudo abrir la app: {loadError}</p>
+          <button className="btn" onClick={() => location.reload()}>Reintentar</button>
+        </div>
+      </main>
+    );
+  }
+  if (!state) return <main><div className="loading"><span className="spinner" /> Cargando…</div></main>;
 
   const patch = (changes: Partial<AppState>): void => setState((s) => (s ? { ...s, ...changes } : s));
   const openForm = (initial: TestRunInput, id?: string): void => setForm({ key: ++formKey.current, id, initial });
@@ -92,7 +146,7 @@ export function App() {
       notify('Registro guardado');
       return true;
     } catch (error) {
-      notify(errorMessage(error));
+      fail(error);
       return false;
     }
   };
@@ -103,7 +157,7 @@ export function App() {
       setState((s) => (s ? { ...s, runs: s.runs.filter((r) => r.id !== run.id) } : s));
       notify('Registro borrado');
     } catch (error) {
-      notify(errorMessage(error));
+      fail(error);
     }
   };
 
@@ -114,7 +168,7 @@ export function App() {
       patch({ settings: await api.saveSettings(settings) });
     } catch (error) {
       patch({ settings: previous });
-      notify(errorMessage(error));
+      fail(error);
     }
   };
 
@@ -130,7 +184,7 @@ export function App() {
         announce('Jira conectado', `${jira.tickets.length} tickets cargados desde ${jira.site.replace(/^https?:\/\//, '')}`);
       }
     } catch (error) {
-      notify(errorMessage(error));
+      fail(error);
       // El servidor guardó el error de conexión: se recarga el estado para mostrarlo.
       api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined);
     } finally {
@@ -147,7 +201,7 @@ export function App() {
       }
       await refreshJira();
     } catch (error) {
-      notify(errorMessage(error));
+      fail(error);
     }
   };
 
@@ -157,7 +211,7 @@ export function App() {
       setState(next);
       notify(`Respaldo importado: ${next.runs.length} registros`);
     } catch (error) {
-      notify(errorMessage(error));
+      fail(error);
     }
   };
 
@@ -167,25 +221,58 @@ export function App() {
   };
 
   const toInput = ({ id: _id, createdAt: _createdAt, ...input }: TestRun): TestRunInput => input;
+  const newRun = (): void => openForm(blankRun(state.settings));
+
+  commands.current = (command) => {
+    if (command === 'new-run') {
+      if (!form) newRun();
+    } else if (command === 'refresh-jira') {
+      if (!jiraLoading && state.jira.connection !== 'none') void refreshJira();
+    } else if (command === 'search') {
+      setTab('runs');
+      setTimeout(() => document.getElementById('runs-search')?.focus(), 0);
+    } else if (command.startsWith('tab:')) {
+      setTab(command.slice(4) as Tab);
+    }
+  };
 
   return (
     <>
       <header>
-        <h1>QA <span>Test Dashboard</span></h1>
+        <div className="brand">
+          <span className="logo" aria-hidden="true"><Icon name="check" size={14} /></span>
+          <h1>QA <span>Dashboard</span></h1>
+        </div>
         <nav>
           {TABS.map((t) => (
-            <button key={t.id} className={t.id === tab ? 'on' : ''} onClick={() => setTab(t.id)}>
+            <button
+              key={t.id}
+              className={t.id === tab ? 'on' : ''}
+              aria-current={t.id === tab ? 'page' : undefined}
+              title={`${MOD}${t.key}`}
+              onClick={() => setTab(t.id)}
+            >
+              <Icon name={t.icon} />
               {t.label}
             </button>
           ))}
         </nav>
         <div className="spacer" />
-        <button className="btn primary" onClick={() => openForm(blankRun(state.settings))}>+ Nuevo registro</button>
+        <button className="btn primary" onClick={newRun} title={`Nuevo registro (${MOD}N)`}>
+          <Icon name="plus" /> Nuevo registro <Kbd>{MOD}N</Kbd>
+        </button>
       </header>
 
       <main>
         {tab === 'dash' && (
-          <Dashboard state={state} jiraLoading={jiraLoading} onRefreshJira={refreshJira} onTicket={newFromTicket} />
+          <Dashboard
+            state={state}
+            jiraLoading={jiraLoading}
+            onRefreshJira={refreshJira}
+            onTicket={newFromTicket}
+            onNewRun={newRun}
+            onOpenSettings={() => setTab('config')}
+          />
         )}
         {tab === 'runs' && (
           <RunsView
@@ -196,7 +283,14 @@ export function App() {
           />
         )}
         {tab === 'config' && (
-          <SettingsView state={state} onSaveSettings={saveSettings} onSaveJira={saveJira} onImport={importBackup} onError={notify} />
+          <SettingsView
+            state={state}
+            jiraLoading={jiraLoading}
+            onSaveSettings={saveSettings}
+            onSaveJira={saveJira}
+            onImport={importBackup}
+            onError={(message) => notify(message, 'error')}
+          />
         )}
       </main>
 
@@ -210,7 +304,17 @@ export function App() {
           onClose={() => setForm(null)}
         />
       )}
-      <div className={toast ? 'toast on' : 'toast'} role="status">{toast?.text}</div>
+      <div className={`toast${toast ? ` on ${toast.kind}` : ''}`} role={toast?.kind === 'error' ? 'alert' : 'status'}>
+        {toast && (
+          <>
+            <Icon name={toast.kind === 'error' ? 'alert' : 'check'} />
+            <span>{toast.text}</span>
+            <button className="toast-close" aria-label="Cerrar aviso" onClick={() => setToast(null)}>
+              <Icon name="close" size={14} />
+            </button>
+          </>
+        )}
+      </div>
     </>
   );
 }

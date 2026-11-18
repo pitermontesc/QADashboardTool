@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { RESULT_META } from '../../shared/defaults';
-import { formatDmy, parseYmd, relativeDay, toYmd } from '../../shared/dates';
+import { formatDmy, greeting, longDate, parseYmd, relativeDay, relativeTime, toYmd } from '../../shared/dates';
 import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { parseJiraBoardUrl } from '../../shared/jiraBoard';
-import { RESULTS, type AppState, type JiraConnection, type JiraTicket } from '../../shared/types';
-import { findType, ResultPill, RunsTable } from './ui';
+import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
+import { Icon } from './icons';
+import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
 
 const PERIODS: ReadonlyArray<{ value: Period; label: string }> = [
   { value: 7, label: '7 días' },
@@ -16,32 +16,16 @@ const PERIODS: ReadonlyArray<{ value: Period; label: string }> = [
   { value: 0, label: 'Todo' },
 ];
 
+/** A partir de cuántos tickets aparece el buscador de la sección. */
+const TICKET_SEARCH_FROM = 7;
+
 interface DashboardProps {
   state: AppState;
   jiraLoading: boolean;
   onRefreshJira: () => void;
   onTicket: (ticket: JiraTicket) => void;
-}
-
-const JIRA_STATUS: Record<JiraConnection, { label: string; color: string }> = {
-  none: { label: 'No conectado', color: 'var(--muted)' },
-  pending: { label: 'Sin probar', color: 'var(--warn)' },
-  connected: { label: 'Conectado', color: 'var(--ok)' },
-  error: { label: 'Error de conexión', color: 'var(--bad)' },
-};
-
-/** Indicador del estado de la conexión con Jira, con el sitio y el board como detalle. */
-function JiraStatus({ jira, loading }: { jira: AppState['jira']; loading: boolean }) {
-  const meta = loading ? { label: 'Conectando…', color: 'var(--prog)' } : JIRA_STATUS[jira.connection];
-  const board = parseJiraBoardUrl(jira.board);
-  const where = jira.site ? `${jira.site.replace(/^https?:\/\//, '')}${board ? ` · board ${board.boardId}` : ''}` : '';
-  return (
-    <span className="jira-status" role="status" title={jira.connection === 'error' ? jira.error ?? '' : where}>
-      <i style={{ background: meta.color }} />
-      {meta.label}
-      {where && jira.connection !== 'none' ? <span className="hint"> · {where}</span> : null}
-    </span>
-  );
+  onNewRun: () => void;
+  onOpenSettings: () => void;
 }
 
 /** Segmentos apilados por resultado; se usa en ambos gráficos. */
@@ -86,7 +70,158 @@ function ActivityChart({ buckets }: { buckets: Bucket[] }) {
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: DashboardProps) {
+interface TicketsProps {
+  jira: AppState['jira'];
+  loading: boolean;
+  ticketBase: string;
+  perTicket: Map<string, number>;
+  onRefresh: () => void;
+  onTicket: (ticket: JiraTicket) => void;
+  onOpenSettings: () => void;
+}
+
+/** Tickets de Jira como tarjetas: el punto de partida habitual para registrar un test. */
+function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOpenSettings }: TicketsProps) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const tickets = q
+    ? jira.tickets.filter((t) => `${t.key} ${t.summary} ${t.status}`.toLowerCase().includes(q))
+    : jira.tickets;
+  const base = /^https?:\/\//i.test(ticketBase) ? ticketBase : jira.site ? `${jira.site}/browse/` : '';
+
+  let empty: ReactNode = null;
+  if (jira.tickets.length === 0) {
+    empty =
+      jira.connection === 'none' ? (
+        <>
+          <p>Conecta Jira para ver aquí los tickets que tienes que probar y registrarlos con un clic.</p>
+          <button className="btn primary" onClick={onOpenSettings}>Conectar Jira</button>
+        </>
+      ) : jira.connection === 'error' ? (
+        <>
+          <p className="text-bad">No se pudo conectar con Jira: {jira.error}</p>
+          <div className="btn-row">
+            <button className="btn" onClick={onRefresh} disabled={loading}>Reintentar</button>
+            <button className="btn" onClick={onOpenSettings}>Revisar conexión</button>
+          </div>
+        </>
+      ) : jira.connection === 'connected' ? (
+        <p>Todo al día: no hay tickets pendientes de probar con tu filtro. 🎉</p>
+      ) : (
+        <>
+          <p>La conexión está configurada. Carga los tickets para empezar.</p>
+          <button className="btn primary" onClick={onRefresh} disabled={loading}>Cargar tickets</button>
+        </>
+      );
+  }
+
+  return (
+    <div className="card section-tickets">
+      <div className="card-head">
+        <div>
+          <h3 className="title">Tickets por probar</h3>
+          <div className="card-sub">
+            <JiraStatus jira={jira} loading={loading} />
+            {jira.connection === 'connected' && jira.fetchedAt !== null && (
+              <span className="hint">
+                {jira.tickets.length} {jira.tickets.length === 1 ? 'ticket' : 'tickets'} · actualizado {relativeTime(jira.fetchedAt)}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="spacer" />
+        {jira.tickets.length >= TICKET_SEARCH_FROM && (
+          <label className="search small">
+            <Icon name="search" />
+            <input placeholder="Filtrar tickets…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Filtrar tickets" />
+          </label>
+        )}
+        {jira.connection !== 'none' && (
+          <button className="btn" onClick={onRefresh} disabled={loading} title={`Actualizar desde Jira (${MOD}R)`}>
+            <span className={loading ? 'spin' : ''}><Icon name="refresh" /></span>
+            {loading ? 'Actualizando…' : 'Actualizar desde Jira'}
+          </button>
+        )}
+      </div>
+
+      {empty ? (
+        <div className="empty-state">{empty}</div>
+      ) : tickets.length === 0 ? (
+        <div className="empty-msg">Ningún ticket coincide con “{query}”.</div>
+      ) : (
+        <div className="tickets">
+          {tickets.map((ticket) => {
+            const logged = perTicket.get(ticket.key) ?? 0;
+            return (
+              <div key={ticket.key} className="tk">
+                <button
+                  className="tk-main"
+                  title={`Registrar un test para ${ticket.key}`}
+                  onClick={() => onTicket(ticket)}
+                >
+                  <span className="tk-top">
+                    <b className="tk-key">{ticket.key}</b>
+                    <span className={`chip tone-${ticketTone(ticket.status)}`}>{ticket.status}</span>
+                  </span>
+                  <span className="tk-sum">{ticket.summary}</span>
+                  <span className="tk-foot">
+                    {logged > 0 ? (
+                      <span className="tk-logged"><Icon name="check" size={13} /> {logged} reg.</span>
+                    ) : (
+                      <span className="hint">Sin registros</span>
+                    )}
+                    <span className="tk-cta">Registrar test <Icon name="arrow" size={13} /></span>
+                  </span>
+                </button>
+                {base && (
+                  <a
+                    className="tk-open"
+                    href={base + encodeURIComponent(ticket.key)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Abrir ${ticket.key} en Jira`}
+                    aria-label={`Abrir ${ticket.key} en Jira`}
+                  >
+                    <Icon name="external" size={14} />
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Primeros pasos: solo mientras no hay registros. */
+function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected: boolean; onOpenSettings: () => void; onNewRun: () => void }) {
+  return (
+    <div className="card onboarding">
+      <h3 className="title">Empieza en dos pasos</h3>
+      <ol className="steps">
+        <li className={jiraConnected ? 'done' : ''}>
+          <span className="step-n">{jiraConnected ? <Icon name="check" size={14} /> : 1}</span>
+          <div>
+            <b>Conecta Jira</b>
+            <p className="hint">Tus tickets aparecerán como tarjetas listas para registrar.</p>
+          </div>
+          {!jiraConnected && <button className="btn" onClick={onOpenSettings}>Conectar</button>}
+        </li>
+        <li>
+          <span className="step-n">2</span>
+          <div>
+            <b>Registra tu primer test</b>
+            <p className="hint">Pulsa un ticket o crea un registro libre (Smoke, Regression…).</p>
+          </div>
+          <button className="btn primary" onClick={onNewRun}>Nuevo registro</button>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
@@ -95,20 +230,22 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: Dashb
 
   const view = useMemo(() => {
     const inPeriod = filterByPeriod(runs, period, today);
+    const todayRuns = runs.filter((r) => r.date === todayYmd);
     return {
       inPeriod,
       summary: summarize(inPeriod),
+      today: summarize(todayRuns),
       buckets: buildBuckets(runs, period, today),
       byType: countByType(inPeriod),
       lastByType: lastRunByType(runs),
       perTicket: countByTicket(runs),
       recent: sortRuns(runs).slice(0, 8),
-      todayCount: runs.filter((r) => r.date === todayYmd).length,
+      todayCount: todayRuns.length,
     };
   }, [runs, period, today, todayYmd]);
 
   const { summary } = view;
-  const kpis: Array<[label: string, value: string | number, sub: string]> = [
+  const kpis: Array<[label: string, value: string | number, sub: string, tone?: string]> = [
     ['Ejecuciones', summary.executions, `${view.todayCount} hoy`],
     ['Casos ejecutados', summary.cases, `${summary.failed} failed · ${summary.blocked} blocked`],
     [
@@ -117,21 +254,50 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: Dashb
       summary.passRateBasis === 'none'
         ? 'sin datos'
         : `${summary.passNumerator} de ${summary.passDenominator} ${summary.passRateBasis === 'cases' ? 'casos' : 'ejecuciones'}`,
+      summary.passRate === null ? undefined : summary.passRate >= 90 ? 'ok' : summary.passRate >= 70 ? 'warn' : 'bad',
     ],
-    ['Bugs encontrados', summary.bugs, ''],
+    ['Bugs encontrados', summary.bugs, summary.bugs ? 'en el período' : 'ninguno en el período', summary.bugs ? 'bad' : undefined],
     ['Tiempo', `${(summary.minutes / 60).toFixed(1)} h`, `${summary.minutes} min`],
   ];
   const maxByType = view.byType[0]?.total ?? 1;
   const daily = period === 7 || period === 30;
+  const majors = settings.types.filter((t) => t.major);
 
   return (
-    <section>
-      <div className="row">
+    <section className="dashboard">
+      <div className="hero">
+        <div>
+          <h2>{greeting(new Date())}</h2>
+          <p className="hint cap">{longDate(new Date())}</p>
+        </div>
+        <div className="spacer" />
+        <div className="today">
+          <span><b>{view.todayCount}</b> {view.todayCount === 1 ? 'registro' : 'registros'} hoy</span>
+          <span><b>{view.today.cases}</b> casos</span>
+          <span className={view.today.bugs ? 'text-bad' : ''}><b>{view.today.bugs}</b> bugs</span>
+        </div>
+      </div>
+
+      {runs.length === 0 && (
+        <Onboarding jiraConnected={jira.connection === 'connected'} onOpenSettings={onOpenSettings} onNewRun={onNewRun} />
+      )}
+
+      <JiraTickets
+        jira={jira}
+        loading={jiraLoading}
+        ticketBase={settings.ticketBase}
+        perTicket={view.perTicket}
+        onRefresh={onRefreshJira}
+        onTicket={onTicket}
+        onOpenSettings={onOpenSettings}
+      />
+
+      <div className="row section-head">
         <h2>Resumen</h2>
         <div className="spacer" />
-        <div className="seg">
+        <div className="seg" role="group" aria-label="Período">
           {PERIODS.map((p) => (
-            <button key={p.value} className={p.value === period ? 'on' : ''} onClick={() => setPeriod(p.value)}>
+            <button key={p.value} className={p.value === period ? 'on' : ''} aria-pressed={p.value === period} onClick={() => setPeriod(p.value)}>
               {p.label}
             </button>
           ))}
@@ -139,85 +305,40 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket }: Dashb
       </div>
 
       <div className="kpis">
-        {kpis.map(([label, value, sub]) => (
+        {kpis.map(([label, value, sub, tone]) => (
           <div key={label} className="card kpi">
             <div className="lbl">{label}</div>
-            <div className="val">{value}</div>
-            <div className="sub">{sub || ' '}</div>
+            <div className={`val${tone ? ` text-${tone}` : ''}`}>{value}</div>
+            <div className="sub">{sub || ' '}</div>
           </div>
         ))}
       </div>
 
-      <div className="majors">
-        {settings.types.filter((t) => t.major).map((type) => {
-          const last = view.lastByType.get(type.id);
-          return (
-            <div key={type.id} className="card major" style={{ borderLeftColor: type.color }}>
-              <div className="name"><span className="star">★</span> {type.name}</div>
-              {last ? (
-                <>
-                  <div style={{ marginTop: 8 }}>
-                    <ResultPill result={last.result} /> <span className="hint">{last.env}</span>
-                  </div>
+      {majors.length > 0 && (
+        <div className="majors">
+          {majors.map((type) => {
+            const last = view.lastByType.get(type.id);
+            return (
+              <div key={type.id} className="card major" style={{ borderLeftColor: type.color }}>
+                <div className="major-head">
+                  <div className="name"><span className="star">★</span> {type.name}</div>
+                  {last && <ResultPill result={last.result} />}
+                </div>
+                {last ? (
                   <div className="meta">
-                    Última: {formatDmy(last.date)} ({relativeDay(last.date, today)})<br />
-                    {last.title}
+                    <b>{last.title}</b>
+                    <br />
+                    {formatDmy(last.date)} · {relativeDay(last.date, today)}{last.env ? ` · ${last.env}` : ''}
                   </div>
-                </>
-              ) : (
-                <div className="meta" style={{ marginTop: 8 }}>Sin ejecuciones registradas</div>
-              )}
-              <div className="meta">{view.inPeriod.filter((r) => r.typeId === type.id).length} en el período</div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="row" style={{ marginBottom: 10 }}>
-          <h3 style={{ margin: 0 }}>Tickets de Jira</h3>
-          <JiraStatus jira={jira} loading={jiraLoading} />
-          {jira.connection === 'connected' && jira.fetchedAt !== null && (
-            <span className="hint">
-              {jira.tickets.length} tickets · actualizado {new Date(jira.fetchedAt).toLocaleString()}
-            </span>
-          )}
-          <div className="spacer" />
-          <button className="btn" onClick={onRefreshJira} disabled={jiraLoading}>
-            {jiraLoading ? 'Cargando…' : 'Actualizar desde Jira'}
-          </button>
+                ) : (
+                  <div className="meta">Aún no hay ejecuciones de {type.name}.</div>
+                )}
+                <div className="meta">{view.inPeriod.filter((r) => r.typeId === type.id).length} en el período</div>
+              </div>
+            );
+          })}
         </div>
-        <div className="tickets">
-          {jira.tickets.length === 0 ? (
-            <div className="empty-msg" style={{ gridColumn: '1 / -1' }}>
-              {jira.connection === 'none'
-                ? 'Conecta Jira en “Tipos y ajustes” para ver aquí tus tickets como botones.'
-                : jira.connection === 'error'
-                  ? `No se pudo conectar con Jira: ${jira.error ?? ''} Revisa la conexión en “Tipos y ajustes”.`
-                  : jira.connection === 'connected'
-                    ? 'Jira está conectado, pero no hay tickets abiertos que coincidan con el filtro.'
-                    : 'Pulsa “Actualizar desde Jira” para cargar tus tickets.'}
-            </div>
-          ) : (
-            jira.tickets.map((ticket) => {
-              const logged = view.perTicket.get(ticket.key);
-              return (
-                <button
-                  key={ticket.key}
-                  className="tk"
-                  title={`Registrar un test para ${ticket.key} — ${ticket.summary}`}
-                  onClick={() => onTicket(ticket)}
-                >
-                  <span className="st">{ticket.status}</span>
-                  <b>{ticket.key}</b>
-                  {logged ? <span className="hint"> · {logged} reg.</span> : null}
-                  <span className="sm">{ticket.summary}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="grid2">
         <div className="card">

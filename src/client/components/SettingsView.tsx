@@ -3,9 +3,12 @@ import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import type { AppState, Backup, JiraConfigInput, Settings } from '../../shared/types';
 import { exportBackup, exportCsv } from '../exporters';
+import { Icon } from './icons';
+import { JiraStatus } from './ui';
 
 interface SettingsViewProps {
   state: AppState;
+  jiraLoading: boolean;
   onSaveSettings: (settings: Settings) => void;
   onSaveJira: (config: JiraConfigInput) => void;
   onImport: (backup: Backup) => void;
@@ -16,12 +19,13 @@ const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
   if (event.key === 'Enter') action();
 };
 
-export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onError }: SettingsViewProps) {
+export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onError }: SettingsViewProps) {
   const { settings, runs, jira } = state;
   const [newType, setNewType] = useState('');
   const [newEnv, setNewEnv] = useState('');
   const [ticketBase, setTicketBase] = useState(settings.ticketBase);
   const [jiraForm, setJiraForm] = useState({ site: jira.site, email: jira.email, board: jira.board, jql: jira.jql, token: '' });
+  const [showToken, setShowToken] = useState(false);
   const boardRef = parseJiraBoardUrl(jiraForm.board);
   const boardInvalid = jiraForm.board.trim() !== '' && !boardRef;
 
@@ -174,10 +178,14 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
           </div>
 
           <div className="card" style={{ marginBottom: 12 }}>
-            <h3>Conexión con Jira</h3>
+            <div className="card-head">
+              <h3 style={{ margin: 0 }}>Conexión con Jira</h3>
+              <div className="spacer" />
+              <JiraStatus jira={jira} loading={jiraLoading} detail={false} />
+            </div>
+            {jira.connection === 'error' && <p className="callout bad">{jira.error}</p>}
             <p className="hint">
-              Carga tus tickets como botones en el dashboard. El API token se guarda solo en esta máquina
-              (archivo qa-tests.json); se crea en id.atlassian.com → Seguridad → API tokens.
+              Tus tickets aparecen como tarjetas en el dashboard. El API token se guarda solo en esta máquina.
             </p>
             <label className="f">
               Board (opcional: pega el link del board, con o sin filtro)
@@ -209,20 +217,35 @@ export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onEr
             </label>
             <label className="f" style={{ marginTop: 8 }}>
               API token
-              <input
-                type="password"
-                autoComplete="off"
-                placeholder={jira.hasToken ? '(guardado — escribe para cambiarlo)' : ''}
-                value={jiraForm.token}
-                onChange={(e) => setJiraForm({ ...jiraForm, token: e.target.value })}
-              />
+              <span className="input-affix">
+                <input
+                  type={showToken ? 'text' : 'password'}
+                  autoComplete="off"
+                  placeholder={jira.hasToken ? '•••••••• (guardado — escribe para cambiarlo)' : 'Pega aquí tu API token'}
+                  value={jiraForm.token}
+                  onChange={(e) => setJiraForm({ ...jiraForm, token: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={showToken ? 'Ocultar token' : 'Mostrar token'}
+                  onClick={() => setShowToken(!showToken)}
+                >
+                  <Icon name={showToken ? 'eyeOff' : 'eye'} />
+                </button>
+              </span>
             </label>
+            <a className="small-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer">
+              Crear un API token en Atlassian <Icon name="external" size={12} />
+            </a>
             <label className="f" style={{ marginTop: 8 }}>
               {boardRef ? 'JQL adicional (opcional, se suma al filtro del board)' : 'JQL (qué tickets cargar)'}
               <textarea rows={2} value={jiraForm.jql} onChange={(e) => setJiraForm({ ...jiraForm, jql: e.target.value })} />
             </label>
             <div className="actions" style={{ marginTop: 10 }}>
-              <button className="btn primary" disabled={boardInvalid} onClick={() => onSaveJira(jiraForm)}>Guardar y cargar tickets</button>
+              <button className="btn primary" disabled={boardInvalid || jiraLoading} onClick={() => onSaveJira(jiraForm)}>
+                {jiraLoading ? 'Conectando…' : jira.connection === 'connected' ? 'Guardar y recargar tickets' : 'Conectar y cargar tickets'}
+              </button>
             </div>
           </div>
 

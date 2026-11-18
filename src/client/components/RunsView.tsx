@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RESULT_META } from '../../shared/defaults';
 import { EMPTY_FILTERS, filterRuns, isResult, sortRuns, type RunFilters } from '../../shared/stats';
 import { RESULTS, type AppState, type TestRun } from '../../shared/types';
+import { Icon } from './icons';
 import { RunsTable } from './ui';
 
 interface RunsViewProps {
@@ -32,7 +33,16 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps
   return (
     <section>
       <div className="filters">
-        <input placeholder="Buscar título, ticket o notas…" value={filters.query} onChange={(e) => set('query', e.target.value)} />
+        <label className="search">
+          <Icon name="search" />
+          <input
+            id="runs-search"
+            placeholder="Buscar título, ticket o notas…  ( / )"
+            aria-label="Buscar registros"
+            value={filters.query}
+            onChange={(e) => set('query', e.target.value)}
+          />
+        </label>
         <select value={filters.typeId} onChange={(e) => set('typeId', e.target.value)}>
           <option value="">Todos los tipos</option>
           {settings.types.map((t) => (
@@ -57,7 +67,9 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps
       <div className="row">
         <span className="hint">{rows.length} de {runs.length} registros</span>
         <div className="spacer" />
-        <button className="link" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar filtros</button>
+        {JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS) && (
+          <button className="link" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar filtros</button>
+        )}
       </div>
       <div className="card">
         <div className="tablewrap">

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b7bf0"/>
+      <stop offset="1" stop-color="#2447b8"/>
+    </linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0b1a4a" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <!-- Rejilla de iconos de macOS: 824 px de lado con margen transparente. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
+  <!-- Portapapeles de QA -->
+  <rect x="300" y="250" width="424" height="520" rx="48" fill="#fff"/>
+  <rect x="402" y="214" width="220" height="86" rx="30" fill="#dbe5ff"/>
+  <rect x="440" y="234" width="144" height="34" rx="17" fill="#2447b8"/>
+  <!-- Barras del dashboard -->
+  <rect x="372" y="560" width="58" height="140" rx="14" fill="#2f5bd8" opacity=".35"/>
+  <rect x="460" y="500" width="58" height="200" rx="14" fill="#2f5bd8" opacity=".55"/>
+  <rect x="548" y="440" width="58" height="260" rx="14" fill="#2f5bd8" opacity=".8"/>
+  <!-- Check de aprobado -->
+  <circle cx="660" cy="690" r="118" fill="#1f9d61" stroke="#fff" stroke-width="22"/>
+  <path d="M606 690 l38 38 l72 -78" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

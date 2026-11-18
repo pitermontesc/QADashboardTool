@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.3.0] - 2026-11-18
+
+### Cambiado
+- Rediseño de la experiencia de escritorio: barra de título integrada en macOS, icono propio, menú con atajos de teclado (⌘N, ⌘1-3, ⌘F, ⌘R) y la ventana recuerda tamaño y posición.
+- El dashboard abre con un saludo y el resumen del día, y pone primero los tickets por probar: tarjetas con estado en color, contador de registros, acceso directo a Jira y buscador.
+- Formulario de registro: resultado con botones de color que se ajusta solo según los casos (failed → Failed, blocked → Blocked), contexto del ticket, ⌘↵ para guardar.
+- Avisos con tipo (éxito o error, los errores duran más), fechas relativas («actualizado hace 5 min»), fechas en formato dd/mm/aaaa, primeros pasos cuando no hay registros y modo oscuro revisado.
+
 ## [1.2.0] - 2026-11-18
 
 ### Agregado
@@ -22,6 +30,7 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ### Agregado
 - Versión inicial: registro de tests de QA (diarios, Smoke, Regression), dashboard de métricas y tickets de Jira.
 
+[1.3.0]: https://github.com/pitermontesc/QADashboardTool/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pitermontesc/QADashboardTool/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pitermontesc/QADashboardTool/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/pitermontesc/QADashboardTool/releases/tag/v1.0.0

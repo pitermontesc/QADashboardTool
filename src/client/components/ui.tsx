@@ -1,7 +1,9 @@
 import { RESULT_META } from '../../shared/defaults';
 import { formatDmy } from '../../shared/dates';
-import type { Result, Settings, TestRun, TestType } from '../../shared/types';
+import { parseJiraBoardUrl } from '../../shared/jiraBoard';
+import type { JiraConnection, JiraState, Result, Settings, TestRun, TestType } from '../../shared/types';
 import type { ReactNode } from 'react';
+import { Icon } from './icons';
 
 const UNKNOWN_TYPE: TestType = { id: '', name: '(tipo eliminado)', major: false, color: '#888888' };
 
@@ -31,7 +33,7 @@ export function TicketLink({ ticket, base }: { ticket: string; base: string }) {
   if (!ticket) return null;
   if (!/^https?:\/\//i.test(base)) return <>{ticket}</>;
   return (
-    <a href={base + encodeURIComponent(ticket)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+    <a className="ticket-link" href={base + encodeURIComponent(ticket)} target="_blank" rel="noopener noreferrer" title="Abrir en Jira">
       {ticket}
     </a>
   );
@@ -57,7 +59,7 @@ interface RunsTableProps {
 
 export function RunsTable({ runs, settings, actions }: RunsTableProps) {
   if (runs.length === 0) {
-    return <div className="empty-msg">No hay registros. Usa “+ Nuevo registro” o pulsa un ticket de Jira para empezar.</div>;
+    return <div className="empty-msg">No hay registros todavía. Pulsa un ticket de Jira o “Nuevo registro” para empezar.</div>;
   }
   return (
     <table>
@@ -90,3 +92,44 @@ export function RunsTable({ runs, settings, actions }: RunsTableProps) {
     </table>
   );
 }
+
+const JIRA_STATUS: Record<JiraConnection, { label: string; tone: string }> = {
+  none: { label: 'No conectado', tone: 'muted' },
+  pending: { label: 'Sin probar', tone: 'warn' },
+  connected: { label: 'Conectado', tone: 'ok' },
+  error: { label: 'Error de conexión', tone: 'bad' },
+};
+
+/** Indicador del estado de la conexión con Jira, con el sitio y el board como detalle. */
+export function JiraStatus({ jira, loading, detail = true }: { jira: JiraState; loading: boolean; detail?: boolean }) {
+  const meta = loading ? { label: 'Conectando…', tone: 'prog' } : JIRA_STATUS[jira.connection];
+  const board = parseJiraBoardUrl(jira.board);
+  const where = jira.site ? `${jira.site.replace(/^https?:\/\//, '').replace(/\.atlassian\.net$/, '')}${board ? ` · board ${board.boardId}` : ''}` : '';
+  return (
+    <span className={`status-pill tone-${meta.tone}${loading ? ' pulsing' : ''}`} role="status" title={jira.connection === 'error' ? jira.error ?? '' : where}>
+      <i />
+      {meta.label}
+      {detail && where && jira.connection !== 'none' ? <span className="status-detail">{where}</span> : null}
+    </span>
+  );
+}
+
+/** Tono de color para el estado de un ticket de Jira según su nombre. */
+export function ticketTone(status: string): string {
+  const s = status.toLowerCase();
+  if (/stag/.test(s)) return 'stage';
+  if (/qa|test/.test(s) && !/passed/.test(s)) return 'prog';
+  if (/passed|done|closed|resuel/.test(s)) return 'ok';
+  if (/block/.test(s)) return 'bad';
+  return 'muted';
+}
+
+/** Atajo de teclado mostrado como teclas (⌘N). */
+export function Kbd({ children }: { children: ReactNode }) {
+  return <kbd className="kbd">{children}</kbd>;
+}
+
+export const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
+export const MOD = isMac ? '⌘' : 'Ctrl+';
+
+export { Icon };

@@ -26,7 +26,17 @@ npm run desktop        # compila y abre la app en una ventana de Electron (sin t
 npm run desktop:pack   # genera release/mac-*/QA Dashboard.app
 ```
 
-Arrastra `QA Dashboard.app` a `/Applications` y ábrela como cualquier otra app. No está firmada: la primera vez, clic derecho → Abrir. Los enlaces a Jira se abren en el navegador. Si `npm start` ya está corriendo, la app de escritorio reutiliza ese servidor.
+Atajos (también en el menú de la app):
+
+| Atajo | Acción |
+| --- | --- |
+| `⌘N` o `N` | Nuevo registro |
+| `⌘1` `⌘2` `⌘3` | Dashboard, Registros, Tipos y ajustes |
+| `⌘F` o `/` | Buscar registros |
+| `⌘R` | Actualizar tickets de Jira |
+| `⌘↵` / `Esc` | Guardar / cancelar el formulario |
+
+La ventana recuerda su tamaño y posición. Arrastra `QA Dashboard.app` a `/Applications` y ábrela como cualquier otra app. No está firmada: la primera vez, clic derecho → Abrir. Los enlaces a Jira se abren en el navegador. Si `npm start` ya está corriendo, la app de escritorio reutiliza ese servidor.
 
 | Variable | Para qué | Por defecto |
 | --- | --- | --- |
