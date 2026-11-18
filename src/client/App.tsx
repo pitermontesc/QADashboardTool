@@ -12,6 +12,7 @@ import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
 import { Icon, type IconName } from './components/icons';
+import { RavnLogo } from './components/RavnLogo';
 import { Kbd, MOD } from './components/ui';
 
 /** Cada cuánto se consulta el resultado de un smoke o una regresión en curso. */
@@ -367,7 +368,8 @@ export function App() {
     <>
       <header>
         <div className="brand">
-          <span className="logo" aria-hidden="true"><Icon name="check" size={14} /></span>
+          <RavnLogo />
+          <span className="brand-sep" aria-hidden="true" />
           <h1>QA <span>Dashboard</span></h1>
         </div>
         <nav>

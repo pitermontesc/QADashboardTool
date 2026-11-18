@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.8.1] - 2026-11-18
+
+### Cambiado
+- La cabecera muestra el logo de RAVN junto a «QA Dashboard», en claro y en oscuro.
+
 ## [1.8.0] - 2026-11-18
 
 ### Agregado
