@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.8.3] - 2026-11-18
+
+### Corregido
+- Las ejecuciones con Claude se abren en `~/qa-dashboard-runs` en lugar de la carpeta personal, donde Claude Code pedía confirmar la confianza en cada ejecución y la dejaba detenida.
+
 ## [1.8.2] - 2026-11-18
 
 ### Corregido

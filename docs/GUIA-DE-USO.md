@@ -167,6 +167,8 @@ Al guardar aparece el aviso **Registro guardado** y la tarjeta del ticket suma e
 ### Validar un ticket con el orquestador QA
 
 > **Antes de lanzar cualquier ejecución con Claude** (orquestador, smoke o regresión): ten Chrome abierto con la extensión **Claude in Chrome** conectada y la sesión iniciada en el sitio que se va a probar. La app abre Claude Code con `--chrome`, así que la sesión usa ese navegador; sin él, la ejecución termina como **BLOCKED**.
+>
+> Las ejecuciones se abren en la carpeta `~/qa-dashboard-runs`. La primera vez, Claude Code pregunta si confías en esa carpeta: elige **Yes, I trust this folder** y no vuelve a preguntar.
 
 Los tickets en **On QA** u **On Staging** tienen debajo el botón **▷ Ejecutar orquestador QA**. Lanza el skill `/avm-qa-orchestrator` de Claude Code sobre ese ticket:
 

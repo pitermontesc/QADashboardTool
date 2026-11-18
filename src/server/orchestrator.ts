@@ -30,6 +30,9 @@ export function smokeCommand(site: unknown, extra = ''): string {
   return claude(`${SMOKE_SKILL} run smoke on ${label} (${url})${extra}`);
 }
 
+/** Carpeta de trabajo de las ejecuciones con Claude (ahí quedan también sus reportes). */
+export const RUNS_DIR = '~/qa-dashboard-runs';
+
 /**
  * Abre una ventana nueva de Terminal con el comando. Es interactivo a propósito:
  * los skills de QA publican en Jira y testomat.io, así que cada paso se sigue y aprueba.
@@ -40,8 +43,11 @@ export const launchInTerminal: TerminalLauncher = (command) => {
   }
   // El comando va como argumento de AppleScript, nunca interpolado en el script.
   const script = ['on run argv', 'tell application "Terminal"', 'activate', 'do script (item 1 of argv)', 'end tell', 'end run'];
+  // Claude Code solo confía en la carpeta personal por sesión y preguntaría en cada ejecución;
+  // en una carpeta propia basta con confiar una vez.
+  const inRunsDir = `mkdir -p ${RUNS_DIR} && cd ${RUNS_DIR} && ${command}`;
   return new Promise((resolve, reject) => {
-    execFile('osascript', [...script.flatMap((line) => ['-e', line]), command], (err) => {
+    execFile('osascript', [...script.flatMap((line) => ['-e', line]), inRunsDir], (err) => {
       if (err) reject(new HttpError(500, `No se pudo abrir Terminal: ${err.message}`));
       else resolve();
     });
