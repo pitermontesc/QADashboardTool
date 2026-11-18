@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.6.1] - 2026-11-18
+
+### Corregido
+- **Smoke en STG** apuntaba a stg.alpinevm.com; ahora usa el dominio correcto, staging.alpinevm.com.
+
 ## [1.6.0] - 2026-11-18
 
 ### Agregado

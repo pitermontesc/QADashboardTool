@@ -196,7 +196,7 @@ Los tipos marcados con ★ aparecen destacados en el dashboard con su última ej
 
 ### Ejecutar el smoke con Claude Code
 
-La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ Smoke en QA** (qa.alpinevm.com) y **▷ Smoke en STG** (stg.alpinevm.com). Los dos lanzan el skill `/avm-qa-skills:avm-smoke-tester` de Claude Code, el smoke rápido post-deploy:
+La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ Smoke en QA** (qa.alpinevm.com) y **▷ Smoke en STG** (staging.alpinevm.com). Los dos lanzan el skill `/avm-qa-skills:avm-smoke-tester` de Claude Code, el smoke rápido post-deploy:
 
 1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
 2. **Sigue el smoke en Terminal.** Recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.

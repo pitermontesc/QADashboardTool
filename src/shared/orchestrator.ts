@@ -19,7 +19,7 @@ export const isRegressionType = (name: string): boolean => /regres/i.test(name);
 /** Sitios en los que se puede correr el smoke. */
 export const SMOKE_SITES = {
   qa: { label: 'QA', url: 'https://qa.alpinevm.com' },
-  stg: { label: 'STG', url: 'https://stg.alpinevm.com' },
+  stg: { label: 'STG', url: 'https://staging.alpinevm.com' },
 } as const;
 export type SmokeSite = keyof typeof SMOKE_SITES;
 export const isSmokeSite = (site: unknown): site is SmokeSite => site === 'qa' || site === 'stg';

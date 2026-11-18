@@ -155,7 +155,7 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).status).toBe(400);
     expect(launched).toEqual([
       "claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
-      "claude '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://stg.alpinevm.com)'",
+      "claude '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)'",
     ]);
   });
 
