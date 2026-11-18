@@ -1,3 +1,4 @@
+import type { SmokeSite } from '../shared/orchestrator';
 import type {
   AppState, Backup, JiraConfigInput, JiraState, Settings, TestRun, TestRunInput,
 } from '../shared/types';
@@ -29,5 +30,6 @@ export const api = {
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
   runOrchestrator: (key: string) => request<{ key: string }>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
   runRegression: (run: string) => request<{ run: string }>('POST', '/api/regression', { run }),
+  runSmoke: (site: SmokeSite) => request<{ site: SmokeSite }>('POST', '/api/smoke', { site }),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
 };

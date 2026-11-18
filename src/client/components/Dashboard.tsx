@@ -5,7 +5,7 @@ import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { ORCHESTRATOR_SKILL, canOrchestrate, isRegressionType } from '../../shared/orchestrator';
+import { ORCHESTRATOR_SKILL, SMOKE_SITES, canOrchestrate, isRegressionType, isSmokeType, type SmokeSite } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
@@ -19,6 +19,8 @@ const PERIODS: ReadonlyArray<{ value: Period; label: string }> = [
 
 /** A partir de cuántos tickets aparece el buscador de la sección. */
 const TICKET_SEARCH_FROM = 7;
+/** Cada cuántos minutos se actualizan solos los tickets de Jira. */
+export const JIRA_AUTO_REFRESH_MIN = 5;
 
 interface DashboardProps {
   state: AppState;
@@ -29,6 +31,7 @@ interface DashboardProps {
   /** Ticket cuyo orquestador se está abriendo. */
   launching: string | null;
   onRegression: () => void;
+  onSmoke: (site: SmokeSite) => void;
   onNewRun: () => void;
   onOpenSettings: () => void;
 }
@@ -131,7 +134,7 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
             <JiraStatus jira={jira} loading={loading} />
             {jira.connection === 'connected' && jira.fetchedAt !== null && (
               <span className="hint">
-                {jira.tickets.length} {jira.tickets.length === 1 ? 'ticket' : 'tickets'} · actualizado {relativeTime(jira.fetchedAt)}
+                {jira.tickets.length} {jira.tickets.length === 1 ? 'ticket' : 'tickets'} · actualizado {relativeTime(jira.fetchedAt)} · se actualiza solo cada {JIRA_AUTO_REFRESH_MIN} min
               </span>
             )}
           </div>
@@ -240,7 +243,7 @@ function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
@@ -359,6 +362,22 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                   <button className="btn small major-run" onClick={onRegression} title="Abre Terminal con Claude Code y el skill de regresión">
                     <Icon name="play" size={13} /> Ejecutar regresión
                   </button>
+                )}
+                {isSmokeType(type.name) && (
+                  <div className="major-run btn-row">
+                    {(Object.keys(SMOKE_SITES) as SmokeSite[]).map((site) => (
+                      <button
+                        key={site}
+                        className="btn small"
+                        onClick={() => onSmoke(site)}
+                        disabled={launching !== null}
+                        title={`Abre Terminal con Claude Code y el smoke en ${SMOKE_SITES[site].url}`}
+                      >
+                        <Icon name="play" size={13} />
+                        {launching === `smoke:${site}` ? 'Abriendo Terminal…' : `Smoke en ${SMOKE_SITES[site].label}`}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             );

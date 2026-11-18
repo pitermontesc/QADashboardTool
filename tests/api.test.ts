@@ -147,6 +147,18 @@ describe('Orquestador QA', () => {
     ]);
   });
 
+  it('lanza el smoke tester en QA o STG', async () => {
+    launched.length = 0;
+    expect((await srv.call('POST', '/api/smoke', { site: 'qa' })).status).toBe(200);
+    expect((await srv.call('POST', '/api/smoke', { site: 'stg' })).status).toBe(200);
+    expect((await srv.call('POST', '/api/smoke', {})).status).toBe(400);
+    expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).status).toBe(400);
+    expect(launched).toEqual([
+      "claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
+      "claude '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://stg.alpinevm.com)'",
+    ]);
+  });
+
   it('arma el comando de Claude Code con el skill', () => {
     expect(orchestratorCommand('AVM-7057')).toBe("claude '/avm-qa-orchestrator AVM-7057'");
     expect(() => orchestratorCommand("x'y")).toThrow();

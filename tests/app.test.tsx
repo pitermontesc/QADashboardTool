@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/client/App';
-import { fakeJira, startServer } from './helpers';
+import { extraIssues, fakeJira, startServer } from './helpers';
 
 /** Prueba de la interfaz contra la API real (solo Jira está simulado). */
 describe('App', () => {
@@ -82,5 +82,22 @@ describe('App', () => {
       const { body } = await srv.call('GET', '/api/state');
       expect(body.settings.types.at(-1)).toMatchObject({ name: 'Migración de datos', major: false });
     });
+  });
+
+  it('actualiza los tickets solo al volver a la ventana y avisa de los nuevos en On QA', async () => {
+    render(<App />);
+    await screen.findByRole('button', { name: /AVM-101/ });
+    extraIssues.push({ key: 'AVM-103', summary: 'Nuevo para QA', status: 'On Staging' });
+    // La última carga tiene que tener más de un minuto para que se repita.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 2 * 60_000);
+    try {
+      fireEvent.focus(window);
+      expect(await screen.findByRole('button', { name: /AVM-103/ })).toBeTruthy();
+      expect(await screen.findByText(/Nuevo ticket en On Staging: AVM-103/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+      extraIssues.length = 0;
+    }
   });
 });

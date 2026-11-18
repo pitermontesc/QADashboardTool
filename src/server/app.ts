@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
 import { fetchJiraTickets } from './jira.js';
-import { launchInTerminal, orchestratorCommand, regressionCommand, type TerminalLauncher } from './orchestrator.js';
+import { launchInTerminal, orchestratorCommand, regressionCommand, smokeCommand, type TerminalLauncher } from './orchestrator.js';
 import { canOrchestrate, isTicketKey } from '../shared/orchestrator.js';
 import { backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
@@ -133,6 +133,12 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const run = typeof body.run === 'string' ? body.run.trim() : '';
     await launch(regressionCommand(run));
     res.json({ run });
+  });
+
+  api.post('/smoke', async (req, res) => {
+    const { site } = (req.body ?? {}) as { site?: unknown };
+    await launch(smokeCommand(site));
+    res.json({ site });
   });
 
   api.use((_req, _res, next) => {

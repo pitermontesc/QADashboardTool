@@ -14,6 +14,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 4. [Registrar un test desde un ticket](#4-registrar-un-test-desde-un-ticket)
    - [Validar un ticket con el orquestador QA](#validar-un-ticket-con-el-orquestador-qa)
 5. [Registrar un test sin ticket (Smoke, Regression…)](#5-registrar-un-test-sin-ticket-smoke-regression)
+   - [Ejecutar el smoke con Claude Code](#ejecutar-el-smoke-con-claude-code)
    - [Ejecutar la regresión con Claude Code](#ejecutar-la-regresión-con-claude-code)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
@@ -122,7 +123,9 @@ Cada tarjeta muestra:
 - Cuántos **registros** tienes de ese ticket (✓ 1 reg.) o «Sin registros».
 - El icono ↗ para **abrir el ticket en Jira** (se abre en tu navegador).
 
-Con 7 tickets o más aparece un buscador para filtrarlos. Para traer cambios de Jira, pulsa **Actualizar desde Jira** (o `⌘R`).
+Con 7 tickets o más aparece un buscador para filtrarlos.
+
+**Los tickets se actualizan solos** mientras la app está abierta: cada 5 minutos y cada vez que vuelves a la ventana (si la última carga tiene más de un minuto). Cuando entra un ticket nuevo en **On QA** u **On Staging**, la app te avisa con «Nuevo ticket en On QA: AVM-…», también como notificación del sistema en la app de escritorio. Si quieres traer los cambios al instante, pulsa **Actualizar desde Jira** (o `⌘R`).
 
 ### Paso a paso
 
@@ -191,11 +194,21 @@ Para suites grandes o tests que no dependen de un ticket:
 
 Los tipos marcados con ★ aparecen destacados en el dashboard con su última ejecución (sección 6).
 
+### Ejecutar el smoke con Claude Code
+
+La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ Smoke en QA** (qa.alpinevm.com) y **▷ Smoke en STG** (stg.alpinevm.com). Los dos lanzan el skill `/avm-qa-skills:avm-smoke-tester` de Claude Code, el smoke rápido post-deploy:
+
+1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
+2. **Sigue el smoke en Terminal.** Recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
+3. Al terminar, **registra la ejecución** en la app: **Nuevo registro** → tipo **★ Smoke**, el **ambiente** donde corriste el smoke (QA o Staging) y los casos del resumen.
+
+Si necesitas los dos sitios, pulsa los dos botones: cada smoke se abre en su propia ventana de Terminal. Los botones aparecen en cualquier tipo de test cuyo nombre contenga «Smoke» y que esté marcado con ★.
+
 ### Ejecutar la regresión con Claude Code
 
 La tarjeta **★ Regression** del dashboard tiene el botón **▷ Ejecutar regresión**. Lanza el skill `/avm-qa-skills:avm-regression-runner` de Claude Code, que ejecuta un test run de testomat.io contra staging:
 
-![Tarjetas de suites Smoke y Regression; la de Regression tiene el botón «Ejecutar regresión»](img/18-regresion-boton.png)
+![Tarjetas de suites Smoke y Regression con los botones «Smoke en QA», «Smoke en STG» y «Ejecutar regresión»](img/18-suites-botones.png)
 
 1. **Pulsa «Ejecutar regresión»** en la tarjeta Regression.
 2. **Pega el test run de testomat.io**: el link del run o su ID, por ejemplo `#b333fb92`. Es opcional; si lo dejas vacío, el skill te lo pide en Terminal. Debajo ves el comando exacto que se va a ejecutar.
@@ -318,7 +331,7 @@ Las teclas sueltas (`N`, `/`) no actúan mientras escribes en un campo.
 | **«The value 'X' does not exist for the field 'status'»** | Un estado del JQL adicional no existe con ese nombre exacto (cuidado con mayúsculas y tildes). Corrígelo, por ejemplo «On Staging» y no «On Stagging». |
 | **Conectado, pero «no hay tickets pendientes»** | Ningún ticket abierto cumple el filtro del board + JQL. Prueba a vaciar el JQL adicional para comprobarlo. |
 | **Falta un ticket que esperaba** | La app omite los tickets terminados y trae como máximo 100. Ajusta el filtro para acotar. |
-| **Los tickets no reflejan cambios recientes** | Pulsa **Actualizar desde Jira** (`⌘R`); la app no se actualiza sola. |
+| **Los tickets no reflejan cambios recientes** | La app los actualiza sola cada 5 minutos y al volver a la ventana. Para no esperar, pulsa **Actualizar desde Jira** (`⌘R`). Si la tarjeta muestra **Error de conexión**, revisa el token. |
 | **«El puerto 8765 está ocupado»** al abrir | Otro programa usa ese puerto. Ciérralo, o abre la app desde la Terminal con otro puerto: `QA_DASH_PORT=8770 "/Applications/QA Dashboard.app/Contents/MacOS/QA Dashboard"`. |
 | **Terminal dice `command not found: claude`** | Instala Claude Code o añade `~/.local/bin` a tu PATH, y vuelve a pulsar **Ejecutar orquestador QA**. |
 | **«No se pudo abrir Terminal»** | Al primer uso macOS pide permiso para que QA Dashboard controle Terminal. Concédelo en **Ajustes del Sistema → Privacidad y seguridad → Automatización**. |

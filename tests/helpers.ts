@@ -29,6 +29,9 @@ export async function startServer(options: AppOptions = {}) {
 /** Último JQL que recibió el endpoint de board del Jira simulado. */
 export let lastBoardJql = '';
 
+/** Tickets que el Jira simulado agrega a la búsqueda JQL (para probar tickets nuevos). */
+export const extraIssues: { key: string; summary: string; status: string }[] = [];
+
 /** Jira simulado: acepta solo el token "good"; la búsqueda JQL devuelve dos tickets y el board 1, sesenta. */
 export const fakeJira: typeof fetch = async (input, init) => {
   const url = new URL(String(input));
@@ -53,6 +56,7 @@ export const fakeJira: typeof fetch = async (input, init) => {
     issues: [
       { key: 'AVM-101', fields: { summary: 'Work order totals', status: { name: 'On QA' }, issuetype: { name: 'Story' } } },
       { key: 'AVM-102', fields: { summary: 'Vendor <import> & export', status: { name: 'Test' }, issuetype: { name: 'Bug' } } },
+      ...extraIssues.map(({ key, summary, status }) => ({ key, fields: { summary, status: { name: status }, issuetype: { name: 'Story' } } })),
     ],
   });
 };

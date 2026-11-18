@@ -59,11 +59,11 @@ Para traer los tickets de un **board**, pega su link en el campo *Board* tal com
 https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=assignee+IN+(...)
 ```
 
-La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Jira y omite los que ya están terminados. El campo JQL pasa a ser un filtro adicional opcional. **Actualizar desde Jira** en el dashboard vuelve a consultar el board.
+La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Jira y omite los que ya están terminados. El campo JQL pasa a ser un filtro adicional opcional. Los tickets se actualizan solos cada 5 minutos y al volver a la ventana, con aviso cuando entra uno nuevo en On QA u On Staging; **Actualizar desde Jira** en el dashboard vuelve a consultar el board al instante.
 
 Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator <TICKET>` (solo macOS; requiere el comando `claude` y el skill instalado).
 
-La tarjeta de la suite **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y abre Terminal con `/avm-qa-skills:avm-regression-runner`.
+La tarjeta de la suite **Smoke** tiene los botones **Smoke en QA** y **Smoke en STG**, que abren Terminal con `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o stg.alpinevm.com. La de **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y abre Terminal con `/avm-qa-skills:avm-regression-runner`.
 
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 

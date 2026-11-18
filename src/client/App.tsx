@@ -5,6 +5,8 @@ import type {
 } from '../shared/types';
 import { api } from './api';
 import { Dashboard } from './components/Dashboard';
+import { SMOKE_SITES, canOrchestrate, type SmokeSite } from '../shared/orchestrator';
+import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
@@ -82,6 +84,23 @@ export function App() {
     },
     [notify],
   );
+
+  // Los tickets de Jira se actualizan solos: cada pocos minutos y al volver a la ventana.
+  const autoRefresh = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    const tick = (): void => autoRefresh.current();
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const timer = setInterval(tick, JIRA_AUTO_REFRESH_MIN * 60_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -195,6 +214,27 @@ export function App() {
     }
   };
 
+  /** Actualización automática: sin avisos salvo tickets nuevos en On QA / On Staging. */
+  autoRefresh.current = () => {
+    const { jira } = state;
+    if (jiraLoading || !jira.hasToken || jira.connection === 'none') return;
+    // Al volver a la ventana no se repite si la última carga es muy reciente.
+    if (jira.fetchedAt !== null && Date.now() - jira.fetchedAt < 60_000) return;
+    const known = new Set(jira.tickets.map((t) => t.key));
+    setJiraLoading(true);
+    api
+      .refreshJira()
+      .then((next) => {
+        patch({ jira: next });
+        const fresh = next.tickets.filter((t) => !known.has(t.key) && canOrchestrate(t.status));
+        if (fresh.length === 1) announce(`Nuevo ticket en ${fresh[0]!.status}`, `${fresh[0]!.key} · ${fresh[0]!.summary}`);
+        else if (fresh.length > 1) announce('Nuevos tickets por probar', fresh.map((t) => t.key).join(', '));
+      })
+      // El error queda en el estado de conexión de la tarjeta; no se interrumpe con un aviso.
+      .catch(() => api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined))
+      .finally(() => setJiraLoading(false));
+  };
+
   const saveJira = async (config: JiraConfigInput): Promise<void> => {
     try {
       const jira = await api.saveJiraConfig(config);
@@ -243,6 +283,18 @@ export function App() {
     } catch (err) {
       notify((err as Error).message, 'error');
       return false;
+    }
+  };
+
+  const runSmoke = async (site: SmokeSite): Promise<void> => {
+    setLaunching(`smoke:${site}`);
+    try {
+      await api.runSmoke(site);
+      notify(`Smoke en ${SMOKE_SITES[site].label} abierto en Terminal`, 'info');
+    } catch (err) {
+      notify((err as Error).message, 'error');
+    } finally {
+      setLaunching(null);
     }
   };
 
@@ -299,6 +351,7 @@ export function App() {
             onOrchestrate={runOrchestrator}
             launching={launching}
             onRegression={() => setRegressionOpen(true)}
+            onSmoke={runSmoke}
             onNewRun={newRun}
             onOpenSettings={() => setTab('config')}
           />

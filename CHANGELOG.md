@@ -2,6 +2,12 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.6.0] - 2026-11-18
+
+### Agregado
+- Botones **Smoke en QA** y **Smoke en STG** en la tarjeta de la suite Smoke: abren Terminal con Claude Code ejecutando `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o stg.alpinevm.com.
+- Los tickets de Jira se actualizan solos cada 5 minutos y al volver a la ventana, y la app avisa (también con notificación del sistema) cuando entra un ticket nuevo en On QA u On Staging.
+
 ## [1.5.0] - 2026-11-18
 
 ### Agregado
