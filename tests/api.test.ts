@@ -129,11 +129,12 @@ describe('Orquestador QA', () => {
   afterAll(() => srv.close());
 
   it('solo se lanza para tickets cargados en On QA u On Staging', async () => {
-    expect(await srv.call('POST', '/api/orchestrator/AVM-101', {})).toMatchObject({ status: 200, body: { key: 'AVM-101' } });
+    expect(await srv.call('POST', '/api/orchestrator/AVM-101', {})).toMatchObject({ status: 200, body: { kind: 'orchestrator', target: 'AVM-101', env: 'QA' } });
     expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // estado "Test"
     expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
     expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
-    expect(launched).toEqual(["claude '/avm-qa-orchestrator AVM-101'"]);
+    expect(launched.map(withoutReport)).toEqual(["claude '/avm-qa-orchestrator AVM-101'"]);
+    expect(launched[0]).toContain('verdict (PASSED, PASSED W/F, FAILED o BLOCKED;');
     launched.length = 0;
   });
 
@@ -166,11 +167,15 @@ describe('Orquestador QA', () => {
     launched.length = 0;
     const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     expect(automation).toMatchObject({ kind: 'smoke', target: 'STG', env: 'Staging', finishedAt: null, verdict: null });
+    // Desde que se lanza ya está en Registros, «En progreso».
+    const started = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === automation.runId);
+    expect(started).toMatchObject({ typeId: 't0', env: 'Staging', result: 'progress', title: 'Smoke STG con Claude · en curso' });
     // El prompt le dice a Claude adónde reportar; se usa esa misma URL.
     const reportUrl = new URL(launched[0]!.match(/POST JSON a (\S+)/)![1]!);
     expect(reportUrl.pathname).toBe(`/api/automation/${automation.id}/result`);
 
     expect((await srv.call('POST', reportUrl.pathname, { verdict: 'maybe' })).status).toBe(400);
+    const runsBefore = (await srv.call('GET', '/api/state')).body.runs.length;
     const report = { verdict: 'no go', passed: 18, failed: 2, bugs: 1, summary: 'Mass Upload falla en el paso 3', link: 'https://example.atlassian.net/browse/AVM-900' };
     const done = await srv.call('POST', reportUrl.pathname, report);
     expect(done).toMatchObject({ status: 200, body: { verdict: 'NO-GO', summary: 'Mass Upload falla en el paso 3' } });
@@ -178,12 +183,38 @@ describe('Orquestador QA', () => {
 
     const { body: state } = await srv.call('GET', '/api/state');
     expect(state.automations[0]).toMatchObject({ id: automation.id, verdict: 'NO-GO', runId: expect.any(String) });
+    expect(state.automations[0].runId).toBe(automation.runId); // se actualiza el mismo registro
+    expect(state.runs).toHaveLength(runsBefore); // no se duplica el registro
     const run = state.runs.find((r: { id: string }) => r.id === state.automations[0].runId);
     expect(run).toMatchObject({ typeId: 't0', env: 'Staging', result: 'failed', passed: 18, failed: 2, bugs: 1, title: 'Smoke STG con Claude · NO-GO' });
     expect(run.notes).toContain('AVM-900');
 
     expect((await srv.call('DELETE', `/api/automation/${automation.id}`)).status).toBe(204);
     expect((await srv.call('POST', reportUrl.pathname, report)).status).toBe(404);
+  });
+
+  it('un smoke que no se pudo probar se reporta como BLOCKED', async () => {
+    launched.length = 0;
+    const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    expect(launched[0]).toContain('verdict (GO, NO-GO o BLOCKED; usa BLOCKED si no se pudo probar');
+    const done = await srv.call('POST', `/api/automation/${automation.id}/result`, { verdict: 'incomplete', blocked: 8, summary: 'Sin navegador' });
+    expect(done.body.verdict).toBe('BLOCKED');
+    const run = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === automation.runId);
+    expect(run).toMatchObject({ result: 'blocked', blocked: 8, title: 'Smoke STG con Claude · BLOCKED' });
+  });
+
+  it('registra el orquestador de un ticket y descarta el registro de una ejecución sin terminar', async () => {
+    const { body: automation } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
+    const result = await srv.call('POST', `/api/automation/${automation.id}/result`, { verdict: 'passed with findings', passed: 9, failed: 0, bugs: 1 });
+    expect(result.body.verdict).toBe('PASSED W/F');
+    const { body: state } = await srv.call('GET', '/api/state');
+    expect(state.runs.find((r: { id: string }) => r.id === automation.runId)).toMatchObject({
+      ticket: 'AVM-101', typeId: 't2', env: 'QA', result: 'passed', title: 'Orquestador QA: Work order totals · PASSED W/F',
+    });
+
+    const { body: pending } = await srv.call('POST', '/api/smoke', { site: 'qa' });
+    expect((await srv.call('DELETE', `/api/automation/${pending.id}`)).status).toBe(204);
+    expect((await srv.call('GET', '/api/state')).body.runs.some((r: { id: string }) => r.id === pending.runId)).toBe(false);
   });
 
   it('arma el comando de Claude Code con el skill', () => {

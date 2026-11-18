@@ -1,6 +1,6 @@
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import { z } from 'zod';
-import { RESULTS } from '../shared/types.js';
+import { RESULTS, VERDICTS } from '../shared/types.js';
 
 const count = z.number().int().min(0).nullable().default(null);
 const httpUrlOrEmpty = z
@@ -59,13 +59,22 @@ export const jiraConfigSchema = z.object({
   token: z.string().trim().max(500).optional(),
 });
 
+/** «no go» → «NO-GO», «passed with findings» → «PASSED W/F», «incomplete» → «BLOCKED». */
+function normalizeVerdict(raw: string): string {
+  const v = raw.toUpperCase().replace(/[\s_]+/g, ' ').trim();
+  if (/^NO[ -]?GO$/.test(v)) return 'NO-GO';
+  if (/^PASSED (W\/F|WITH FINDINGS)$/.test(v)) return 'PASSED W/F';
+  if (/^(INCOMPLETE|INCOMPLETO|NOT TESTED|SKIPPED)$/.test(v)) return 'BLOCKED';
+  return v;
+}
+
 /** Resultado que Claude reporta al terminar un smoke o una regresión. */
 export const automationResultSchema = z.object({
   verdict: z
     .string()
     .trim()
-    .transform((v) => v.toUpperCase().replace(/[\s_]+/g, '-'))
-    .pipe(z.enum(['GO', 'NO-GO'], 'El veredicto debe ser GO o NO-GO')),
+    .transform(normalizeVerdict)
+    .pipe(z.enum(VERDICTS, `El veredicto debe ser uno de: ${VERDICTS.join(', ')}`)),
   passed: count,
   failed: count,
   blocked: count,

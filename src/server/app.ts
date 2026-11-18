@@ -4,7 +4,7 @@ import { HttpError } from './errors.js';
 import { fetchJiraTickets } from './jira.js';
 import { launchInTerminal, orchestratorCommand, regressionCommand, smokeCommand, type TerminalLauncher } from './orchestrator.js';
 import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
-import { reportInstruction, envFor, runFromResult } from './automation.js';
+import { envFor, reportInstruction, runForAutomation } from './automation.js';
 import { automationResultSchema, backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
 
@@ -125,8 +125,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!canOrchestrate(ticket.status)) {
       throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
     }
-    await launch(orchestratorCommand(key));
-    res.json({ key });
+    const env = envFor(/stag/i.test(ticket.status) ? 'staging' : 'qa', store.getState().settings);
+    const title = `Orquestador QA: ${ticket.summary}`.slice(0, 250);
+    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env, title }, (extra) => orchestratorCommand(key, extra)));
   });
 
   /** Lanza el comando y deja la ejecución «en curso» hasta que Claude reporte el resultado. */
@@ -136,9 +137,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     command: (extra: string) => string,
   ) => {
     command(''); // Valida antes de registrar nada.
-    const automation = store.startAutomation(input);
+    const settings = store.getState().settings;
+    const automation = store.startAutomation(input, (a) => runInputSchema.parse(runForAutomation(a, settings)));
     try {
-      await launch(command(reportInstruction(req.socket.localPort ?? 0, automation.id)));
+      await launch(command(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id)));
     } catch (err) {
       store.deleteAutomation(automation.id);
       throw err;
@@ -150,14 +152,16 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const body = (req.body ?? {}) as { run?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
     const env = envFor('staging', store.getState().settings);
-    res.json(await launchAutomation(req, { kind: 'regression', target: run, env }, (extra) => regressionCommand(run, extra)));
+    const title = `Regression ${run || 'testomat.io'} con Claude`;
+    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionCommand(run, extra)));
   });
 
   api.post('/smoke', async (req, res) => {
     const { site } = (req.body ?? {}) as { site?: unknown };
     if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
     const env = envFor(site === 'qa' ? 'qa' : 'staging', store.getState().settings);
-    res.json(await launchAutomation(req, { kind: 'smoke', target: SMOKE_SITES[site].label, env }, (extra) => smokeCommand(site, extra)));
+    const { label } = SMOKE_SITES[site];
+    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: `Smoke ${label} con Claude` }, (extra) => smokeCommand(site, extra)));
   });
 
   api.post('/automation/:id/result', (req, res) => {
@@ -166,7 +170,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (automation.finishedAt !== null) throw new HttpError(409, 'Esa ejecución ya tiene resultado');
     const result = automationResultSchema.parse(req.body);
     const { verdict, summary, link } = result;
-    const runInput = runInputSchema.parse(runFromResult(automation, result, store.getState().settings));
+    const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
     res.json(store.finishAutomation(automation.id, { verdict, summary, link }, runInput));
   });
 

@@ -2,6 +2,16 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.8.0] - 2026-11-18
+
+### Agregado
+- Toda ejecución lanzada con Claude (orquestador QA, smoke y regresión) se registra en **Registros** desde que se lanza, como «En progreso», y ese registro se completa con el veredicto, los casos y el resumen cuando Claude lo reporta.
+- El orquestador QA también reporta su resultado (PASSED, PASSED W/F, FAILED, BLOCKED) y se registra como test Funcional del ticket.
+- Smoke y regresión pueden reportar **BLOCKED** cuando no se pudo probar (por ejemplo, sin navegador); antes solo había GO o NO-GO y una ejecución sin probar quedaba como NO-GO.
+
+### Cambiado
+- La sección del dashboard pasa a llamarse **Ejecuciones con Claude** e incluye el orquestador. Descartar una ejecución sin terminar quita también su registro «En progreso».
+
 ## [1.7.0] - 2026-11-18
 
 ### Agregado

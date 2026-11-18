@@ -59,6 +59,8 @@ export class Store {
       ...saved,
       jira: { ...base.jira, ...saved.jira },
       jiraCache: { ...base.jiraCache, ...saved.jiraCache },
+      // Las ejecuciones de la v1.7.0 no traían título.
+      automations: (saved.automations ?? []).map((a) => ({ ...a, title: a.title ?? '' })),
     };
     } catch (cause) {
       // No se sobrescribe un archivo ilegible: podría contener datos recuperables.
@@ -91,10 +93,14 @@ export class Store {
   }
 
   /** Registra un smoke o una regresión recién lanzado; se guardan los últimos MAX_AUTOMATIONS. */
-  startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env'>): Automation {
+  /** Además crea su registro «En progreso», para que la ejecución se vea en Registros desde que se lanza. */
+  startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'>, runFor: (a: Automation) => TestRunInput): Automation {
     const automation: Automation = {
       ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', runId: null,
     };
+    const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
+    this.data.runs.push(run);
+    automation.runId = run.id;
     this.data.automations = [automation, ...this.data.automations].slice(0, MAX_AUTOMATIONS);
     this.persist();
     return automation;
@@ -108,14 +114,23 @@ export class Store {
   finishAutomation(id: string, result: Pick<Automation, 'verdict' | 'summary' | 'link'>, runInput: TestRunInput): Automation | null {
     const automation = this.getAutomation(id);
     if (!automation) return null;
-    const run: TestRun = { ...runInput, id: randomUUID(), createdAt: Date.now() };
-    this.data.runs.push(run);
-    Object.assign(automation, result, { finishedAt: Date.now(), runId: run.id });
+    // Se actualiza el registro «En progreso»; si el usuario lo borró, se crea de nuevo.
+    const existing = this.data.runs.find((r) => r.id === automation.runId);
+    if (existing) Object.assign(existing, runInput);
+    else {
+      const run: TestRun = { ...runInput, id: randomUUID(), createdAt: Date.now() };
+      this.data.runs.push(run);
+      automation.runId = run.id;
+    }
+    Object.assign(automation, result, { finishedAt: Date.now() });
     this.persist();
     return automation;
   }
 
+  /** Descarta la ejecución; si no terminó, también su registro «En progreso». */
   deleteAutomation(id: string): boolean {
+    const automation = this.getAutomation(id);
+    if (automation && automation.finishedAt === null) this.data.runs = this.data.runs.filter((r) => r.id !== automation.runId);
     const before = this.data.automations.length;
     this.data.automations = this.data.automations.filter((a) => a.id !== id);
     if (this.data.automations.length === before) return false;

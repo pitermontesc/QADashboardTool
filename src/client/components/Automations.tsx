@@ -1,5 +1,5 @@
 import { relativeTime } from '../../shared/dates';
-import type { Automation, TestRun } from '../../shared/types';
+import type { Automation, AutomationKind, TestRun, Verdict } from '../../shared/types';
 import { Icon } from './icons';
 
 interface AutomationsProps {
@@ -12,7 +12,11 @@ interface AutomationsProps {
 const STALE_MS = 12 * 60 * 60_000;
 const SHOWN = 6;
 
-const KIND_LABEL = { smoke: 'Smoke', regression: 'Regression' } as const;
+const KIND_LABEL: Record<AutomationKind, string> = { smoke: 'Smoke', regression: 'Regression', orchestrator: 'Orquestador' };
+
+const VERDICT_TONE: Record<Verdict, string> = {
+  GO: 'ok', PASSED: 'ok', 'PASSED W/F': 'warn', BLOCKED: 'warn', 'NO-GO': 'bad', FAILED: 'bad',
+};
 
 function counts(run: TestRun | undefined): string {
   if (!run) return '';
@@ -25,7 +29,7 @@ function counts(run: TestRun | undefined): string {
   return parts.join(' · ');
 }
 
-/** Smoke y regresiones lanzados con Claude: en curso y con su veredicto. */
+/** Ejecuciones lanzadas con Claude (smoke, regresión, orquestador): en curso y con su veredicto. */
 export function Automations({ automations, runs, onDismiss }: AutomationsProps) {
   if (automations.length === 0) return null;
   const now = Date.now();
@@ -35,9 +39,9 @@ export function Automations({ automations, runs, onDismiss }: AutomationsProps) 
     <div className="card automations">
       <div className="card-head">
         <div>
-          <h3 className="title">Smoke y regresión con Claude</h3>
+          <h3 className="title">Ejecuciones con Claude</h3>
           <div className="card-sub">
-            <span className="hint">Claude reporta el veredicto al terminar y se guarda como registro.</span>
+            <span className="hint">Cada ejecución aparece en Registros al lanzarla y se completa cuando Claude reporta el veredicto.</span>
           </div>
         </div>
       </div>
@@ -50,7 +54,7 @@ export function Automations({ automations, runs, onDismiss }: AutomationsProps) 
             <li key={a.id} className="auto-row">
               <span className={`auto-kind kind-${a.kind}`}>{KIND_LABEL[a.kind]}</span>
               <span className="auto-target">
-                <b>{a.target || 'testomat.io'}</b>
+                <b title={a.title}>{a.target || 'testomat.io'}</b>
                 <span className="hint">{a.env}</span>
               </span>
               {running ? (
@@ -59,7 +63,7 @@ export function Automations({ automations, runs, onDismiss }: AutomationsProps) 
                   {stale ? 'Sin resultado' : 'En curso'}
                 </span>
               ) : (
-                <span className={`status-pill ${a.verdict === 'GO' ? 'tone-ok' : 'tone-bad'}`}>
+                <span className={`status-pill tone-${a.verdict ? VERDICT_TONE[a.verdict] : 'muted'}`}>
                   <i />
                   {a.verdict}
                 </span>

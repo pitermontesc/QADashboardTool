@@ -12,9 +12,9 @@ function claude(prompt: string): string {
 }
 
 /** Claude Code interactivo con el orquestador sobre un ticket. */
-export function orchestratorCommand(key: string): string {
+export function orchestratorCommand(key: string, extra = ''): string {
   if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
-  return `claude '${ORCHESTRATOR_SKILL} ${key}'`;
+  return claude(`${ORCHESTRATOR_SKILL} ${key}${extra}`);
 }
 
 /** Claude Code interactivo con el runner de regresión; sin test run, el skill lo pregunta. */

@@ -75,22 +75,26 @@ export interface JiraConfigInput {
   token?: string;
 }
 
-export type AutomationKind = 'smoke' | 'regression';
-export type Verdict = 'GO' | 'NO-GO';
+export type AutomationKind = 'smoke' | 'regression' | 'orchestrator';
+/** GO / NO-GO para smoke y regresión; PASSED… / BLOCKED para el orquestador de un ticket. */
+export const VERDICTS = ['GO', 'NO-GO', 'PASSED', 'PASSED W/F', 'FAILED', 'BLOCKED'] as const;
+export type Verdict = (typeof VERDICTS)[number];
 
-/** Smoke o regresión lanzado con Claude Code desde la app; Claude reporta el resultado al terminar. */
+/** Ejecución lanzada con Claude Code desde la app (smoke, regresión u orquestador); Claude reporta el resultado al terminar. */
 export interface Automation {
   id: string;
   kind: AutomationKind;
-  /** Qué se prueba: «QA», «STG» o el test run de testomat.io. */
+  /** Qué se prueba: «QA», «STG», el test run de testomat.io o la clave del ticket. */
   target: string;
+  /** Título del registro, sin el veredicto. */
+  title: string;
   env: string;
   startedAt: number;
   finishedAt: number | null;
   verdict: Verdict | null;
   summary: string;
   link: string;
-  /** Registro creado con el resultado. */
+  /** Registro que la refleja: «En progreso» al lanzarla y con el veredicto al terminar. */
   runId: string | null;
 }
 

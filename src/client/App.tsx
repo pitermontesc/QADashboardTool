@@ -119,7 +119,8 @@ export function App() {
           setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations } : s));
           for (const a of next.automations) {
             if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
-              const what = a.kind === 'smoke' ? `Smoke ${a.target}` : `Regression ${a.target || ''}`.trim();
+              const what =
+                a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
               announce(`${what}: ${a.verdict}`, a.summary || 'Resultado guardado en el dashboard');
             }
           }
@@ -290,10 +291,18 @@ export function App() {
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
   };
 
+  /** Tras lanzar una ejecución, su registro «En progreso» ya está en Registros. */
+  const reloadRuns = async (automation: Automation): Promise<void> => {
+    const next = await api.getState().catch(() => null);
+    if (next) patch({ runs: next.runs, automations: next.automations });
+    else patch({ automations: [automation, ...state.automations] });
+  };
+
   const runOrchestrator = async (ticket: JiraTicket): Promise<void> => {
     setLaunching(ticket.key);
     try {
-      await api.runOrchestrator(ticket.key);
+      const automation = await api.runOrchestrator(ticket.key);
+      await reloadRuns(automation);
       notify(`Orquestador QA abierto en Terminal para ${ticket.key}`, 'info');
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -305,7 +314,7 @@ export function App() {
   const runRegression = async (run: string): Promise<boolean> => {
     try {
       const automation = await api.runRegression(run);
-      patch({ automations: [automation, ...state.automations] });
+      await reloadRuns(automation);
       notify(run ? `Regresión abierta en Terminal para ${run}` : 'Regresión abierta en Terminal', 'info');
       return true;
     } catch (err) {
@@ -318,7 +327,7 @@ export function App() {
     setLaunching(`smoke:${site}`);
     try {
       const automation = await api.runSmoke(site);
-      patch({ automations: [automation, ...state.automations] });
+      await reloadRuns(automation);
       notify(`Smoke en ${SMOKE_SITES[site].label} abierto en Terminal`, 'info');
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -330,7 +339,9 @@ export function App() {
   const dismissAutomation = async (automation: Automation): Promise<void> => {
     try {
       await api.deleteAutomation(automation.id);
-      patch({ automations: state.automations.filter((a) => a.id !== automation.id) });
+      // Si no había terminado, su registro «En progreso» también se quitó.
+      const next = await api.getState();
+      patch({ runs: next.runs, automations: next.automations });
     } catch (err) {
       notify((err as Error).message, 'error');
     }
