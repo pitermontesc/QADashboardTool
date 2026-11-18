@@ -1,0 +1,88 @@
+import { readFileSync, statSync } from 'node:fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Store } from '../src/server/store';
+import { fakeJira, startServer } from './helpers';
+
+const RUN = { date: '2026-11-17', typeId: 't0', title: '  Smoke release 2.14 ', result: 'passed', passed: 20, failed: 0 };
+
+describe('API', () => {
+  let srv: Awaited<ReturnType<typeof startServer>>;
+  beforeAll(async () => {
+    srv = await startServer({ fetchImpl: fakeJira });
+  });
+  afterAll(() => srv.close());
+
+  it('arranca con tipos por defecto y sin registros', async () => {
+    const { body } = await srv.call('GET', '/api/state');
+    expect(body.runs).toEqual([]);
+    expect(body.settings.types.filter((t: { major: boolean }) => t.major).map((t: { name: string }) => t.name)).toEqual(['Smoke', 'Regression']);
+    expect(body.jira).toMatchObject({ hasToken: false, tickets: [] });
+  });
+
+  it('crea, edita y borra registros, y los persiste en disco', async () => {
+    const created = await srv.call('POST', '/api/runs', RUN);
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ title: 'Smoke release 2.14', blocked: null, ticket: '', notes: '' });
+
+    const updated = await srv.call('PUT', `/api/runs/${created.body.id}`, { ...RUN, result: 'failed', failed: 2 });
+    expect(updated.body).toMatchObject({ id: created.body.id, createdAt: created.body.createdAt, result: 'failed', failed: 2 });
+    expect(new Store(srv.file).getState().runs).toHaveLength(1);
+
+    expect((await srv.call('DELETE', `/api/runs/${created.body.id}`)).status).toBe(204);
+    expect((await srv.call('DELETE', `/api/runs/${created.body.id}`)).status).toBe(404);
+    expect(new Store(srv.file).getState().runs).toHaveLength(0);
+  });
+
+  it('rechaza datos inválidos con un mensaje claro', async () => {
+    const noTitle = await srv.call('POST', '/api/runs', { ...RUN, title: '   ' });
+    expect(noTitle).toMatchObject({ status: 400, body: { error: expect.stringContaining('título') } });
+    expect((await srv.call('POST', '/api/runs', { ...RUN, result: 'unknown' })).status).toBe(400);
+    expect((await srv.call('POST', '/api/runs', { ...RUN, passed: -1 })).status).toBe(400);
+    expect((await srv.call('PUT', '/api/settings', { types: [], envs: [] })).status).toBe(400);
+    expect((await srv.call('PUT', '/api/runs/nope', RUN)).status).toBe(404);
+  });
+
+  it('solo acepta peticiones locales', async () => {
+    expect((await srv.call('GET', '/api/state', undefined, { Origin: 'https://evil.example' })).status).toBe(403);
+    expect((await srv.call('GET', '/api/state', undefined, { Origin: 'http://localhost:5173' })).status).toBe(200);
+  });
+
+  it('importa un respaldo y reemplaza los datos', async () => {
+    const { body: state } = await srv.call('GET', '/api/state');
+    const backup = { ...state.settings, envs: ['QA'], runs: [{ ...RUN, id: 'old-1', createdAt: 5, title: 'Importado' }] };
+    const { status, body } = await srv.call('POST', '/api/import', backup);
+    expect(status).toBe(200);
+    expect(body.runs).toMatchObject([{ id: 'old-1', title: 'Importado' }]);
+    expect(body.settings.envs).toEqual(['QA']);
+    expect((await srv.call('POST', '/api/import', { runs: 'x' })).status).toBe(400);
+  });
+
+  it('carga tickets de Jira sin exponer nunca el token', async () => {
+    expect((await srv.call('POST', '/api/jira/refresh', {})).status).toBe(400); // sin configurar
+
+    const config = { site: 'https://example.atlassian.net/', email: 'qa@example.com', jql: '', token: 'bad' };
+    await srv.call('PUT', '/api/jira/config', config);
+    const rejected = await srv.call('POST', '/api/jira/refresh', {});
+    expect(rejected).toMatchObject({ status: 502, body: { error: expect.stringContaining('credenciales') } });
+
+    const saved = await srv.call('PUT', '/api/jira/config', { ...config, token: 'good' });
+    expect(saved.body).toMatchObject({ site: 'https://example.atlassian.net', hasToken: true });
+    expect(saved.body.jql).toContain('currentUser()'); // JQL por defecto
+    expect(JSON.stringify(saved.body)).not.toContain('good');
+
+    const refreshed = await srv.call('POST', '/api/jira/refresh', {});
+    expect(refreshed.body.tickets).toEqual([
+      { key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story' },
+      { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug' },
+    ]);
+
+    // Guardar sin token conserva el anterior; un JQL inválido devuelve el detalle de Jira.
+    await srv.call('PUT', '/api/jira/config', { ...config, token: '', jql: 'BAD' });
+    const badJql = await srv.call('POST', '/api/jira/refresh', {});
+    expect(badJql.body.error).toContain('JQL mal formado');
+
+    expect(JSON.stringify((await srv.call('GET', '/api/state')).body)).not.toContain('"token"');
+    expect(readFileSync(srv.file, 'utf8')).toContain('"token": "good"');
+    if (process.platform !== 'win32') expect(statSync(srv.file).mode & 0o777).toBe(0o600);
+  });
+});

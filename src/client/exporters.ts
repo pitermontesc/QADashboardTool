@@ -1,0 +1,35 @@
+import { RESULT_META } from '../shared/defaults';
+import { toYmd } from '../shared/dates';
+import { sortRuns } from '../shared/stats';
+import type { AppState, Backup } from '../shared/types';
+
+function download(name: string, text: string, mime: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function exportBackup({ settings, runs }: AppState): void {
+  const backup: Backup = { ...settings, runs };
+  download(`qa-tests-respaldo-${toYmd(new Date())}.json`, JSON.stringify(backup, null, 2), 'application/json');
+}
+
+const csvCell = (value: string | number | null): string => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+export function exportCsv({ settings, runs }: AppState): void {
+  const typeName = new Map(settings.types.map((t) => [t.id, t.name]));
+  const rows: Array<Array<string | number | null>> = [
+    ['Fecha', 'Tipo', 'Titulo', 'Ticket', 'Ambiente', 'Resultado', 'Passed', 'Failed', 'Blocked', 'Bugs', 'Minutos', 'Notas'],
+    ...sortRuns(runs).map((r) => [
+      r.date, typeName.get(r.typeId) ?? '', r.title, r.ticket, r.env, RESULT_META[r.result].label,
+      r.passed, r.failed, r.blocked, r.bugs, r.minutes, r.notes,
+    ]),
+  ];
+  // BOM para que Excel abra el archivo como UTF-8.
+  download(`qa-tests-${toYmd(new Date())}.csv`, `﻿${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`, 'text/csv');
+}

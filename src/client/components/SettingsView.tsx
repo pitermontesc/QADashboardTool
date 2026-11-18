@@ -1,0 +1,234 @@
+import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { colorForIndex } from '../../shared/defaults';
+import type { AppState, Backup, JiraConfigInput, Settings } from '../../shared/types';
+import { exportBackup, exportCsv } from '../exporters';
+
+interface SettingsViewProps {
+  state: AppState;
+  onSaveSettings: (settings: Settings) => void;
+  onSaveJira: (config: JiraConfigInput) => void;
+  onImport: (backup: Backup) => void;
+  onError: (message: string) => void;
+}
+
+const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
+  if (event.key === 'Enter') action();
+};
+
+export function SettingsView({ state, onSaveSettings, onSaveJira, onImport, onError }: SettingsViewProps) {
+  const { settings, runs, jira } = state;
+  const [newType, setNewType] = useState('');
+  const [newEnv, setNewEnv] = useState('');
+  const [ticketBase, setTicketBase] = useState(settings.ticketBase);
+  const [jiraForm, setJiraForm] = useState({ site: jira.site, email: jira.email, jql: jira.jql, token: '' });
+
+  useEffect(() => setTicketBase(settings.ticketBase), [settings.ticketBase]);
+  useEffect(() => {
+    setJiraForm({ site: jira.site, email: jira.email, jql: jira.jql, token: '' });
+  }, [jira.site, jira.email, jira.jql, jira.hasToken]);
+
+  const usage = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const run of runs) counts.set(run.typeId, (counts.get(run.typeId) ?? 0) + 1);
+    return counts;
+  }, [runs]);
+
+  const updateType = (id: string, patch: { name?: string; major?: boolean }): void =>
+    onSaveSettings({ ...settings, types: settings.types.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+
+  const addType = (): void => {
+    const name = newType.trim();
+    if (!name) return;
+    if (settings.types.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
+      onError('Ese tipo ya existe');
+      return;
+    }
+    const type = { id: `t-${crypto.randomUUID()}`, name, major: false, color: colorForIndex(settings.types.length) };
+    onSaveSettings({ ...settings, types: [...settings.types, type] });
+    setNewType('');
+  };
+
+  const addEnv = (): void => {
+    const env = newEnv.trim();
+    if (!env || settings.envs.includes(env)) return;
+    onSaveSettings({ ...settings, envs: [...settings.envs, env] });
+    setNewEnv('');
+  };
+
+  const importFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      onImport(JSON.parse(await file.text()) as Backup);
+    } catch {
+      onError('El archivo no es un respaldo válido');
+    }
+  };
+
+  return (
+    <section>
+      <div className="grid2">
+        <div className="card">
+          <h3>Tipos de test</h3>
+          <p className="hint">
+            Marca con ★ las suites grandes (Smoke, Regression…): aparecen destacadas en el dashboard con su última ejecución.
+          </p>
+          <div className="tablewrap">
+            <table>
+              <thead>
+                <tr><th>★</th><th>Nombre</th><th>Registros</th><th /></tr>
+              </thead>
+              <tbody>
+                {settings.types.map((type) => {
+                  const used = usage.get(type.id) ?? 0;
+                  return (
+                    <tr key={type.id}>
+                      <td>
+                        <button
+                          className="link"
+                          title="Marcar como suite grande"
+                          style={{ fontSize: 16, color: type.major ? 'var(--warn)' : 'var(--line)' }}
+                          onClick={() => updateType(type.id, { major: !type.major })}
+                        >
+                          ★
+                        </button>
+                      </td>
+                      <td>
+                        <input
+                          key={type.name}
+                          defaultValue={type.name}
+                          style={{ borderColor: 'transparent', padding: '4px 6px', color: type.color, fontWeight: 600 }}
+                          onBlur={(e) => {
+                            const name = e.target.value.trim();
+                            if (name && name !== type.name) updateType(type.id, { name });
+                            else e.target.value = type.name;
+                          }}
+                        />
+                      </td>
+                      <td className="num">{used}</td>
+                      <td>
+                        {used > 0 ? (
+                          <span className="hint">en uso</span>
+                        ) : (
+                          <button
+                            className="link danger"
+                            disabled={settings.types.length < 2}
+                            onClick={() => onSaveSettings({ ...settings, types: settings.types.filter((t) => t.id !== type.id) })}
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="inline-add">
+            <input
+              placeholder="Nuevo tipo de test, p. ej. Migración de datos"
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              onKeyDown={onEnter(addType)}
+            />
+            <button className="btn" onClick={addType}>Agregar</button>
+          </div>
+        </div>
+
+        <div>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3>Ambientes</h3>
+            {settings.envs.length === 0 && <span className="hint">Sin ambientes</span>}
+            {settings.envs.map((env) => (
+              <span key={env} className="tag" style={{ margin: '0 6px 6px 0' }}>
+                {env}{' '}
+                <button
+                  className="link danger"
+                  title="Quitar"
+                  onClick={() => onSaveSettings({ ...settings, envs: settings.envs.filter((e) => e !== env) })}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <div className="inline-add">
+              <input placeholder="Nuevo ambiente" value={newEnv} onChange={(e) => setNewEnv(e.target.value)} onKeyDown={onEnter(addEnv)} />
+              <button className="btn" onClick={addEnv}>Agregar</button>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3>Conexión con Jira</h3>
+            <p className="hint">
+              Carga tus tickets como botones en el dashboard. El API token se guarda solo en esta máquina
+              (data/qa-tests.json); se crea en id.atlassian.com → Seguridad → API tokens.
+            </p>
+            <label className="f">
+              Sitio
+              <input
+                placeholder="https://tu-sitio.atlassian.net"
+                value={jiraForm.site}
+                onChange={(e) => setJiraForm({ ...jiraForm, site: e.target.value })}
+              />
+            </label>
+            <label className="f" style={{ marginTop: 8 }}>
+              Email de Atlassian
+              <input type="email" value={jiraForm.email} onChange={(e) => setJiraForm({ ...jiraForm, email: e.target.value })} />
+            </label>
+            <label className="f" style={{ marginTop: 8 }}>
+              API token
+              <input
+                type="password"
+                autoComplete="off"
+                placeholder={jira.hasToken ? '(guardado — escribe para cambiarlo)' : ''}
+                value={jiraForm.token}
+                onChange={(e) => setJiraForm({ ...jiraForm, token: e.target.value })}
+              />
+            </label>
+            <label className="f" style={{ marginTop: 8 }}>
+              JQL (qué tickets cargar)
+              <textarea rows={2} value={jiraForm.jql} onChange={(e) => setJiraForm({ ...jiraForm, jql: e.target.value })} />
+            </label>
+            <div className="actions" style={{ marginTop: 10 }}>
+              <button className="btn primary" onClick={() => onSaveJira(jiraForm)}>Guardar y cargar tickets</button>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3>Enlace de tickets</h3>
+            <label className="f">
+              URL base (el ticket se agrega al final)
+              <input
+                placeholder="https://tu-sitio.atlassian.net/browse/"
+                value={ticketBase}
+                onChange={(e) => setTicketBase(e.target.value)}
+                onBlur={() => {
+                  const value = ticketBase.trim();
+                  if (value !== settings.ticketBase) onSaveSettings({ ...settings, ticketBase: value });
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="card">
+            <h3>Respaldo de datos</h3>
+            <p className="hint">
+              Los datos se guardan en data/qa-tests.json dentro de la carpeta de la app. Importar un respaldo reemplaza
+              los datos actuales.
+            </p>
+            <div className="row" style={{ margin: 0 }}>
+              <button className="btn" onClick={() => exportBackup(state)}>Exportar respaldo (JSON)</button>
+              <button className="btn" onClick={() => exportCsv(state)}>Exportar CSV</button>
+              <label className="btn">
+                Importar respaldo
+                <input type="file" accept=".json,application/json" hidden onChange={importFile} />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
