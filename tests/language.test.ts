@@ -102,7 +102,7 @@ describe('Idioma de los datos y comentario de Jira', () => {
     expect(status).toBe(200);
     expect(comments).toEqual([{ key: 'AVM-101', body: '*QA Verdict: PASSED*\n\n* revisado' }]);
     expect(body.details.jiraComment).toEqual({
-      key: 'AVM-101', body: edited, posted: true, url: 'https://example.atlassian.net/browse/AVM-101?focusedCommentId=10042',
+      key: 'AVM-101', body: edited, posted: true, url: 'https://example.atlassian.net/browse/AVM-101?focusedCommentId=10042', dismissed: false,
     });
     expect((await srv.call('POST', `/api/automation/${orch.id}/jira-comment`, {})).status).toBe(409);
 
@@ -110,6 +110,19 @@ describe('Idioma de los datos y comentario de Jira', () => {
     await srv.call('POST', `/api/automation/${smoke.id}/result`, { verdict: 'GO' });
     expect((await srv.call('POST', `/api/automation/${smoke.id}/jira-comment`, {})).status).toBe(404);
     expect(comments).toHaveLength(1);
+  });
+
+  it('descarta un comentario que ya se publicó por otro lado y lo puede recuperar', async () => {
+    const { body: orch } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
+    await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'PASSED W/F', details: { jiraComment: { key: 'AVM-101', body: 'Borrador' } } });
+    const url = `/api/automation/${orch.id}/jira-comment`;
+
+    expect((await srv.call('POST', `${url}/dismiss`, {})).body.details.jiraComment).toMatchObject({ dismissed: true, posted: false });
+    expect((await srv.call('POST', url, {})).status).toBe(409);
+    expect((await srv.call('POST', `${url}/dismiss`, { dismissed: false })).body.details.jiraComment.dismissed).toBe(false);
+    expect((await srv.call('POST', url, {})).status).toBe(200);
+    expect((await srv.call('POST', `${url}/dismiss`, {})).status).toBe(409); // ya publicado
+    expect(comments.at(-1)).toEqual({ key: 'AVM-101', body: 'Borrador' });
   });
 });
 

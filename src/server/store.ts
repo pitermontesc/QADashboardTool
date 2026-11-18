@@ -75,7 +75,9 @@ export class Store {
       automations: (saved.automations ?? []).map((a) => ({
         ...a,
         title: a.title ?? '',
-        details: a.details ? { ...a.details, jiraComment: a.details.jiraComment ?? null } : null,
+        details: a.details
+          ? { ...a.details, jiraComment: a.details.jiraComment ? { ...a.details.jiraComment, dismissed: a.details.jiraComment.dismissed ?? false } : null }
+          : null,
         pid: a.pid ?? null,
         logFile: a.logFile ?? '',
         // Antes de la v1.9.2 no se guardaba en qué idioma escribió Claude.
@@ -236,6 +238,16 @@ export class Store {
     if (!automation) return null;
     automation.translations = { ...automation.translations, [lang]: translation };
     if (lang === this.data.settings.language) this.localizeAutomation(automation);
+    this.persist();
+    return automation;
+  }
+
+  /** Descarta (o recupera) el comentario de Jira de una ejecución: descartado, la app no lo publica. */
+  setJiraCommentDismissed(id: string, dismissed: boolean): Automation | null {
+    const automation = this.getAutomation(id);
+    const comment = automation?.details?.jiraComment;
+    if (!automation || !comment) return null;
+    automation.details = { ...automation.details!, jiraComment: { ...comment, dismissed } };
     this.persist();
     return automation;
   }

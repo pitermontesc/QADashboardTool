@@ -43,6 +43,8 @@ const TEXT = {
     jiraPosted: 'Publicado en Jira.', jiraPostedByClaude: 'Claude ya lo publicó en Jira.', openComment: 'Ver en Jira',
     publish: (key: string) => `Publicar en ${key}`, publishing: 'Publicando…', confirmPublish: (key: string) => `¿Publicar en ${key}?`,
     copy: 'Copiar', copied: 'Copiado',
+    dismiss: 'Ya publicado / Descartar', confirmDismiss: '¿Descartar? No se publicará',
+    dismissed: 'Descartado: la app no lo publicará (por ejemplo, porque ya se publicó otro comentario en el ticket).', restore: 'Recuperar',
   },
   en: {
     status: { passed: 'Passed', failed: 'Failed', blocked: 'Blocked', skipped: 'Not tested' } as Record<StepStatus, string>,
@@ -65,6 +67,8 @@ const TEXT = {
     jiraPosted: 'Posted on Jira.', jiraPostedByClaude: 'Claude already posted it on Jira.', openComment: 'View on Jira',
     publish: (key: string) => `Post on ${key}`, publishing: 'Posting…', confirmPublish: (key: string) => `Post on ${key}?`,
     copy: 'Copy', copied: 'Copied',
+    dismiss: 'Already posted / Dismiss', confirmDismiss: 'Dismiss? It will not be posted',
+    dismissed: 'Dismissed: the app will not post it (for example, because another comment was already posted on the ticket).', restore: 'Restore',
   },
 };
 type Text = typeof TEXT.es;
@@ -135,6 +139,19 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
 }) {
   const [body, setBody] = useState(comment.body);
   const [state, setState] = useState<'idle' | 'armed' | 'posting'>('idle');
+  const [dismissArmed, setDismissArmed] = useState(false);
+  const setDismissed = async (dismissed: boolean): Promise<void> => {
+    if (dismissed && !dismissArmed) {
+      setDismissArmed(true);
+      return;
+    }
+    setDismissArmed(false);
+    try {
+      onUpdate(await api.dismissJiraComment(automation.id, dismissed));
+    } catch (error) {
+      onError(error);
+    }
+  };
   const [copied, setCopied] = useState(false);
   const publish = async (): Promise<void> => {
     if (state !== 'armed') {
@@ -152,9 +169,9 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
   return (
     <>
       <h3 className="rep-h">{t.jira(comment.key)}</h3>
-      <div className={`rep-jira${comment.posted ? ' posted' : ''}`}>
+      <div className={`rep-jira${comment.posted || comment.dismissed ? ' posted' : ''}`}>
         <p className="hint">
-          {comment.posted ? (comment.url ? t.jiraPosted : t.jiraPostedByClaude) : t.jiraPending}
+          {comment.posted ? (comment.url ? t.jiraPosted : t.jiraPostedByClaude) : comment.dismissed ? t.dismissed : t.jiraPending}
           {comment.url && (
             <> <a href={comment.url} target="_blank" rel="noopener noreferrer">{t.openComment}</a></>
           )}
@@ -162,7 +179,7 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
         <textarea
           aria-label={t.jira(comment.key)}
           value={body}
-          readOnly={comment.posted}
+          readOnly={comment.posted || comment.dismissed}
           rows={10}
           onChange={(e) => setBody(e.target.value)}
         />
@@ -176,7 +193,15 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
           >
             {copied ? t.copied : t.copy}
           </button>
-          {!comment.posted && (
+          {!comment.posted && comment.dismissed && (
+            <button type="button" className="btn small" onClick={() => void setDismissed(false)}>{t.restore}</button>
+          )}
+          {!comment.posted && !comment.dismissed && (
+            <button type="button" className="btn small" onClick={() => void setDismissed(true)}>
+              {dismissArmed ? t.confirmDismiss : t.dismiss}
+            </button>
+          )}
+          {!comment.posted && !comment.dismissed && (
             <button type="button" className="btn small primary" disabled={state === 'posting' || !body.trim()} onClick={() => void publish()}>
               {state === 'posting' ? t.publishing : state === 'armed' ? t.confirmPublish(comment.key) : t.publish(comment.key)}
             </button>
@@ -365,7 +390,7 @@ export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, on
             )}
 
             {details?.jiraComment && (
-              <JiraCommentBlock key={details.jiraComment.posted ? 'posted' : 'draft'} automation={a} comment={details.jiraComment} t={t} onUpdate={onUpdate} onError={onError} />
+              <JiraCommentBlock key={details.jiraComment.posted ? 'posted' : details.jiraComment.dismissed ? 'dismissed' : 'draft'} automation={a} comment={details.jiraComment} t={t} onUpdate={onUpdate} onError={onError} />
             )}
 
             {activity.items.some((i) => i.kind !== 'start') && (

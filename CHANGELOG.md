@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.9.3] - 2026-11-18
+
+### Agregado
+- **Ya publicado / Descartar** en el comentario para Jira de un reporte: marca el borrador como descartado cuando ya se publicó otro comentario en el ticket, para no publicarlo dos veces. **Recuperar** lo deja pendiente otra vez.
+
 ## [1.9.2] - 2026-11-18
 
 ### Agregado

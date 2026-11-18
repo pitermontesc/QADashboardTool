@@ -131,6 +131,7 @@ export const automationDetailsSchema = z.object({
       body: z.string().trim().min(1).max(30000),
       posted: z.boolean().default(false),
       url: httpUrlOrEmpty.default(''),
+      dismissed: z.boolean().default(false),
     })
     .nullable()
     .default(null),

@@ -285,7 +285,7 @@ Pulsa cualquiera de esos indicadores para abrir la ejecución. Verás la **activ
 - **Módulos y pasos**: cada área probada (Login, Work Orders, Reports…) con su estado, los pasos OK sobre el total y sus minutos. Los módulos con fallos o bloqueos se abren solos y muestran cada paso con su estado y la nota de lo que pasó; los que pasaron se despliegan con un clic.
 - **Bugs encontrados**: clave de Jira, título, severidad y módulo, con un link a cada bug.
 - **Observaciones**: lo que quedó sin probar y por qué, riesgos y notas de Claude.
-- **Comentario de QA para Jira**: el comentario que redactó el skill para el ticket. Si Claude no pudo publicarlo (por ejemplo, porque la herramienta de Jira pide aprobación y en segundo plano nadie puede darla), revísalo, edítalo si hace falta y pulsa **Publicar en AVM-…** (pide confirmación). La app lo publica con tu email y API token de Jira, el mismo de la lista de tickets, y deja el link **Ver en Jira**. **Copiar** lo copia al portapapeles.
+- **Comentario de QA para Jira**: el comentario que redactó el skill para el ticket. Si Claude no pudo publicarlo (por ejemplo, porque la herramienta de Jira pide aprobación y en segundo plano nadie puede darla), revísalo, edítalo si hace falta y pulsa **Publicar en AVM-…** (pide confirmación). La app lo publica con tu email y API token de Jira, el mismo de la lista de tickets, y deja el link **Ver en Jira**. **Copiar** lo copia al portapapeles. Si ya publicaste otro comentario en el ticket (por ejemplo, después de terminar a mano lo que quedó bloqueado), pulsa **Ya publicado / Descartar** (pide confirmación) para que la app no lo publique; **Recuperar** lo vuelve a dejar pendiente.
 
 Las ejecuciones anteriores a esta versión solo traen el resumen; el reporte lo indica.
 

@@ -22,6 +22,7 @@ const EN: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^Jira no encontró el ticket (.+) \(o no tienes acceso\)$/, (key) => `Jira did not find ticket ${key} (or you have no access)`],
   [/^Esta ejecución no tiene comentario para Jira$/, () => 'This run has no Jira comment'],
   [/^Ese comentario ya está publicado en Jira$/, () => 'That comment is already posted on Jira'],
+  [/^Ese comentario está descartado; recupéralo para publicarlo$/, () => 'That comment is dismissed; restore it to post it'],
   [/^No se pudo traducir el reporte: (.*)$/s, (why) => `Could not translate the report: ${why}`],
   [/^La clave del ticket de Jira no es válida \(p\. ej\. AVM-123\)$/, () => 'The Jira ticket key is not valid (e.g. AVM-123)'],
   [/^El prompt no puede contener comillas simples$/, () => 'The prompt cannot contain single quotes'],

@@ -38,6 +38,8 @@ export const api = {
   getActivity: (id: string) => request<{ items: ActivityItem[]; logFile: string }>('GET', `/api/automation/${encodeURIComponent(id)}/activity`),
   translateAutomation: (id: string, lang: Lang) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/translate`, { lang }),
   postJiraComment: (id: string, body: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/jira-comment`, { body }),
+  dismissJiraComment: (id: string, dismissed: boolean) =>
+    request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/jira-comment/dismiss`, { dismissed }),
   stopAutomation: (id: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/stop`, {}),
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),

@@ -122,6 +122,8 @@ export interface JiraComment {
   posted: boolean;
   /** Link al comentario publicado desde la app. */
   url: string;
+  /** Descartado desde la app (por ejemplo, porque ya se publicó otro comentario a mano): no se publica. */
+  dismissed: boolean;
 }
 
 /** Reporte QA detallado que Claude envía al terminar: módulos, pasos y bugs. */

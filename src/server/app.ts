@@ -324,10 +324,21 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const comment = store.getAutomation(id)?.details?.jiraComment;
     if (!comment) throw new HttpError(404, 'Esta ejecución no tiene comentario para Jira');
     if (comment.posted) throw new HttpError(409, 'Ese comentario ya está publicado en Jira');
+    if (comment.dismissed) throw new HttpError(409, 'Ese comentario está descartado; recupéralo para publicarlo');
     const { body } = (req.body ?? {}) as { body?: unknown };
     const text = typeof body === 'string' && body.trim() ? body.trim().slice(0, 30000) : comment.body;
     const url = await postJiraComment(store.getJiraCredentials(), comment.key, text, options.fetchImpl);
     res.json(store.saveJiraCommentPosted(id, text, url));
+  });
+
+  /** Descarta el comentario de Jira (p. ej. ya se publicó otro a mano) o lo recupera con `{dismissed: false}`. */
+  api.post('/automation/:id/jira-comment/dismiss', (req, res) => {
+    const id = String(req.params.id);
+    const comment = store.getAutomation(id)?.details?.jiraComment;
+    if (!comment) throw new HttpError(404, 'Esta ejecución no tiene comentario para Jira');
+    if (comment.posted) throw new HttpError(409, 'Ese comentario ya está publicado en Jira');
+    const { dismissed = true } = (req.body ?? {}) as { dismissed?: unknown };
+    res.json(store.setJiraCommentDismissed(id, dismissed !== false));
   });
 
   /** Detiene una ejecución en curso; queda como BLOCKED. */
