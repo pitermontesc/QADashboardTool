@@ -166,12 +166,14 @@ Al guardar aparece el aviso **Registro guardado** y la tarjeta del ticket suma e
 
 ### Validar un ticket con el orquestador QA
 
+> **Antes de lanzar cualquier ejecución con Claude** (orquestador, smoke o regresión): ten Chrome abierto con la extensión **Claude in Chrome** conectada y la sesión iniciada en el sitio que se va a probar. La app abre Claude Code con `--chrome`, así que la sesión usa ese navegador; sin él, la ejecución termina como **BLOCKED**.
+
 Los tickets en **On QA** u **On Staging** tienen debajo el botón **▷ Ejecutar orquestador QA**. Lanza el skill `/avm-qa-orchestrator` de Claude Code sobre ese ticket:
 
 ![Tarjetas de tickets On QA y On Staging, cada una con el botón «Ejecutar orquestador QA» debajo](img/17-orquestador.png)
 
 1. **Pulsa «Ejecutar orquestador QA»** en la tarjeta del ticket. El botón muestra «Abriendo Terminal…».
-2. Se abre una **ventana nueva de Terminal** con Claude Code ejecutando, por ejemplo, `claude '/avm-qa-orchestrator AVM-7057'`. En la app aparece el aviso **Orquestador QA abierto en Terminal para AVM-7057**.
+2. Se abre una **ventana nueva de Terminal** con Claude Code ejecutando, por ejemplo, `claude --chrome '/avm-qa-orchestrator AVM-7057'`. En la app aparece el aviso **Orquestador QA abierto en Terminal para AVM-7057**.
 3. **Sigue el orquestador en Terminal.** Analiza el ticket, ejecuta los casos en qa.alpinevm.com, revisa el impacto y la regresión, y cierra con un veredicto **PASSED / PASSED W/F / FAILED / BLOCKED**.
 4. **Aprueba cada paso que toca Jira.** El orquestador se asigna el ticket, publica el comentario de QA y puede crear TCs y bugs. Por eso corre en modo interactivo: tú decides en Terminal antes de cada cambio.
 5. **El resultado queda en Registros solo**: al lanzarlo aparece un registro «En progreso» del ticket y, cuando el orquestador termina, se completa con su veredicto (ver [Ejecuciones con Claude](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
@@ -199,7 +201,7 @@ Los tipos marcados con ★ aparecen destacados en el dashboard con su última ej
 
 La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ Smoke en QA** (qa.alpinevm.com) y **▷ Smoke en STG** (staging.alpinevm.com). Los dos lanzan el skill `/avm-qa-skills:avm-smoke-tester` de Claude Code, el smoke rápido post-deploy:
 
-1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
+1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
 2. **Sigue el smoke en Terminal.** Recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
 3. Al terminar, **Claude reporta el resultado a la app** y el smoke queda registrado solo (ver [Ejecuciones con Claude en Registros y en el dashboard](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
 
@@ -370,6 +372,7 @@ Las teclas sueltas (`N`, `/`) no actúan mientras escribes en un campo.
 | **Los tickets no reflejan cambios recientes** | La app los actualiza sola cada 5 minutos y al volver a la ventana. Para no esperar, pulsa **Actualizar desde Jira** (`⌘R`). Si la tarjeta muestra **Error de conexión**, revisa el token. |
 | **«El puerto 8765 está ocupado»** al abrir | Otro programa usa ese puerto. Ciérralo, o abre la app desde la Terminal con otro puerto: `QA_DASH_PORT=8770 "/Applications/QA Dashboard.app/Contents/MacOS/QA Dashboard"`. |
 | **Terminal dice `command not found: claude`** | Instala Claude Code o añade `~/.local/bin` a tu PATH, y vuelve a pulsar **Ejecutar orquestador QA**. |
+| **La ejecución termina en BLOCKED «sin navegador»** | Abre Chrome, comprueba que la extensión **Claude in Chrome** está instalada y conectada a tu cuenta de Claude, inicia sesión en QA o STG y vuelve a lanzar la ejecución desde la app. Si lanzaste `claude` a mano, usa `claude --chrome` o ejecuta `/chrome` dentro de la sesión. |
 | **«No se pudo abrir Terminal»** | Al primer uso macOS pide permiso para que QA Dashboard controle Terminal. Concédelo en **Ajustes del Sistema → Privacidad y seguridad → Automatización**. |
 | **macOS dice que la app no se puede abrir** | La primera vez ábrela con **clic derecho → Abrir**. |
 | **La app se ve muy grande o muy pequeña** | `⌘0` vuelve al tamaño real; `⌘+` / `⌘-` ajustan el zoom. |

@@ -2,6 +2,11 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.8.2] - 2026-11-18
+
+### Corregido
+- El orquestador, el smoke y la regresión se abren con `claude --chrome`, así la sesión de Terminal usa Claude in Chrome y puede probar en el navegador. Antes arrancaba sin navegador y la ejecución terminaba en BLOCKED.
+
 ## [1.8.1] - 2026-11-18
 
 ### Cambiado

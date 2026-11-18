@@ -5,10 +5,10 @@ import { HttpError } from './errors.js';
 /** Ejecuta un comando en una ventana nueva de Terminal; inyectable para probar sin abrirla. */
 export type TerminalLauncher = (command: string) => Promise<void>;
 
-/** `claude '<prompt>'`: el prompt va entre comillas simples, así que no puede contenerlas. */
+/** `claude --chrome '<prompt>'`: con Claude in Chrome activo (los skills prueban en el navegador). El prompt va entre comillas simples, así que no puede contenerlas. */
 function claude(prompt: string): string {
   if (prompt.includes("'")) throw new HttpError(400, 'El prompt no puede contener comillas simples');
-  return `claude '${prompt}'`;
+  return `claude --chrome '${prompt}'`;
 }
 
 /** Claude Code interactivo con el orquestador sobre un ticket. */

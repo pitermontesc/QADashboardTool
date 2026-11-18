@@ -57,7 +57,7 @@ export function RegressionDialog({ onLaunch, onClose }: RegressionDialogProps) {
           <p className="hint text-bad">Pega el link de testomat.io o el ID del run (p. ej. #b333fb92).</p>
         )}
 
-        <p className="hint cmd-preview"><code>claude '{value ? `${REGRESSION_SKILL} ${value}` : REGRESSION_SKILL}'</code></p>
+        <p className="hint cmd-preview"><code>claude --chrome '{value ? `${REGRESSION_SKILL} ${value}` : REGRESSION_SKILL}'</code></p>
 
         <div className="actions">
           <div className="spacer" />

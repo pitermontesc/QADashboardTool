@@ -133,7 +133,7 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // estado "Test"
     expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
     expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
-    expect(launched.map(withoutReport)).toEqual(["claude '/avm-qa-orchestrator AVM-101'"]);
+    expect(launched.map(withoutReport)).toEqual(["claude --chrome '/avm-qa-orchestrator AVM-101'"]);
     expect(launched[0]).toContain('verdict (PASSED, PASSED W/F, FAILED o BLOCKED;');
     launched.length = 0;
   });
@@ -145,9 +145,9 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/regression', { run: "#abc'; rm -rf ~" })).status).toBe(400);
     expect((await srv.call('POST', '/api/regression', { run: 'https://evil.example/runs/1' })).status).toBe(400);
     expect(launched.map(withoutReport)).toEqual([
-      "claude '/avm-qa-skills:avm-regression-runner #b333fb92'",
-      "claude '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92'",
-      "claude '/avm-qa-skills:avm-regression-runner'",
+      "claude --chrome '/avm-qa-skills:avm-regression-runner #b333fb92'",
+      "claude --chrome '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92'",
+      "claude --chrome '/avm-qa-skills:avm-regression-runner'",
     ]);
   });
 
@@ -158,8 +158,8 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/smoke', {})).status).toBe(400);
     expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).status).toBe(400);
     expect(launched.map(withoutReport)).toEqual([
-      "claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
-      "claude '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)'",
+      "claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
+      "claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)'",
     ]);
   });
 
@@ -218,9 +218,9 @@ describe('Orquestador QA', () => {
   });
 
   it('arma el comando de Claude Code con el skill', () => {
-    expect(orchestratorCommand('AVM-7057')).toBe("claude '/avm-qa-orchestrator AVM-7057'");
+    expect(orchestratorCommand('AVM-7057')).toBe("claude --chrome '/avm-qa-orchestrator AVM-7057'");
     expect(() => orchestratorCommand("x'y")).toThrow();
-    expect(regressionCommand('')).toBe("claude '/avm-qa-skills:avm-regression-runner'");
+    expect(regressionCommand('')).toBe("claude --chrome '/avm-qa-skills:avm-regression-runner'");
     expect(() => regressionCommand("#a b'c")).toThrow();
   });
 });
