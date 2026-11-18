@@ -63,7 +63,7 @@ La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Ji
 
 Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator <TICKET>` (solo macOS; requiere el comando `claude` y el skill instalado).
 
-La tarjeta de la suite **Smoke** tiene los botones **Smoke en QA** y **Smoke en STG**, que abren Terminal con `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o staging.alpinevm.com. La de **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y abre Terminal con `/avm-qa-skills:avm-regression-runner`.
+La tarjeta de la suite **Smoke** tiene los botones **Smoke en QA** y **Smoke en STG**, que abren Terminal con `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o staging.alpinevm.com. La de **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y abre Terminal con `/avm-qa-skills:avm-regression-runner`. Al terminar, Claude reporta el veredicto a `POST /api/automation/:id/result` y la app crea el registro y lo muestra en la sección **Smoke y regresión con Claude**.
 
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 

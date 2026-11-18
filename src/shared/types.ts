@@ -75,10 +75,30 @@ export interface JiraConfigInput {
   token?: string;
 }
 
+export type AutomationKind = 'smoke' | 'regression';
+export type Verdict = 'GO' | 'NO-GO';
+
+/** Smoke o regresión lanzado con Claude Code desde la app; Claude reporta el resultado al terminar. */
+export interface Automation {
+  id: string;
+  kind: AutomationKind;
+  /** Qué se prueba: «QA», «STG» o el test run de testomat.io. */
+  target: string;
+  env: string;
+  startedAt: number;
+  finishedAt: number | null;
+  verdict: Verdict | null;
+  summary: string;
+  link: string;
+  /** Registro creado con el resultado. */
+  runId: string | null;
+}
+
 export interface AppState {
   settings: Settings;
   runs: TestRun[];
   jira: JiraState;
+  automations: Automation[];
 }
 
 export interface Backup extends Settings {

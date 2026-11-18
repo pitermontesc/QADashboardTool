@@ -1,6 +1,6 @@
 import type { SmokeSite } from '../shared/orchestrator';
 import type {
-  AppState, Backup, JiraConfigInput, JiraState, Settings, TestRun, TestRunInput,
+  AppState, Automation, Backup, JiraConfigInput, JiraState, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -29,7 +29,8 @@ export const api = {
   importBackup: (backup: Backup) => request<AppState>('POST', '/api/import', backup),
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
   runOrchestrator: (key: string) => request<{ key: string }>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
-  runRegression: (run: string) => request<{ run: string }>('POST', '/api/regression', { run }),
-  runSmoke: (site: SmokeSite) => request<{ site: SmokeSite }>('POST', '/api/smoke', { site }),
+  runRegression: (run: string) => request<Automation>('POST', '/api/regression', { run }),
+  runSmoke: (site: SmokeSite) => request<Automation>('POST', '/api/smoke', { site }),
+  deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
 };

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { DEFAULT_JQL, defaultSettings } from '../shared/defaults.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import type {
-  AppState, Backup, JiraConnection, JiraState, JiraTicket, Settings, TestRun, TestRunInput,
+  AppState, Automation, Backup, JiraConnection, JiraState, JiraTicket, Settings, TestRun, TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
@@ -21,7 +21,11 @@ interface StoreData {
   runs: TestRun[];
   jira: JiraCredentials;
   jiraCache: { tickets: JiraTicket[]; fetchedAt: number | null; ok: boolean | null; error: string | null };
+  automations: Automation[];
 }
+
+/** Ejecuciones con Claude que se conservan (las más recientes). */
+const MAX_AUTOMATIONS = 30;
 
 const emptyData = (): StoreData => ({
   version: 1,
@@ -29,6 +33,7 @@ const emptyData = (): StoreData => ({
   runs: [],
   jira: { site: '', email: '', board: '', jql: DEFAULT_JQL, token: '' },
   jiraCache: { tickets: [], fetchedAt: null, ok: null, error: null },
+  automations: [],
 });
 
 /**
@@ -70,7 +75,7 @@ export class Store {
   }
 
   getState(): AppState {
-    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState() };
+    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations };
   }
 
   getJiraState(): JiraState {
@@ -83,6 +88,39 @@ export class Store {
 
   getJiraCredentials(): JiraCredentials {
     return this.data.jira;
+  }
+
+  /** Registra un smoke o una regresión recién lanzado; se guardan los últimos MAX_AUTOMATIONS. */
+  startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env'>): Automation {
+    const automation: Automation = {
+      ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', runId: null,
+    };
+    this.data.automations = [automation, ...this.data.automations].slice(0, MAX_AUTOMATIONS);
+    this.persist();
+    return automation;
+  }
+
+  getAutomation(id: string): Automation | null {
+    return this.data.automations.find((a) => a.id === id) ?? null;
+  }
+
+  /** Cierra la ejecución con el veredicto de Claude y el registro que lo refleja en el dashboard. */
+  finishAutomation(id: string, result: Pick<Automation, 'verdict' | 'summary' | 'link'>, runInput: TestRunInput): Automation | null {
+    const automation = this.getAutomation(id);
+    if (!automation) return null;
+    const run: TestRun = { ...runInput, id: randomUUID(), createdAt: Date.now() };
+    this.data.runs.push(run);
+    Object.assign(automation, result, { finishedAt: Date.now(), runId: run.id });
+    this.persist();
+    return automation;
+  }
+
+  deleteAutomation(id: string): boolean {
+    const before = this.data.automations.length;
+    this.data.automations = this.data.automations.filter((a) => a.id !== id);
+    if (this.data.automations.length === before) return false;
+    this.persist();
+    return true;
   }
 
   createRun(input: TestRunInput): TestRun {

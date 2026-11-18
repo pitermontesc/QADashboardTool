@@ -16,6 +16,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 5. [Registrar un test sin ticket (Smoke, Regression…)](#5-registrar-un-test-sin-ticket-smoke-regression)
    - [Ejecutar el smoke con Claude Code](#ejecutar-el-smoke-con-claude-code)
    - [Ejecutar la regresión con Claude Code](#ejecutar-la-regresión-con-claude-code)
+   - [Resultados de smoke y regresión en el dashboard](#resultados-de-smoke-y-regresión-en-el-dashboard)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
 8. [Personalizar tipos de test y ambientes](#8-personalizar-tipos-de-test-y-ambientes)
@@ -200,7 +201,7 @@ La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ S
 
 1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
 2. **Sigue el smoke en Terminal.** Recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
-3. Al terminar, **registra la ejecución** en la app: **Nuevo registro** → tipo **★ Smoke**, el **ambiente** donde corriste el smoke (QA o Staging) y los casos del resumen.
+3. Al terminar, **Claude reporta el resultado a la app** y el smoke queda registrado solo (ver [Resultados de smoke y regresión en el dashboard](#resultados-de-smoke-y-regresión-en-el-dashboard)).
 
 Si necesitas los dos sitios, pulsa los dos botones: cada smoke se abre en su propia ventana de Terminal. Los botones aparecen en cualquier tipo de test cuyo nombre contenga «Smoke» y que esté marcado con ★.
 
@@ -214,11 +215,29 @@ La tarjeta **★ Regression** del dashboard tiene el botón **▷ Ejecutar regre
 2. **Pega el test run de testomat.io**: el link del run o su ID, por ejemplo `#b333fb92`. Es opcional; si lo dejas vacío, el skill te lo pide en Terminal. Debajo ves el comando exacto que se va a ejecutar.
 3. Pulsa **Abrir en Terminal**. Se abre una ventana nueva de Terminal con Claude Code y en la app aparece el aviso **Regresión abierta en Terminal**.
 4. **Sigue la regresión en Terminal.** El skill valida cada TC en el navegador, marca los resultados en testomat.io, documenta los bugs, crea el epic en Jira con sus work items y cierra con un veredicto **GO / NO-GO**. Aprueba cada paso que publica en Jira o testomat.io.
-5. Al terminar, **registra la ejecución** en la app: **Nuevo registro** → tipo **★ Regression**, ambiente **Staging** y los casos passed / failed / blocked del run.
+5. Al terminar, **Claude reporta el resultado a la app** y la regresión queda registrada sola (ver abajo).
 
 ![Diálogo «Ejecutar regresión» con el test run #b333fb92 y el comando que se ejecutará](img/19-regresion-dialogo.png)
 
 El botón aparece en cualquier tipo de test cuyo nombre contenga «Regres» y que esté marcado con ★. Los requisitos son los del orquestador (sección 4): macOS, Claude Code instalado y el skill disponible. La app solo acepta links de testomat.io o IDs de run, para que no se cuele otro comando en Terminal.
+
+### Resultados de smoke y regresión en el dashboard
+
+Cada smoke o regresión que lanzas desde la app aparece en la sección **Smoke y regresión con Claude** del dashboard:
+
+![Sección «Smoke y regresión con Claude»: un smoke en curso en STG, un smoke GO en QA y una regresión NO-GO con 3 failed y 2 bugs](img/20-smoke-regresion-resultados.png)
+
+- **En curso**: Claude todavía está trabajando en Terminal. La app consulta cada 10 segundos si ya hay resultado, sin que tengas que recargar.
+- **GO / NO-GO**: Claude terminó y reportó el veredicto, los casos (passed, failed, blocked), los bugs, un resumen corto y, si hay, el link al reporte o epic (icono ↗). La app avisa con «Smoke STG: GO» y, en la app de escritorio, con una notificación del sistema.
+- **Sin resultado**: pasaron más de 12 horas sin reporte (por ejemplo, cerraste Terminal antes de que terminara). Quítala con la **×**.
+
+Cómo llega el resultado: al lanzar el skill, la app añade al prompt una última instrucción para que Claude, al terminar, envíe el resultado a la app con un POST a `http://127.0.0.1:8765/api/automation/<id>/result`. Como Claude Code corre en modo interactivo, te pedirá permiso para hacer esa llamada; apruébala.
+
+Con ese reporte la app **crea el registro sola**: tipo ★ Smoke o ★ Regression, el ambiente (QA o Staging), resultado **Passed** si es GO o **Failed** si es NO-GO, los casos, los minutos y las notas con el resumen. Por eso el resultado aparece también en la tarjeta de la suite, en los KPIs, en los gráficos y en **Registros**:
+
+![Tarjetas Smoke y Regression con su última ejecución hecha con Claude: Smoke QA GO (Passed) y Regression NO-GO (Failed)](img/21-suites-con-resultado.png)
+
+Si Claude no llega a reportar, registra la ejecución a mano con **Nuevo registro**, como en el paso a paso de arriba.
 
 ## 6. Leer el dashboard
 

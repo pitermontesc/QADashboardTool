@@ -3,8 +3,9 @@ import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
 import { fetchJiraTickets } from './jira.js';
 import { launchInTerminal, orchestratorCommand, regressionCommand, smokeCommand, type TerminalLauncher } from './orchestrator.js';
-import { canOrchestrate, isTicketKey } from '../shared/orchestrator.js';
-import { backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
+import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
+import { reportInstruction, envFor, runFromResult } from './automation.js';
+import { automationResultSchema, backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
 
 export interface AppOptions {
@@ -128,17 +129,50 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     res.json({ key });
   });
 
+  /** Lanza el comando y deja la ejecución «en curso» hasta que Claude reporte el resultado. */
+  const launchAutomation = async (
+    req: express.Request,
+    input: Parameters<Store['startAutomation']>[0],
+    command: (extra: string) => string,
+  ) => {
+    command(''); // Valida antes de registrar nada.
+    const automation = store.startAutomation(input);
+    try {
+      await launch(command(reportInstruction(req.socket.localPort ?? 0, automation.id)));
+    } catch (err) {
+      store.deleteAutomation(automation.id);
+      throw err;
+    }
+    return automation;
+  };
+
   api.post('/regression', async (req, res) => {
     const body = (req.body ?? {}) as { run?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
-    await launch(regressionCommand(run));
-    res.json({ run });
+    const env = envFor('staging', store.getState().settings);
+    res.json(await launchAutomation(req, { kind: 'regression', target: run, env }, (extra) => regressionCommand(run, extra)));
   });
 
   api.post('/smoke', async (req, res) => {
     const { site } = (req.body ?? {}) as { site?: unknown };
-    await launch(smokeCommand(site));
-    res.json({ site });
+    if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
+    const env = envFor(site === 'qa' ? 'qa' : 'staging', store.getState().settings);
+    res.json(await launchAutomation(req, { kind: 'smoke', target: SMOKE_SITES[site].label, env }, (extra) => smokeCommand(site, extra)));
+  });
+
+  api.post('/automation/:id/result', (req, res) => {
+    const automation = store.getAutomation(String(req.params.id));
+    if (!automation) throw new HttpError(404, 'Esa ejecución no existe o se descartó');
+    if (automation.finishedAt !== null) throw new HttpError(409, 'Esa ejecución ya tiene resultado');
+    const result = automationResultSchema.parse(req.body);
+    const { verdict, summary, link } = result;
+    const runInput = runInputSchema.parse(runFromResult(automation, result, store.getState().settings));
+    res.json(store.finishAutomation(automation.id, { verdict, summary, link }, runInput));
+  });
+
+  api.delete('/automation/:id', (req, res) => {
+    if (!store.deleteAutomation(String(req.params.id))) throw new HttpError(404, 'Esa ejecución ya no existe');
+    res.status(204).end();
   });
 
   api.use((_req, _res, next) => {

@@ -6,7 +6,8 @@ import {
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
 import { ORCHESTRATOR_SKILL, SMOKE_SITES, canOrchestrate, isRegressionType, isSmokeType, type SmokeSite } from '../../shared/orchestrator';
-import { RESULTS, type AppState, type JiraTicket } from '../../shared/types';
+import { RESULTS, type AppState, type Automation, type JiraTicket } from '../../shared/types';
+import { Automations } from './Automations';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
 
@@ -32,6 +33,7 @@ interface DashboardProps {
   launching: string | null;
   onRegression: () => void;
   onSmoke: (site: SmokeSite) => void;
+  onDismissAutomation: (automation: Automation) => void;
   onNewRun: () => void;
   onOpenSettings: () => void;
 }
@@ -243,7 +245,7 @@ function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onDismissAutomation, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
@@ -384,6 +386,8 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
           })}
         </div>
       )}
+
+      <Automations automations={state.automations} runs={state.runs} onDismiss={onDismissAutomation} />
 
       <div className="grid2">
         <div className="card">

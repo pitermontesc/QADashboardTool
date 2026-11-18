@@ -115,6 +115,9 @@ describe('API', () => {
   });
 });
 
+/** Comando sin la instrucción final para reportar el resultado al dashboard. */
+const withoutReport = (command: string): string => command.replace(/ -- Al terminar.*'$/, "'");
+
 describe('Orquestador QA', () => {
   const launched: string[] = [];
   let srv: Awaited<ReturnType<typeof startServer>>;
@@ -140,7 +143,7 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/regression', {})).status).toBe(200);
     expect((await srv.call('POST', '/api/regression', { run: "#abc'; rm -rf ~" })).status).toBe(400);
     expect((await srv.call('POST', '/api/regression', { run: 'https://evil.example/runs/1' })).status).toBe(400);
-    expect(launched).toEqual([
+    expect(launched.map(withoutReport)).toEqual([
       "claude '/avm-qa-skills:avm-regression-runner #b333fb92'",
       "claude '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92'",
       "claude '/avm-qa-skills:avm-regression-runner'",
@@ -153,10 +156,34 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/smoke', { site: 'stg' })).status).toBe(200);
     expect((await srv.call('POST', '/api/smoke', {})).status).toBe(400);
     expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).status).toBe(400);
-    expect(launched).toEqual([
+    expect(launched.map(withoutReport)).toEqual([
       "claude '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
       "claude '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)'",
     ]);
+  });
+
+  it('refleja en el dashboard el resultado que Claude reporta al terminar', async () => {
+    launched.length = 0;
+    const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    expect(automation).toMatchObject({ kind: 'smoke', target: 'STG', env: 'Staging', finishedAt: null, verdict: null });
+    // El prompt le dice a Claude adónde reportar; se usa esa misma URL.
+    const reportUrl = new URL(launched[0]!.match(/POST JSON a (\S+)/)![1]!);
+    expect(reportUrl.pathname).toBe(`/api/automation/${automation.id}/result`);
+
+    expect((await srv.call('POST', reportUrl.pathname, { verdict: 'maybe' })).status).toBe(400);
+    const report = { verdict: 'no go', passed: 18, failed: 2, bugs: 1, summary: 'Mass Upload falla en el paso 3', link: 'https://example.atlassian.net/browse/AVM-900' };
+    const done = await srv.call('POST', reportUrl.pathname, report);
+    expect(done).toMatchObject({ status: 200, body: { verdict: 'NO-GO', summary: 'Mass Upload falla en el paso 3' } });
+    expect((await srv.call('POST', reportUrl.pathname, report)).status).toBe(409);
+
+    const { body: state } = await srv.call('GET', '/api/state');
+    expect(state.automations[0]).toMatchObject({ id: automation.id, verdict: 'NO-GO', runId: expect.any(String) });
+    const run = state.runs.find((r: { id: string }) => r.id === state.automations[0].runId);
+    expect(run).toMatchObject({ typeId: 't0', env: 'Staging', result: 'failed', passed: 18, failed: 2, bugs: 1, title: 'Smoke STG con Claude · NO-GO' });
+    expect(run.notes).toContain('AVM-900');
+
+    expect((await srv.call('DELETE', `/api/automation/${automation.id}`)).status).toBe(204);
+    expect((await srv.call('POST', reportUrl.pathname, report)).status).toBe(404);
   });
 
   it('arma el comando de Claude Code con el skill', () => {

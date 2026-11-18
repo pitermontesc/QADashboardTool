@@ -58,3 +58,20 @@ export const jiraConfigSchema = z.object({
   jql: z.string().trim().max(2000),
   token: z.string().trim().max(500).optional(),
 });
+
+/** Resultado que Claude reporta al terminar un smoke o una regresión. */
+export const automationResultSchema = z.object({
+  verdict: z
+    .string()
+    .trim()
+    .transform((v) => v.toUpperCase().replace(/[\s_]+/g, '-'))
+    .pipe(z.enum(['GO', 'NO-GO'], 'El veredicto debe ser GO o NO-GO')),
+  passed: count,
+  failed: count,
+  blocked: count,
+  bugs: count,
+  minutes: count,
+  summary: z.string().trim().max(5000).default(''),
+  link: httpUrlOrEmpty.default(''),
+});
+export type AutomationResult = z.infer<typeof automationResultSchema>;

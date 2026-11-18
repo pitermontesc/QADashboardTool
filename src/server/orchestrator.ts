@@ -5,6 +5,12 @@ import { HttpError } from './errors.js';
 /** Ejecuta un comando en una ventana nueva de Terminal; inyectable para probar sin abrirla. */
 export type TerminalLauncher = (command: string) => Promise<void>;
 
+/** `claude '<prompt>'`: el prompt va entre comillas simples, así que no puede contenerlas. */
+function claude(prompt: string): string {
+  if (prompt.includes("'")) throw new HttpError(400, 'El prompt no puede contener comillas simples');
+  return `claude '${prompt}'`;
+}
+
 /** Claude Code interactivo con el orquestador sobre un ticket. */
 export function orchestratorCommand(key: string): string {
   if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
@@ -12,16 +18,16 @@ export function orchestratorCommand(key: string): string {
 }
 
 /** Claude Code interactivo con el runner de regresión; sin test run, el skill lo pregunta. */
-export function regressionCommand(run: string): string {
+export function regressionCommand(run: string, extra = ''): string {
   if (!isTestRunRef(run)) throw new HttpError(400, 'Test run inválido: pega el link de testomat.io o su ID (p. ej. #b333fb92)');
-  return `claude '${run ? `${REGRESSION_SKILL} ${run}` : REGRESSION_SKILL}'`;
+  return claude(`${run ? `${REGRESSION_SKILL} ${run}` : REGRESSION_SKILL}${extra}`);
 }
 
 /** Claude Code interactivo con el smoke tester sobre el sitio elegido (QA o STG). */
-export function smokeCommand(site: unknown): string {
+export function smokeCommand(site: unknown, extra = ''): string {
   if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
   const { label, url } = SMOKE_SITES[site];
-  return `claude '${SMOKE_SKILL} run smoke on ${label} (${url})'`;
+  return claude(`${SMOKE_SKILL} run smoke on ${label} (${url})${extra}`);
 }
 
 /**

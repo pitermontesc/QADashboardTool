@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.7.0] - 2026-11-18
+
+### Agregado
+- Los resultados de smoke y regresión llegan solos al dashboard: Claude reporta el veredicto (GO / NO-GO), los casos, los bugs y un resumen a la API local al terminar, y la app crea el registro. Nueva sección **Smoke y regresión con Claude** con las ejecuciones en curso y terminadas, y aviso cuando llega un resultado.
+
+### Cambiado
+- El icono de la app es ahora el logo de RAVN.
+
 ## [1.6.1] - 2026-11-18
 
 ### Corregido

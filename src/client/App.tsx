@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, Backup, JiraConfigInput, JiraTicket, Settings, TestRun, TestRunInput,
+  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 import { api } from './api';
 import { Dashboard } from './components/Dashboard';
@@ -13,6 +13,9 @@ import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
 import { Icon, type IconName } from './components/icons';
 import { Kbd, MOD } from './components/ui';
+
+/** Cada cuánto se consulta el resultado de un smoke o una regresión en curso. */
+const AUTOMATION_POLL_MS = 10_000;
 
 type Tab = 'dash' | 'runs' | 'config';
 const TABS: ReadonlyArray<{ id: Tab; label: string; icon: IconName; key: string }> = [
@@ -101,6 +104,30 @@ export function App() {
       window.removeEventListener('focus', onVisible);
     };
   }, []);
+
+  // Mientras Claude corre un smoke o una regresión, se consulta su resultado cada pocos segundos.
+  const running = state?.automations.some((a) => a.finishedAt === null) ?? false;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => {
+      api
+        .getState()
+        .then((next) => {
+          const before = new Map(stateRef.current?.automations.map((a) => [a.id, a]));
+          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations } : s));
+          for (const a of next.automations) {
+            if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
+              const what = a.kind === 'smoke' ? `Smoke ${a.target}` : `Regression ${a.target || ''}`.trim();
+              announce(`${what}: ${a.verdict}`, a.summary || 'Resultado guardado en el dashboard');
+            }
+          }
+        })
+        .catch(() => undefined);
+    }, AUTOMATION_POLL_MS);
+    return () => clearInterval(timer);
+  }, [running, announce]);
 
   useEffect(() => {
     if (!toast) return;
@@ -277,7 +304,8 @@ export function App() {
 
   const runRegression = async (run: string): Promise<boolean> => {
     try {
-      await api.runRegression(run);
+      const automation = await api.runRegression(run);
+      patch({ automations: [automation, ...state.automations] });
       notify(run ? `Regresión abierta en Terminal para ${run}` : 'Regresión abierta en Terminal', 'info');
       return true;
     } catch (err) {
@@ -289,12 +317,22 @@ export function App() {
   const runSmoke = async (site: SmokeSite): Promise<void> => {
     setLaunching(`smoke:${site}`);
     try {
-      await api.runSmoke(site);
+      const automation = await api.runSmoke(site);
+      patch({ automations: [automation, ...state.automations] });
       notify(`Smoke en ${SMOKE_SITES[site].label} abierto en Terminal`, 'info');
     } catch (err) {
       notify((err as Error).message, 'error');
     } finally {
       setLaunching(null);
+    }
+  };
+
+  const dismissAutomation = async (automation: Automation): Promise<void> => {
+    try {
+      await api.deleteAutomation(automation.id);
+      patch({ automations: state.automations.filter((a) => a.id !== automation.id) });
+    } catch (err) {
+      notify((err as Error).message, 'error');
     }
   };
 
@@ -352,6 +390,7 @@ export function App() {
             launching={launching}
             onRegression={() => setRegressionOpen(true)}
             onSmoke={runSmoke}
+            onDismissAutomation={dismissAutomation}
             onNewRun={newRun}
             onOpenSettings={() => setTab('config')}
           />
