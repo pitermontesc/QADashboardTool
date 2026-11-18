@@ -1,6 +1,6 @@
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import { z } from 'zod';
-import { RESULTS, VERDICTS } from '../shared/types.js';
+import { LANGUAGES, RESULTS, STEP_STATUSES, VERDICTS } from '../shared/types.js';
 
 const count = z.number().int().min(0).nullable().default(null);
 const httpUrlOrEmpty = z
@@ -42,6 +42,7 @@ export const settingsSchema = z.object({
     .min(1, 'Debe quedar al menos un tipo de test'),
   envs: z.array(z.string().trim().min(1).max(40)).default([]),
   ticketBase: httpUrlOrEmpty.default(''),
+  language: z.enum(LANGUAGES).default('es'),
 });
 
 export const backupSchema = settingsSchema.extend({ runs: z.array(runSchema) });
@@ -68,6 +69,56 @@ function normalizeVerdict(raw: string): string {
   return v;
 }
 
+/** «PASS», «OK», «FAIL», «not tested»… → passed / failed / blocked / skipped. */
+function normalizeStepStatus(raw: string): string {
+  const v = raw.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+  if (/^(pass|passed|ok|go|success)$/.test(v)) return 'passed';
+  if (/^(fail|failed|error|no go|ko)$/.test(v)) return 'failed';
+  if (/^(skip|skipped|not tested|not run|n\/a|na)$/.test(v)) return 'skipped';
+  if (/^(block|blocked|incomplete)$/.test(v)) return 'blocked';
+  return v;
+}
+
+const stepStatus = z
+  .string()
+  .trim()
+  .transform(normalizeStepStatus)
+  .pipe(z.enum(STEP_STATUSES, `El status debe ser uno de: ${STEP_STATUSES.join(', ')}`));
+const text = (max: number) => z.string().trim().max(max).default('');
+
+/** Reporte QA detallado: un módulo por área probada con sus pasos, y los bugs encontrados. */
+export const automationDetailsSchema = z.object({
+  build: text(200),
+  modules: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        status: stepStatus,
+        minutes: count,
+        notes: text(2000),
+        steps: z
+          .array(z.object({ name: z.string().trim().min(1).max(500), status: stepStatus, notes: text(2000) }))
+          .max(200)
+          .default([]),
+      }),
+    )
+    .max(60)
+    .default([]),
+  bugs: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1).max(300),
+        severity: text(40),
+        key: text(60),
+        link: httpUrlOrEmpty.default(''),
+        module: text(200),
+      }),
+    )
+    .max(100)
+    .default([]),
+  notes: text(5000),
+});
+
 /** Resultado que Claude reporta al terminar un smoke o una regresión. */
 export const automationResultSchema = z.object({
   verdict: z
@@ -82,5 +133,6 @@ export const automationResultSchema = z.object({
   minutes: count,
   summary: z.string().trim().max(5000).default(''),
   link: httpUrlOrEmpty.default(''),
+  details: automationDetailsSchema.nullable().default(null),
 });
 export type AutomationResult = z.infer<typeof automationResultSchema>;

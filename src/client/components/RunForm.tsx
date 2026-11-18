@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { RESULT_META } from '../../shared/defaults';
+import { RESULT_META, resultLabel } from '../../shared/defaults';
+import { useLang, useText } from '../i18n';
 import { RESULTS, type Result, type Settings, type TestRunInput } from '../../shared/types';
 import { Icon } from './icons';
 import { Kbd, MOD } from './ui';
@@ -13,12 +14,33 @@ interface RunFormProps {
 }
 
 const COUNT_FIELDS = [
-  ['passed', 'Casos passed', 'ok'],
-  ['failed', 'Casos failed', 'bad'],
-  ['blocked', 'Casos blocked', 'warn'],
-  ['bugs', 'Bugs', 'bad'],
-  ['minutes', 'Minutos', ''],
+  ['passed', 'ok'],
+  ['failed', 'bad'],
+  ['blocked', 'warn'],
+  ['bugs', 'bad'],
+  ['minutes', ''],
 ] as const;
+
+const TEXT = {
+  es: {
+    counts: { passed: 'Casos passed', failed: 'Casos failed', blocked: 'Casos blocked', bugs: 'Bugs', minutes: 'Minutos' },
+    forTicket: 'Para', close: 'Cerrar', title: 'Título / qué se probó', titlePh: 'p. ej. Smoke post-deploy release 2.14',
+    type: 'Tipo de test', date: 'Fecha', ticket: 'Ticket (opcional)', env: 'Ambiente',
+    casesRun: 'Casos ejecutados', optional: '(opcional)', result: 'Resultado',
+    autoHint: 'Se ajusta solo según los casos; elígelo a mano si hace falta.',
+    notes: 'Notas', notesPh: 'Pasos, hallazgos, links a bugs…', save: 'guardar', cancelKey: 'cancelar',
+    cancel: 'Cancelar', saving: 'Guardando…', saveRun: 'Guardar registro',
+  },
+  en: {
+    counts: { passed: 'Cases passed', failed: 'Cases failed', blocked: 'Cases blocked', bugs: 'Bugs', minutes: 'Minutes' },
+    forTicket: 'For', close: 'Close', title: 'Title / what was tested', titlePh: 'e.g. Post-deploy smoke release 2.14',
+    type: 'Test type', date: 'Date', ticket: 'Ticket (optional)', env: 'Environment',
+    casesRun: 'Cases executed', optional: '(optional)', result: 'Result',
+    autoHint: 'Set automatically from the cases; pick it by hand if needed.',
+    notes: 'Notes', notesPh: 'Steps, findings, bug links…', save: 'save', cancelKey: 'cancel',
+    cancel: 'Cancel', saving: 'Saving…', saveRun: 'Save run',
+  },
+};
 type CountField = (typeof COUNT_FIELDS)[number][0];
 
 const toText = (n: number | null): string => (n === null ? '' : String(n));
@@ -36,6 +58,8 @@ function suggestedResult(counts: Record<CountField, string>): Result | null {
 }
 
 export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFormProps) {
+  const lang = useLang();
+  const t = useText(TEXT);
   const dialog = useRef<HTMLDialogElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState(initial);
@@ -107,28 +131,28 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
             <h2 id="run-form-title">{heading}</h2>
             {fromTicket && (
               <p className="hint">
-                Para <b className="text-accent">{initial.ticket}</b> · {initial.title}
+                {t.forTicket} <b className="text-accent">{initial.ticket}</b> · {initial.title}
               </p>
             )}
           </div>
-          <button type="button" className="icon-btn" aria-label="Cerrar" onClick={onClose}>
+          <button type="button" className="icon-btn" aria-label={t.close} onClick={onClose}>
             <Icon name="close" />
           </button>
         </div>
 
         <div className="fgrid">
           <label className="f full">
-            Título / qué se probó
+            {t.title}
             <input
               required
               autoFocus={!fromTicket}
-              placeholder="p. ej. Smoke post-deploy release 2.14"
+              placeholder={t.titlePh}
               value={draft.title}
               onChange={(e) => set('title', e.target.value)}
             />
           </label>
           <label className="f">
-            Tipo de test
+            {t.type}
             <select required value={draft.typeId} onChange={(e) => set('typeId', e.target.value)}>
               {settings.types.map((t) => (
                 <option key={t.id} value={t.id}>{t.major ? '★ ' : ''}{t.name}</option>
@@ -136,15 +160,15 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
             </select>
           </label>
           <label className="f">
-            Fecha
+            {t.date}
             <input type="date" required value={draft.date} onChange={(e) => set('date', e.target.value)} />
           </label>
           <label className="f">
-            Ticket (opcional)
+            {t.ticket}
             <input placeholder="ABC-1234" value={draft.ticket} onChange={(e) => set('ticket', e.target.value)} />
           </label>
           <label className="f">
-            Ambiente
+            {t.env}
             <select value={draft.env} onChange={(e) => set('env', e.target.value)}>
               <option value="">—</option>
               {envs.map((env) => (
@@ -155,11 +179,11 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
         </div>
 
         <fieldset className="counts">
-          <legend>Casos ejecutados <span className="hint">(opcional)</span></legend>
+          <legend>{t.casesRun} <span className="hint">{t.optional}</span></legend>
           <div className="fgrid3">
-            {COUNT_FIELDS.map(([field, label, tone]) => (
+            {COUNT_FIELDS.map(([field, tone]) => (
               <label key={field} className={`f count${tone ? ` tone-${tone}` : ''}`}>
-                {label}
+                {t.counts[field]}
                 <input
                   type="number"
                   min={0}
@@ -175,7 +199,7 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
         </fieldset>
 
         <div className="f-group">
-          <span className="f-label" id="result-label">Resultado</span>
+          <span className="f-label" id="result-label">{t.result}</span>
           <div className="result-picker" role="radiogroup" aria-labelledby="result-label">
             {RESULTS.map((r) => (
               <button
@@ -191,23 +215,23 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
                 }}
               >
                 <i />
-                {RESULT_META[r].label}
+                {resultLabel(r, lang)}
               </button>
             ))}
           </div>
-          {!resultTouched && <p className="hint">Se ajusta solo según los casos; elígelo a mano si hace falta.</p>}
+          {!resultTouched && <p className="hint">{t.autoHint}</p>}
         </div>
 
         <label className="f" style={{ marginTop: 14 }}>
-          Notas
-          <textarea rows={3} placeholder="Pasos, hallazgos, links a bugs…" value={draft.notes} onChange={(e) => set('notes', e.target.value)} />
+          {t.notes}
+          <textarea rows={3} placeholder={t.notesPh} value={draft.notes} onChange={(e) => set('notes', e.target.value)} />
         </label>
 
         <div className="actions">
-          <span className="hint shortcut-hint"><Kbd>{MOD}↵</Kbd> guardar · <Kbd>Esc</Kbd> cancelar</span>
+          <span className="hint shortcut-hint"><Kbd>{MOD}↵</Kbd> {t.save} · <Kbd>Esc</Kbd> {t.cancelKey}</span>
           <div className="spacer" />
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar registro'}</button>
+          <button type="button" className="btn" onClick={onClose}>{t.cancel}</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving ? t.saving : t.saveRun}</button>
         </div>
       </form>
     </dialog>

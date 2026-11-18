@@ -1,6 +1,6 @@
 import type { SmokeSite } from '../shared/orchestrator';
 import type {
-  AppState, Automation, Backup, JiraConfigInput, JiraState, Settings, TestRun, TestRunInput,
+  ActivityItem, AppState, Automation, Backup, JiraConfigInput, JiraState, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -12,7 +12,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new Error('No se pudo conectar con la app local (¿sigue abierta la terminal?)');
+    throw new Error(
+      document.documentElement.lang === 'en'
+        ? 'Could not reach the local app (is it still open?)'
+        : 'No se pudo conectar con la app local (¿sigue abierta?)',
+    );
   }
   if (response.status === 204) return undefined as T;
   const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -31,6 +35,8 @@ export const api = {
   runOrchestrator: (key: string) => request<Automation>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
   runRegression: (run: string) => request<Automation>('POST', '/api/regression', { run }),
   runSmoke: (site: SmokeSite) => request<Automation>('POST', '/api/smoke', { site }),
+  getActivity: (id: string) => request<{ items: ActivityItem[]; logFile: string }>('GET', `/api/automation/${encodeURIComponent(id)}/activity`),
+  stopAutomation: (id: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/stop`, {}),
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
 };

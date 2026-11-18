@@ -2,6 +2,16 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.9.0] - 2026-11-18
+
+### Agregado
+- **Reporte QA de cada ejecución con Claude.** Al pulsar una ejecución en «Ejecuciones con Claude» (o «Reporte» en Registros) se abre una ventana con el veredicto, inicio, fin y duración, los casos passed/failed/blocked, el resumen, cada módulo probado con sus pasos y su estado, los bugs encontrados (clave, severidad, módulo y link) y las observaciones. Claude envía ese detalle en el campo `details` al terminar.
+- **La app funciona en español o en inglés.** Se cambia con el selector ES / EN de la cabecera o en Tipos y ajustes → Idioma. Se traducen la interfaz, las fechas, los mensajes de error, el menú de la app de escritorio, el CSV exportado y los registros que crea la app; Claude escribe sus reportes en el idioma elegido.
+- **«Running» en el dashboard.** Mientras corre una ejecución, la cabecera muestra **Running · Smoke STG · 6 min** (o cuántas hay en curso), la tarjeta Smoke o Regression marca **Running** en el botón del sitio y la tarjeta del ticket muestra **Running · validando**. Al pulsarlos se abre la ejecución con su **actividad en vivo** y un botón **Detener**.
+
+### Cambiado
+- **Las ejecuciones con Claude corren solas, en segundo plano.** Ya no se abre Terminal ni hay que confiar en la carpeta o aprobar pasos: la app lanza `claude -p --chrome --permission-mode auto` en `~/qa-dashboard-runs` y guarda el log en `~/qa-dashboard-runs/logs/`. Si Claude termina sin reportar, la ejecución se cierra como **BLOCKED** con su último mensaje; una ejecución de más de 4 horas se detiene sola. Descartar una ejecución en curso también la detiene.
+
 ## [1.8.3] - 2026-11-18
 
 ### Corregido

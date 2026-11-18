@@ -1,18 +1,19 @@
-import { RESULT_META } from '../../shared/defaults';
+import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy } from '../../shared/dates';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import type { JiraConnection, JiraState, Result, Settings, TestRun, TestType } from '../../shared/types';
 import type { ReactNode } from 'react';
 import { Icon } from './icons';
-
-const UNKNOWN_TYPE: TestType = { id: '', name: '(tipo eliminado)', major: false, color: '#888888' };
+import { useLang, useText } from '../i18n';
 
 export function findType(settings: Settings, id: string): TestType {
-  return settings.types.find((t) => t.id === id) ?? UNKNOWN_TYPE;
+  const unknown = settings.language === 'en' ? '(deleted type)' : '(tipo eliminado)';
+  return settings.types.find((t) => t.id === id) ?? { id: '', name: unknown, major: false, color: '#888888' };
 }
 
 export function ResultPill({ result }: { result: Result }) {
-  const { label, color } = RESULT_META[result];
+  const { color } = RESULT_META[result];
+  const label = resultLabel(result, useLang());
   return (
     <span className="pill" style={{ color, border: `1px solid ${color}` }}>
       {label}
@@ -30,10 +31,11 @@ export function TypeTag({ type }: { type: TestType }) {
 }
 
 export function TicketLink({ ticket, base }: { ticket: string; base: string }) {
+  const title = useText({ es: 'Abrir en Jira', en: 'Open in Jira' });
   if (!ticket) return null;
   if (!/^https?:\/\//i.test(base)) return <>{ticket}</>;
   return (
-    <a className="ticket-link" href={base + encodeURIComponent(ticket)} target="_blank" rel="noopener noreferrer" title="Abrir en Jira">
+    <a className="ticket-link" href={base + encodeURIComponent(ticket)} target="_blank" rel="noopener noreferrer" title={title}>
       {ticket}
     </a>
   );
@@ -57,23 +59,37 @@ interface RunsTableProps {
   actions?: (run: TestRun) => ReactNode;
 }
 
+const TABLE_TEXT = {
+  es: {
+    empty: 'No hay registros todavía. Pulsa un ticket de Jira o “Nuevo registro” para empezar.',
+    head: ['Fecha', 'Tipo', 'Título', 'Ticket', 'Amb.', 'Resultado', 'Casos P/F/B', 'Bugs', 'Min'],
+  },
+  en: {
+    empty: 'No runs yet. Click a Jira ticket or “New run” to get started.',
+    head: ['Date', 'Type', 'Title', 'Ticket', 'Env.', 'Result', 'Cases P/F/B', 'Bugs', 'Min'],
+  },
+};
+
 export function RunsTable({ runs, settings, actions }: RunsTableProps) {
+  const lang = useLang();
+  const t = TABLE_TEXT[lang];
   if (runs.length === 0) {
-    return <div className="empty-msg">No hay registros todavía. Pulsa un ticket de Jira o “Nuevo registro” para empezar.</div>;
+    return <div className="empty-msg">{t.empty}</div>;
   }
   return (
     <table>
       <thead>
         <tr>
-          <th>Fecha</th><th>Tipo</th><th>Título</th><th>Ticket</th><th>Amb.</th><th>Resultado</th>
-          <th title="passed / failed / blocked">Casos P/F/B</th><th>Bugs</th><th>Min</th>
+          {t.head.map((label, i) => (
+            <th key={label} title={i === 6 ? 'passed / failed / blocked' : undefined}>{label}</th>
+          ))}
           {actions && <th />}
         </tr>
       </thead>
       <tbody>
         {runs.map((run) => (
           <tr key={run.id}>
-            <td className="num">{formatDmy(run.date)}</td>
+            <td className="num">{formatDmy(run.date, lang)}</td>
             <td><TypeTag type={findType(settings, run.typeId)} /></td>
             <td>
               {run.title}
@@ -93,16 +109,16 @@ export function RunsTable({ runs, settings, actions }: RunsTableProps) {
   );
 }
 
-const JIRA_STATUS: Record<JiraConnection, { label: string; tone: string }> = {
-  none: { label: 'No conectado', tone: 'muted' },
-  pending: { label: 'Sin probar', tone: 'warn' },
-  connected: { label: 'Conectado', tone: 'ok' },
-  error: { label: 'Error de conexión', tone: 'bad' },
+const JIRA_TONE: Record<JiraConnection, string> = { none: 'muted', pending: 'warn', connected: 'ok', error: 'bad' };
+const JIRA_TEXT = {
+  es: { none: 'No conectado', pending: 'Sin probar', connected: 'Conectado', error: 'Error de conexión', loading: 'Conectando…' },
+  en: { none: 'Not connected', pending: 'Not tested', connected: 'Connected', error: 'Connection error', loading: 'Connecting…' },
 };
 
 /** Indicador del estado de la conexión con Jira, con el sitio y el board como detalle. */
 export function JiraStatus({ jira, loading, detail = true }: { jira: JiraState; loading: boolean; detail?: boolean }) {
-  const meta = loading ? { label: 'Conectando…', tone: 'prog' } : JIRA_STATUS[jira.connection];
+  const t = JIRA_TEXT[useLang()];
+  const meta = loading ? { label: t.loading, tone: 'prog' } : { label: t[jira.connection], tone: JIRA_TONE[jira.connection] };
   const board = parseJiraBoardUrl(jira.board);
   const where = jira.site ? `${jira.site.replace(/^https?:\/\//, '').replace(/\.atlassian\.net$/, '')}${board ? ` · board ${board.boardId}` : ''}` : '';
   return (

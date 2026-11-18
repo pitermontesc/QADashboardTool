@@ -1,11 +1,14 @@
 import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { HttpError } from './errors.js';
+import { translateError } from './i18n.js';
+import type { Lang } from '../shared/types.js';
 import { fetchJiraTickets } from './jira.js';
-import { launchInTerminal, orchestratorCommand, regressionCommand, smokeCommand, type TerminalLauncher } from './orchestrator.js';
+import { orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
+import { launchClaude, readActivity, stopPid, type ClaudeHandle, type ClaudeLauncher } from './claudeRunner.js';
 import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
 import { envFor, reportInstruction, runForAutomation } from './automation.js';
-import { automationResultSchema, backupSchema, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
+import { automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, runInputSchema, settingsSchema } from './schemas.js';
 import type { Store } from './store.js';
 
 export interface AppOptions {
@@ -13,8 +16,8 @@ export interface AppOptions {
   clientDir?: string;
   /** Inyectable para probar la integración con Jira sin red. */
   fetchImpl?: typeof fetch;
-  /** Inyectable para probar los skills de QA sin abrir Terminal. */
-  launchTerminal?: TerminalLauncher;
+  /** Inyectable para probar los skills de QA sin ejecutar Claude Code. */
+  launchClaude?: ClaudeLauncher;
 }
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
@@ -34,32 +37,36 @@ const localOnly: RequestHandler = (req, res, next) => {
     }
   }
   if (!LOCAL_HOSTS.has(host) || !originOk) {
-    res.status(403).json({ error: 'Solo acceso local' });
+    res.status(403).json({ error: 'Solo acceso local · Local access only' });
     return;
   }
   next();
 };
 
-const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+const errorHandler = (lang: () => Lang): ErrorRequestHandler => (err, _req, res, _next) => {
+  const send = (status: number, error: string): void => {
+    res.status(status).json({ error: translateError(error, lang()) });
+  };
   if (err instanceof ZodError) {
     const issue = err.issues[0];
     const field = issue?.path.join('.');
-    res.status(400).json({ error: `Datos inválidos${field ? ` (${field})` : ''}: ${issue?.message ?? ''}` });
+    send(400, `Datos inválidos${field ? ` (${field})` : ''}: ${issue?.message ?? ''}`);
     return;
   }
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.message });
+    send(err.status, err.message);
     return;
   }
   if (err instanceof SyntaxError) {
-    res.status(400).json({ error: 'JSON inválido' });
+    send(400, 'JSON inválido');
     return;
   }
   console.error(err);
-  res.status(500).json({ error: 'Error interno de la app' });
+  send(500, 'Error interno de la app');
 };
 
 export function createApp(store: Store, options: AppOptions = {}): Express {
+  const lang = (): Lang => store.getState().settings.language;
   const app = express();
   app.disable('x-powered-by');
   app.use(localOnly);
@@ -109,13 +116,33 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       store.saveJiraTickets(await fetchJiraTickets(store.getJiraCredentials(), options.fetchImpl));
     } catch (err) {
       // Solo los fallos de Jira cambian el estado de conexión; "falta configurar" no es una conexión fallida.
-      if (err instanceof HttpError && err.status === 502) store.saveJiraError(err.message);
+      if (err instanceof HttpError && err.status === 502) store.saveJiraError(translateError(err.message, lang()));
       throw err;
     }
     res.json(store.getJiraState());
   });
 
-  const launch = options.launchTerminal ?? launchInTerminal;
+  const launch = options.launchClaude ?? launchClaude;
+  /** Procesos en curso lanzados por este servidor. */
+  const running = new Map<string, ClaudeHandle>();
+
+  /** Guarda el resultado de una ejecución y completa su registro. */
+  const complete = (id: string, result: AutomationResult) => {
+    const automation = store.getAutomation(id);
+    if (!automation) throw new HttpError(404, 'Esa ejecución no existe o se descartó');
+    if (automation.finishedAt !== null) throw new HttpError(409, 'Esa ejecución ya tiene resultado');
+    const { verdict, summary, link, details } = result;
+    const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
+    return store.finishAutomation(id, { verdict, summary, link, details }, runInput);
+  };
+
+  /** Cierra como BLOCKED una ejecución cuyo proceso terminó o se detuvo sin reportar. */
+  const closeUnreported = (id: string, summary: string): void => {
+    const automation = store.getAutomation(id);
+    if (!automation || automation.finishedAt !== null) return;
+    complete(id, automationResultSchema.parse({ verdict: 'BLOCKED', summary: summary.slice(0, 4900) }));
+  };
+  const withClaude = (): string => (lang() === 'en' ? 'with Claude' : 'con Claude');
 
   api.post('/orchestrator/:key', async (req, res) => {
     const key = String(req.params.key);
@@ -126,34 +153,59 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
     }
     const env = envFor(/stag/i.test(ticket.status) ? 'staging' : 'qa', store.getState().settings);
-    const title = `Orquestador QA: ${ticket.summary}`.slice(0, 250);
-    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env, title }, (extra) => orchestratorCommand(key, extra)));
+    const title = `${lang() === 'en' ? 'QA orchestrator' : 'Orquestador QA'}: ${ticket.summary}`.slice(0, 250);
+    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env, title }, (extra) => orchestratorPrompt(key, extra)));
   });
 
-  /** Lanza el comando y deja la ejecución «en curso» hasta que Claude reporte el resultado. */
+  /** Lanza Claude Code en segundo plano y deja la ejecución «en curso» hasta que reporte el resultado. */
   const launchAutomation = async (
     req: express.Request,
     input: Parameters<Store['startAutomation']>[0],
-    command: (extra: string) => string,
+    prompt: (extra: string) => string,
   ) => {
-    command(''); // Valida antes de registrar nada.
+    prompt(''); // Valida antes de registrar nada.
     const settings = store.getState().settings;
     const automation = store.startAutomation(input, (a) => runInputSchema.parse(runForAutomation(a, settings)));
+    const en = settings.language === 'en';
     try {
-      await launch(command(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id)));
+      const handle = await launch({
+        id: automation.id,
+        prompt: prompt(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id, settings.language)),
+        onExit: ({ code, lastMessage }) => {
+          running.delete(automation.id);
+          // Claude reporta con un POST antes de terminar; si no lo hizo, la ejecución no queda «en curso» para siempre.
+          const why = en
+            ? `Claude finished without reporting a result (exit code ${code ?? 'none'}).`
+            : `Claude terminó sin reportar el resultado (código de salida ${code ?? 'ninguno'}).`;
+          closeUnreported(automation.id, [why, lastMessage].filter(Boolean).join('\n'));
+        },
+      });
+      running.set(automation.id, handle);
+      store.setAutomationProcess(automation.id, handle.pid, handle.logFile);
     } catch (err) {
       store.deleteAutomation(automation.id);
       throw err;
     }
-    return automation;
+    return store.getAutomation(automation.id);
+  };
+
+  /** Detiene el proceso de una ejecución, lo haya lanzado este servidor o uno anterior. */
+  const stopProcess = (id: string): void => {
+    const handle = running.get(id);
+    if (handle) handle.stop();
+    else {
+      const pid = store.getAutomation(id)?.pid;
+      if (pid) stopPid(pid);
+    }
+    running.delete(id);
   };
 
   api.post('/regression', async (req, res) => {
     const body = (req.body ?? {}) as { run?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
     const env = envFor('staging', store.getState().settings);
-    const title = `Regression ${run || 'testomat.io'} con Claude`;
-    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionCommand(run, extra)));
+    const title = `Regression ${run || 'testomat.io'} ${withClaude()}`;
+    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionPrompt(run, extra)));
   });
 
   api.post('/smoke', async (req, res) => {
@@ -161,21 +213,35 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
     const env = envFor(site === 'qa' ? 'qa' : 'staging', store.getState().settings);
     const { label } = SMOKE_SITES[site];
-    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: `Smoke ${label} con Claude` }, (extra) => smokeCommand(site, extra)));
+    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: `Smoke ${label} ${withClaude()}` }, (extra) => smokePrompt(site, extra)));
   });
 
   api.post('/automation/:id/result', (req, res) => {
+    res.json(complete(String(req.params.id), automationResultSchema.parse(req.body)));
+  });
+
+  /** Lo que va haciendo Claude, para seguir la ejecución desde la app. */
+  api.get('/automation/:id/activity', (req, res) => {
     const automation = store.getAutomation(String(req.params.id));
-    if (!automation) throw new HttpError(404, 'Esa ejecución no existe o se descartó');
+    if (!automation) throw new HttpError(404, 'Esa ejecución ya no existe');
+    res.json({ items: automation.logFile ? readActivity(automation.logFile) : [], logFile: automation.logFile });
+  });
+
+  /** Detiene una ejecución en curso; queda como BLOCKED. */
+  api.post('/automation/:id/stop', (req, res) => {
+    const id = String(req.params.id);
+    const automation = store.getAutomation(id);
+    if (!automation) throw new HttpError(404, 'Esa ejecución ya no existe');
     if (automation.finishedAt !== null) throw new HttpError(409, 'Esa ejecución ya tiene resultado');
-    const result = automationResultSchema.parse(req.body);
-    const { verdict, summary, link } = result;
-    const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
-    res.json(store.finishAutomation(automation.id, { verdict, summary, link }, runInput));
+    stopProcess(id);
+    closeUnreported(id, lang() === 'en' ? 'Stopped from QA Dashboard.' : 'Detenida desde QA Dashboard.');
+    res.json(store.getAutomation(id));
   });
 
   api.delete('/automation/:id', (req, res) => {
-    if (!store.deleteAutomation(String(req.params.id))) throw new HttpError(404, 'Esa ejecución ya no existe');
+    const id = String(req.params.id);
+    if (store.getAutomation(id)?.finishedAt === null) stopProcess(id);
+    if (!store.deleteAutomation(id)) throw new HttpError(404, 'Esa ejecución ya no existe');
     res.status(204).end();
   });
 
@@ -185,6 +251,6 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   app.use('/api', api);
   if (options.clientDir) app.use(express.static(options.clientDir));
-  app.use(errorHandler);
+  app.use(errorHandler(lang));
   return app;
 }

@@ -1,4 +1,4 @@
-import type { Result, Settings } from './types.js';
+import type { Lang, Result, Settings } from './types.js';
 
 export const PALETTE = [
   '#2f5bd8', '#8b5cf6', '#0e9aa7', '#e0672b', '#c2410c', '#be185d', '#4d7c0f',
@@ -11,6 +11,11 @@ export const RESULT_META: Record<Result, { label: string; color: string }> = {
   blocked: { label: 'Blocked', color: 'var(--warn)' },
   progress: { label: 'En progreso', color: 'var(--prog)' },
 };
+
+/** Nombre del resultado en el idioma de la interfaz (Passed/Failed/Blocked son términos de QA y no se traducen). */
+export function resultLabel(result: Result, lang: Lang): string {
+  return result === 'progress' && lang === 'en' ? 'In progress' : RESULT_META[result].label;
+}
 
 export const DEFAULT_JQL = 'assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC';
 
@@ -40,5 +45,6 @@ export function defaultSettings(): Settings {
     types: DEFAULT_TYPES.map(([name, major], i) => ({ id: `t${i}`, name, major, color: colorForIndex(i) })),
     envs: ['QA', 'STG', 'PROD', 'Local'],
     ticketBase: '',
+    language: 'es',
   };
 }

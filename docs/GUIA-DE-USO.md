@@ -164,28 +164,30 @@ Al guardar aparece el aviso **Registro guardado** y la tarjeta del ticket suma e
 
 `Esc` o **Cancelar** cierran el formulario sin guardar.
 
+### Idioma: español o inglés
+
+La app funciona en español o en inglés. Cambia el idioma con el selector **ES / EN** de la cabecera o en **Tipos y ajustes → Idioma**. El cambio aplica a toda la interfaz, las fechas, los mensajes de error, el menú de la app de escritorio y el CSV exportado. Claude también escribe sus reportes en ese idioma. Los nombres de tus tipos de test y ambientes no se traducen: son tus datos.
+
 ### Validar un ticket con el orquestador QA
 
-> **Antes de lanzar cualquier ejecución con Claude** (orquestador, smoke o regresión): ten Chrome abierto con la extensión **Claude in Chrome** conectada y la sesión iniciada en el sitio que se va a probar. La app abre Claude Code con `--chrome`, así que la sesión usa ese navegador; sin él, la ejecución termina como **BLOCKED**.
+> **Las ejecuciones con Claude corren solas, en segundo plano.** El orquestador, el smoke y la regresión no abren Terminal ni te preguntan nada: la app arranca Claude Code sin ventana (`claude -p --chrome --permission-mode auto`) en la carpeta `~/qa-dashboard-runs`. El modo `auto` aprueba solo los pasos seguros, y Claude decide con el criterio de cada skill, incluidas las publicaciones en Jira y testomat.io. Anota sus decisiones en las observaciones del reporte.
 >
-> Las ejecuciones se abren en la carpeta `~/qa-dashboard-runs`. La primera vez, Claude Code pregunta si confías en esa carpeta: elige **Yes, I trust this folder** y no vuelve a preguntar.
+> **Antes de lanzar una ejecución**, ten Chrome abierto con la extensión **Claude in Chrome** conectada y la sesión iniciada en el sitio que se va a probar. Sin navegador, la ejecución termina como **BLOCKED**.
 
 Los tickets en **On QA** u **On Staging** tienen debajo el botón **▷ Ejecutar orquestador QA**. Lanza el skill `/avm-qa-orchestrator` de Claude Code sobre ese ticket:
 
 ![Tarjetas de tickets On QA y On Staging, cada una con el botón «Ejecutar orquestador QA» debajo](img/17-orquestador.png)
 
-1. **Pulsa «Ejecutar orquestador QA»** en la tarjeta del ticket. El botón muestra «Abriendo Terminal…».
-2. Se abre una **ventana nueva de Terminal** con Claude Code ejecutando, por ejemplo, `claude --chrome '/avm-qa-orchestrator AVM-7057'`. En la app aparece el aviso **Orquestador QA abierto en Terminal para AVM-7057**.
-3. **Sigue el orquestador en Terminal.** Analiza el ticket, ejecuta los casos en qa.alpinevm.com, revisa el impacto y la regresión, y cierra con un veredicto **PASSED / PASSED W/F / FAILED / BLOCKED**.
-4. **Aprueba cada paso que toca Jira.** El orquestador se asigna el ticket, publica el comentario de QA y puede crear TCs y bugs. Por eso corre en modo interactivo: tú decides en Terminal antes de cada cambio.
-5. **El resultado queda en Registros solo**: al lanzarlo aparece un registro «En progreso» del ticket y, cuando el orquestador termina, se completa con su veredicto (ver [Ejecuciones con Claude](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
+1. **Pulsa «Ejecutar orquestador QA»** en la tarjeta del ticket. En la app aparece el aviso **Orquestador QA corriendo en segundo plano para AVM-7057**.
+2. **La tarjeta del ticket pasa a «Running · validando · N min»** y la cabecera muestra **Running**. Pulsa cualquiera de los dos para ver el progreso en vivo (ver [Seguir una ejecución en curso](#seguir-una-ejecución-en-curso)).
+3. El orquestador analiza el ticket, ejecuta los casos en qa.alpinevm.com, revisa el impacto y la regresión, se asigna el ticket, publica el comentario de QA y puede crear TCs y bugs. Cierra con un veredicto **PASSED / PASSED W/F / FAILED / BLOCKED**.
+4. **El resultado queda en Registros solo**: al lanzarlo aparece un registro «En progreso» del ticket y, cuando el orquestador termina, se completa con su veredicto (ver [Ejecuciones con Claude](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
 
 Requisitos y límites:
 
-- **Claude Code instalado** y con sesión iniciada (el comando `claude` debe funcionar en Terminal), con el skill `avm-qa-orchestrator` disponible.
-- Solo funciona en **macOS**. En otros sistemas la app muestra el comando para que lo copies en tu terminal.
+- **Claude Code instalado** y con sesión iniciada, con el skill `avm-qa-orchestrator` disponible. La app busca el comando `claude` en `~/.local/bin`, `/opt/homebrew/bin` y `/usr/local/bin`.
 - El botón solo aparece en tickets **On QA** u **On Staging**. Si el ticket cambió de estado en Jira, pulsa **Actualizar desde Jira** primero; la app no lanza el orquestador para un ticket que ya no está en esos estados.
-- Puedes lanzar el orquestador para varios tickets: cada uno se abre en su propia ventana de Terminal.
+- Puedes lanzar el orquestador para varios tickets a la vez: cada uno corre en su propio proceso.
 
 ## 5. Registrar un test sin ticket (Smoke, Regression…)
 
@@ -203,11 +205,11 @@ Los tipos marcados con ★ aparecen destacados en el dashboard con su última ej
 
 La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ Smoke en QA** (qa.alpinevm.com) y **▷ Smoke en STG** (staging.alpinevm.com). Los dos lanzan el skill `/avm-qa-skills:avm-smoke-tester` de Claude Code, el smoke rápido post-deploy:
 
-1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más: se abre una ventana nueva de Terminal con, por ejemplo, `claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'`, y en la app aparece el aviso **Smoke en QA abierto en Terminal**.
-2. **Sigue el smoke en Terminal.** Recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
+1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más. En la app aparece el aviso **Smoke en QA corriendo en segundo plano** y el botón pasa a **Running · QA · N min**.
+2. El smoke recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
 3. Al terminar, **Claude reporta el resultado a la app** y el smoke queda registrado solo (ver [Ejecuciones con Claude en Registros y en el dashboard](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
 
-Si necesitas los dos sitios, pulsa los dos botones: cada smoke se abre en su propia ventana de Terminal. Los botones aparecen en cualquier tipo de test cuyo nombre contenga «Smoke» y que esté marcado con ★.
+Si necesitas los dos sitios, pulsa los dos botones: cada smoke corre por separado. Los botones aparecen en cualquier tipo de test cuyo nombre contenga «Smoke» y que esté marcado con ★.
 
 ### Ejecutar la regresión con Claude Code
 
@@ -216,14 +218,14 @@ La tarjeta **★ Regression** del dashboard tiene el botón **▷ Ejecutar regre
 ![Tarjetas de suites Smoke y Regression con los botones «Smoke en QA», «Smoke en STG» y «Ejecutar regresión»](img/18-suites-botones.png)
 
 1. **Pulsa «Ejecutar regresión»** en la tarjeta Regression.
-2. **Pega el test run de testomat.io**: el link del run o su ID, por ejemplo `#b333fb92`. Es opcional; si lo dejas vacío, el skill te lo pide en Terminal. Debajo ves el comando exacto que se va a ejecutar.
-3. Pulsa **Abrir en Terminal**. Se abre una ventana nueva de Terminal con Claude Code y en la app aparece el aviso **Regresión abierta en Terminal**.
-4. **Sigue la regresión en Terminal.** El skill valida cada TC en el navegador, marca los resultados en testomat.io, documenta los bugs, crea el epic en Jira con sus work items y cierra con un veredicto **GO / NO-GO**. Aprueba cada paso que publica en Jira o testomat.io.
+2. **Pega el test run de testomat.io**: el link del run o su ID, por ejemplo `#b333fb92`. Es opcional; si lo dejas vacío, el skill elige el test run que corresponda o reporta **BLOCKED** si no puede. Debajo ves el prompt exacto que recibirá Claude.
+3. Pulsa **Ejecutar**. En la app aparece el aviso **Regresión corriendo en segundo plano** y el botón de la tarjeta pasa a **Running**.
+4. El skill valida cada TC en el navegador, marca los resultados en testomat.io, documenta los bugs, crea el epic en Jira con sus work items y cierra con un veredicto **GO / NO-GO**.
 5. Al terminar, **Claude reporta el resultado a la app** y la regresión queda registrada sola (ver abajo).
 
 ![Diálogo «Ejecutar regresión» con el test run #b333fb92 y el comando que se ejecutará](img/19-regresion-dialogo.png)
 
-El botón aparece en cualquier tipo de test cuyo nombre contenga «Regres» y que esté marcado con ★. Los requisitos son los del orquestador (sección 4): macOS, Claude Code instalado y el skill disponible. La app solo acepta links de testomat.io o IDs de run, para que no se cuele otro comando en Terminal.
+El botón aparece en cualquier tipo de test cuyo nombre contenga «Regres» y que esté marcado con ★. Los requisitos son los del orquestador (sección 4): Claude Code instalado y el skill disponible. La app solo acepta links de testomat.io o IDs de run.
 
 ### Ejecuciones con Claude en Registros y en el dashboard
 
@@ -246,9 +248,40 @@ El dashboard las muestra además en la sección **Ejecuciones con Claude**:
 
 ![Sección «Ejecuciones con Claude»: smoke en curso en STG, orquestador AVM-7061 PASSED W/F, smoke QA GO y regresión NO-GO](img/20-smoke-regresion-resultados.png)
 
-- **En curso**: Claude todavía está trabajando en Terminal. La app consulta cada 10 segundos si ya hay resultado, sin que tengas que recargar.
+- **Running**: Claude todavía está trabajando en segundo plano. La app consulta cada 10 segundos si ya hay resultado, sin que tengas que recargar.
 - **Con veredicto** (GO, NO-GO, BLOCKED, PASSED, PASSED W/F, FAILED): Claude terminó y reportó los casos, los bugs, un resumen corto y, si hay, el link al reporte, epic o comentario (icono ↗). La app avisa con, por ejemplo, «Smoke STG: GO» y, en la app de escritorio, con una notificación del sistema.
-- **Sin resultado**: pasaron más de 12 horas sin reporte (por ejemplo, cerraste Terminal antes de que terminara). Pulsa la **×** para descartarla: también se quita su registro «En progreso».
+- **Sin resultado**: pasaron más de 12 horas sin reporte. Pulsa la **×** para detenerla y descartarla: también se quita su registro «En progreso».
+
+Si Claude termina sin enviar el resultado (por ejemplo, porque falló o se cortó), la app cierra la ejecución como **BLOCKED** con su último mensaje, así nunca se queda «en curso». Una ejecución que pase de 4 horas se detiene sola.
+
+#### Seguir una ejecución en curso
+
+Mientras una ejecución corre, el dashboard lo indica en varios sitios:
+
+- En la **cabecera**, junto al selector de idioma: **Running · Smoke STG · 6 min**, o **2 ejecuciones en curso** si hay varias.
+- En la **tarjeta Smoke o Regression**: la etiqueta **Running** y el botón del sitio en **Running · STG · 6 min**.
+- En la **tarjeta del ticket** que valida el orquestador: **Running · validando · 3 min**.
+- En **Ejecuciones con Claude**: **Running** y los minutos que lleva en segundo plano.
+
+![Dashboard con dos ejecuciones en curso: indicador en la cabecera, ticket AVM-7061 validándose y smoke en STG corriendo](img/24-running.png)
+
+Pulsa cualquiera de esos indicadores para abrir la ejecución. Verás la **actividad en vivo**: lo que Claude va diciendo y cada acción en el navegador, por ejemplo `Chrome · navigate: https://staging.alpinevm.com`. Se actualiza cada 4 segundos. El botón **Detener** (pide confirmación) corta el proceso y deja la ejecución como **BLOCKED**.
+
+![Reporte de un smoke en curso: Running · 6 min, botón Detener y la actividad en vivo de Claude](img/25-actividad-en-vivo.png)
+
+#### Reporte QA de una ejecución
+
+**Pulsa una ejecución** en **Ejecuciones con Claude** (o el icono del ojo), o **Reporte** junto a su registro en **Registros**, para abrir su reporte QA completo:
+
+![Reporte QA de un smoke en STG: veredicto NO-GO, inicio, fin y build, casos passed/failed/blocked, bugs y duración, y los módulos con sus pasos](img/23-reporte-qa.png)
+
+- **Cabecera**: veredicto, ambiente, hora de inicio y fin, y el build probado si Claude lo vio.
+- **Totales**: casos passed, failed y blocked, bugs encontrados y duración.
+- **Módulos y pasos**: cada área probada (Login, Work Orders, Reports…) con su estado, los pasos OK sobre el total y sus minutos. Los módulos con fallos o bloqueos se abren solos y muestran cada paso con su estado y la nota de lo que pasó; los que pasaron se despliegan con un clic.
+- **Bugs encontrados**: clave de Jira, título, severidad y módulo, con un link a cada bug.
+- **Observaciones**: lo que quedó sin probar y por qué, riesgos y notas de Claude.
+
+Las ejecuciones anteriores a esta versión solo traen el resumen; el reporte lo indica.
 
 Cómo llega el resultado: al lanzar el skill, la app añade al prompt una última instrucción para que Claude, al terminar, envíe el resultado con un POST a `http://127.0.0.1:8765/api/automation/<id>/result`. Como Claude Code corre en modo interactivo, **te pedirá permiso para hacer esa llamada; apruébala**.
 
@@ -373,8 +406,8 @@ Las teclas sueltas (`N`, `/`) no actúan mientras escribes en un campo.
 | **Falta un ticket que esperaba** | La app omite los tickets terminados y trae como máximo 100. Ajusta el filtro para acotar. |
 | **Los tickets no reflejan cambios recientes** | La app los actualiza sola cada 5 minutos y al volver a la ventana. Para no esperar, pulsa **Actualizar desde Jira** (`⌘R`). Si la tarjeta muestra **Error de conexión**, revisa el token. |
 | **«El puerto 8765 está ocupado»** al abrir | Otro programa usa ese puerto. Ciérralo, o abre la app desde la Terminal con otro puerto: `QA_DASH_PORT=8770 "/Applications/QA Dashboard.app/Contents/MacOS/QA Dashboard"`. |
-| **Terminal dice `command not found: claude`** | Instala Claude Code o añade `~/.local/bin` a tu PATH, y vuelve a pulsar **Ejecutar orquestador QA**. |
+| **«No se encontró Claude Code (claude) en esta Mac»** | Instala Claude Code (queda en `~/.local/bin/claude`), inicia sesión con `claude` una vez en Terminal y vuelve a lanzar la ejecución. |
 | **La ejecución termina en BLOCKED «sin navegador»** | Abre Chrome, comprueba que la extensión **Claude in Chrome** está instalada y conectada a tu cuenta de Claude, inicia sesión en QA o STG y vuelve a lanzar la ejecución desde la app. Si lanzaste `claude` a mano, usa `claude --chrome` o ejecuta `/chrome` dentro de la sesión. |
-| **«No se pudo abrir Terminal»** | Al primer uso macOS pide permiso para que QA Dashboard controle Terminal. Concédelo en **Ajustes del Sistema → Privacidad y seguridad → Automatización**. |
+| **Una ejecución termina en BLOCKED «sin reportar el resultado»** | Abre su reporte: en **Actividad · Log** están los últimos pasos de Claude y la ruta del log completo en `~/qa-dashboard-runs/logs/`. |
 | **macOS dice que la app no se puede abrir** | La primera vez ábrela con **clic derecho → Abrir**. |
 | **La app se ve muy grande o muy pequeña** | `⌘0` vuelve al tamaño real; `⌘+` / `⌘-` ajustan el zoom. |

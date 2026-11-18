@@ -9,7 +9,7 @@ describe('App', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
 
   beforeAll(async () => {
-    srv = await startServer({ fetchImpl: fakeJira });
+    srv = await startServer({ fetchImpl: fakeJira, launchClaude: async () => ({ pid: null, logFile: '', stop: () => undefined }) });
     await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
     await srv.call('POST', '/api/jira/refresh', {});
 
@@ -82,6 +82,68 @@ describe('App', () => {
       const { body } = await srv.call('GET', '/api/state');
       expect(body.settings.types.at(-1)).toMatchObject({ name: 'Migración de datos', major: false });
     });
+  });
+
+  it('abre el reporte QA de una ejecución con sus módulos, pasos y bugs', async () => {
+    const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    await srv.call('POST', `/api/automation/${automation.id}/result`, {
+      verdict: 'NO-GO', passed: 3, failed: 1, bugs: 1, minutes: 12, summary: 'Reports no carga',
+      details: {
+        modules: [
+          { name: 'Login', status: 'passed', steps: [{ name: 'Entrar con usuario QA', status: 'passed' }] },
+          { name: 'Reports', status: 'failed', minutes: 5, steps: [{ name: 'Abrir Fleet report', status: 'failed', notes: 'Error 500' }] },
+        ],
+        bugs: [{ title: 'Fleet report da 500', severity: 'High', key: 'AVM-9001' }],
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver el reporte QA de Smoke STG' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Reporte QA · Smoke STG' });
+    expect(dialog.textContent).toContain('NO-GO');
+    expect(dialog.textContent).toContain('12 min');
+    expect(dialog.textContent).toContain('Reports no carga');
+    expect(dialog.textContent).toContain('Abrir Fleet report');
+    expect(dialog.textContent).toContain('Error 500');
+    expect(dialog.textContent).toContain('AVM-9001 · Fleet report da 500');
+
+    // También se abre desde su registro en Registros.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cerrar' }).at(-1)!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Registros' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reporte' }));
+    expect(await screen.findByRole('dialog', { name: 'Reporte QA · Smoke STG' })).toBeTruthy();
+    await srv.call('DELETE', `/api/automation/${automation.id}`);
+    await srv.call('DELETE', `/api/runs/${automation.runId}`);
+  });
+
+  it('cambia toda la interfaz a inglés desde la cabecera', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'EN' }));
+    await screen.findByRole('button', { name: 'Runs' });
+    const spanish = /[áéíóúñ¿¡]|\b(de|del|los|las|registros?|ejecuci|ajustes|tickets por|hoy|sin)\b/i;
+    const leftovers = (): string[] =>
+      [...document.body.querySelectorAll('h1,h2,h3,button,label,th,p,span,option,legend,a')]
+        .filter((el) => el.children.length === 0)
+        .map((el) => (el.textContent ?? '').trim())
+        // Datos de prueba (tickets, tipos de test) no son textos de la app.
+        .filter((text) => text && spanish.test(text) && !/Vendor|Work order|Funcional|Exploratorio|Verificación|Integración|Seguridad|Accesibilidad|Migración|^Español$/.test(text));
+
+    expect(screen.getByText('Tickets to test')).toBeTruthy();
+    expect(leftovers()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Runs' }));
+    expect(leftovers()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Types & settings' }));
+    expect(leftovers()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: /New run/ }));
+    expect(await screen.findByLabelText('Title / what was tested')).toBeTruthy();
+    expect(leftovers()).toEqual([]);
+
+    // Los errores del servidor también llegan en inglés.
+    expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).body.error).toBe('Choose the smoke site: QA or STG');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'ES' }));
+    await screen.findByRole('button', { name: 'Registros' });
   });
 
   it('actualiza los tickets solo al volver a la ventana y avisa de los nuevos en On QA', async () => {

@@ -1,29 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Settings, TestRun, TestRunInput,
+  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput,
 } from '../shared/types';
+import { LANGUAGES } from '../shared/types';
+import { LangProvider, systemLang } from './i18n';
 import { api } from './api';
 import { Dashboard } from './components/Dashboard';
 import { SMOKE_SITES, canOrchestrate, type SmokeSite } from '../shared/orchestrator';
 import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
+import { ReportDialog } from './components/ReportDialog';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
 import { Icon, type IconName } from './components/icons';
 import { RavnLogo } from './components/RavnLogo';
 import { Kbd, MOD } from './components/ui';
+import { KIND_LABEL, elapsedMin } from './components/Automations';
 
 /** Cada cuánto se consulta el resultado de un smoke o una regresión en curso. */
 const AUTOMATION_POLL_MS = 10_000;
 
 type Tab = 'dash' | 'runs' | 'config';
-const TABS: ReadonlyArray<{ id: Tab; label: string; icon: IconName; key: string }> = [
-  { id: 'dash', label: 'Dashboard', icon: 'dashboard', key: '1' },
-  { id: 'runs', label: 'Registros', icon: 'list', key: '2' },
-  { id: 'config', label: 'Tipos y ajustes', icon: 'settings', key: '3' },
+const TABS: ReadonlyArray<{ id: Tab; icon: IconName; key: string }> = [
+  { id: 'dash', icon: 'dashboard', key: '1' },
+  { id: 'runs', icon: 'list', key: '2' },
+  { id: 'config', icon: 'settings', key: '3' },
 ];
+
+const TEXT = {
+  es: {
+    tabs: { dash: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes' } as Record<Tab, string>,
+    unexpected: 'Error inesperado',
+    openFailed: 'No se pudo abrir la app:',
+    retry: 'Reintentar',
+    loading: 'Cargando…',
+    saved: 'Registro guardado',
+    deleted: 'Registro borrado',
+    ticketsLoaded: (n: number) => `${n} tickets cargados`,
+    jiraConnected: 'Jira conectado',
+    ticketsFrom: (n: number, site: string) => `${n} tickets cargados desde ${site}`,
+    newTicketIn: (status: string) => `Nuevo ticket en ${status}`,
+    newTickets: 'Nuevos tickets por probar',
+    imported: (n: number) => `Respaldo importado: ${n} registros`,
+    orchestratorOpened: (key: string) => `Orquestador QA corriendo en segundo plano para ${key}`,
+    regressionOpened: (run: string) => (run ? `Regresión corriendo en segundo plano para ${run}` : 'Regresión corriendo en segundo plano'),
+    smokeOpened: (site: string) => `Smoke en ${site} corriendo en segundo plano`,
+    running: (n: number) => `${n} ejecuciones en curso`,
+    seeProgress: 'Ver el progreso',
+    resultSaved: 'Resultado guardado en el dashboard',
+    newRun: 'Nuevo registro',
+    editRun: 'Editar registro',
+    closeToast: 'Cerrar aviso',
+    language: 'Idioma',
+  },
+  en: {
+    tabs: { dash: 'Dashboard', runs: 'Runs', config: 'Types & settings' } as Record<Tab, string>,
+    unexpected: 'Unexpected error',
+    openFailed: 'The app could not open:',
+    retry: 'Retry',
+    loading: 'Loading…',
+    saved: 'Run saved',
+    deleted: 'Run deleted',
+    ticketsLoaded: (n: number) => `${n} tickets loaded`,
+    jiraConnected: 'Jira connected',
+    ticketsFrom: (n: number, site: string) => `${n} tickets loaded from ${site}`,
+    newTicketIn: (status: string) => `New ticket in ${status}`,
+    newTickets: 'New tickets to test',
+    imported: (n: number) => `Backup imported: ${n} runs`,
+    orchestratorOpened: (key: string) => `QA orchestrator running in the background for ${key}`,
+    regressionOpened: (run: string) => (run ? `Regression running in the background for ${run}` : 'Regression running in the background'),
+    smokeOpened: (site: string) => `Smoke on ${site} running in the background`,
+    running: (n: number) => `${n} runs in progress`,
+    seeProgress: 'See progress',
+    resultSaved: 'Result saved to the dashboard',
+    newRun: 'New run',
+    editRun: 'Edit run',
+    closeToast: 'Close notice',
+    language: 'Language',
+  },
+} satisfies Record<Lang, unknown>;
 
 type ToastKind = 'ok' | 'error' | 'info';
 interface Toast { text: string; kind: ToastKind; id: number }
@@ -43,7 +100,8 @@ interface FormState {
   initial: TestRunInput;
 }
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : 'Error inesperado');
+const errorMessage = (error: unknown, lang: Lang = systemLang()): string =>
+  error instanceof Error ? error.message : TEXT[lang].unexpected;
 
 function blankRun(settings: Settings, overrides: Partial<TestRunInput> = {}): TestRunInput {
   return {
@@ -68,11 +126,18 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
   const [regressionOpen, setRegressionOpen] = useState(false);
+  /** Ejecución cuyo reporte QA está abierto (se lee del estado para verlo actualizarse). */
+  const [reportId, setReportId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const formKey = useRef(0);
+  const lang: Lang = state?.settings.language ?? systemLang();
+  const t = TEXT[lang];
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const notify = useCallback((text: string, kind: ToastKind = 'ok') => setToast({ text, kind, id: Date.now() }), []);
   const fail = useCallback((error: unknown) => notify(errorMessage(error), 'error'), [notify]);
@@ -122,7 +187,7 @@ export function App() {
             if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
               const what =
                 a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
-              announce(`${what}: ${a.verdict}`, a.summary || 'Resultado guardado en el dashboard');
+              announce(`${what}: ${a.verdict}`, a.summary || TEXT[stateRef.current?.settings.language ?? 'es'].resultSaved);
             }
           }
         })
@@ -176,13 +241,13 @@ export function App() {
     return (
       <main>
         <div className="empty-state">
-          <p className="text-bad">No se pudo abrir la app: {loadError}</p>
-          <button className="btn" onClick={() => location.reload()}>Reintentar</button>
+          <p className="text-bad">{t.openFailed} {loadError}</p>
+          <button className="btn" onClick={() => location.reload()}>{t.retry}</button>
         </div>
       </main>
     );
   }
-  if (!state) return <main><div className="loading"><span className="spinner" /> Cargando…</div></main>;
+  if (!state) return <main><div className="loading"><span className="spinner" /> {t.loading}</div></main>;
 
   const patch = (changes: Partial<AppState>): void => setState((s) => (s ? { ...s, ...changes } : s));
   const openForm = (initial: TestRunInput, id?: string): void => setForm({ key: ++formKey.current, id, initial });
@@ -194,7 +259,7 @@ export function App() {
       setState((s) =>
         s ? { ...s, runs: editingId ? s.runs.map((r) => (r.id === saved.id ? saved : r)) : [...s.runs, saved] } : s,
       );
-      notify('Registro guardado');
+      notify(t.saved);
       return true;
     } catch (error) {
       fail(error);
@@ -206,7 +271,7 @@ export function App() {
     try {
       await api.deleteRun(run.id);
       setState((s) => (s ? { ...s, runs: s.runs.filter((r) => r.id !== run.id) } : s));
-      notify('Registro borrado');
+      notify(t.deleted);
     } catch (error) {
       fail(error);
     }
@@ -230,9 +295,9 @@ export function App() {
       const jira = await api.refreshJira();
       patch({ jira });
       if (wasConnected) {
-        notify(`${jira.tickets.length} tickets cargados`);
+        notify(t.ticketsLoaded(jira.tickets.length));
       } else {
-        announce('Jira conectado', `${jira.tickets.length} tickets cargados desde ${jira.site.replace(/^https?:\/\//, '')}`);
+        announce(t.jiraConnected, t.ticketsFrom(jira.tickets.length, jira.site.replace(/^https?:\/\//, '')));
       }
     } catch (error) {
       fail(error);
@@ -256,8 +321,8 @@ export function App() {
       .then((next) => {
         patch({ jira: next });
         const fresh = next.tickets.filter((t) => !known.has(t.key) && canOrchestrate(t.status));
-        if (fresh.length === 1) announce(`Nuevo ticket en ${fresh[0]!.status}`, `${fresh[0]!.key} · ${fresh[0]!.summary}`);
-        else if (fresh.length > 1) announce('Nuevos tickets por probar', fresh.map((t) => t.key).join(', '));
+        if (fresh.length === 1) announce(t.newTicketIn(fresh[0]!.status), `${fresh[0]!.key} · ${fresh[0]!.summary}`);
+        else if (fresh.length > 1) announce(t.newTickets, fresh.map((t) => t.key).join(', '));
       })
       // El error queda en el estado de conexión de la tarjeta; no se interrumpe con un aviso.
       .catch(() => api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined))
@@ -281,7 +346,7 @@ export function App() {
     try {
       const next = await api.importBackup(backup);
       setState(next);
-      notify(`Respaldo importado: ${next.runs.length} registros`);
+      notify(t.imported(next.runs.length));
     } catch (error) {
       fail(error);
     }
@@ -304,7 +369,7 @@ export function App() {
     try {
       const automation = await api.runOrchestrator(ticket.key);
       await reloadRuns(automation);
-      notify(`Orquestador QA abierto en Terminal para ${ticket.key}`, 'info');
+      notify(t.orchestratorOpened(ticket.key), 'info');
     } catch (err) {
       notify((err as Error).message, 'error');
     } finally {
@@ -316,7 +381,7 @@ export function App() {
     try {
       const automation = await api.runRegression(run);
       await reloadRuns(automation);
-      notify(run ? `Regresión abierta en Terminal para ${run}` : 'Regresión abierta en Terminal', 'info');
+      notify(t.regressionOpened(run), 'info');
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -329,7 +394,7 @@ export function App() {
     try {
       const automation = await api.runSmoke(site);
       await reloadRuns(automation);
-      notify(`Smoke en ${SMOKE_SITES[site].label} abierto en Terminal`, 'info');
+      notify(t.smokeOpened(SMOKE_SITES[site].label), 'info');
     } catch (err) {
       notify((err as Error).message, 'error');
     } finally {
@@ -364,8 +429,24 @@ export function App() {
     }
   };
 
+  const report = reportId ? state.automations.find((a) => a.id === reportId) : undefined;
+  const active = state.automations.filter((a) => a.finishedAt === null);
+  const stopAutomation = async (automation: Automation): Promise<void> => {
+    try {
+      await api.stopAutomation(automation.id);
+      const next = await api.getState();
+      patch({ runs: next.runs, automations: next.automations });
+    } catch (err) {
+      notify((err as Error).message, 'error');
+    }
+  };
+
+  const setLanguage = (language: Lang): void => {
+    if (language !== lang) void saveSettings({ ...state.settings, language });
+  };
+
   return (
-    <>
+    <LangProvider value={lang}>
       <header>
         <div className="brand">
           <RavnLogo />
@@ -373,22 +454,37 @@ export function App() {
           <h1>QA <span>Dashboard</span></h1>
         </div>
         <nav>
-          {TABS.map((t) => (
+          {TABS.map((item) => (
             <button
-              key={t.id}
-              className={t.id === tab ? 'on' : ''}
-              aria-current={t.id === tab ? 'page' : undefined}
-              title={`${MOD}${t.key}`}
-              onClick={() => setTab(t.id)}
+              key={item.id}
+              className={item.id === tab ? 'on' : ''}
+              aria-current={item.id === tab ? 'page' : undefined}
+              title={`${MOD}${item.key}`}
+              onClick={() => setTab(item.id)}
             >
-              <Icon name={t.icon} />
-              {t.label}
+              <Icon name={item.icon} />
+              {t.tabs[item.id]}
             </button>
           ))}
         </nav>
         <div className="spacer" />
-        <button className="btn primary" onClick={newRun} title={`Nuevo registro (${MOD}N)`}>
-          <Icon name="plus" /> Nuevo registro <Kbd>{MOD}N</Kbd>
+        {active.length > 0 && (
+          <button className="running-indicator" onClick={() => setReportId(active[0]!.id)} title={t.seeProgress}>
+            <i className="run-dot" />
+            {active.length === 1
+              ? `Running · ${KIND_LABEL[lang][active[0]!.kind]} ${active[0]!.target} · ${elapsedMin(active[0]!)} min`
+              : t.running(active.length)}
+          </button>
+        )}
+        <div className="lang-switch" role="group" aria-label={t.language}>
+          {LANGUAGES.map((l) => (
+            <button key={l} className={l === lang ? 'on' : ''} aria-pressed={l === lang} onClick={() => setLanguage(l)}>
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <button className="btn primary" onClick={newRun} title={`${t.newRun} (${MOD}N)`}>
+          <Icon name="plus" /> {t.newRun} <Kbd>{MOD}N</Kbd>
         </button>
       </header>
 
@@ -404,6 +500,7 @@ export function App() {
             onRegression={() => setRegressionOpen(true)}
             onSmoke={runSmoke}
             onDismissAutomation={dismissAutomation}
+            onOpenReport={(a) => setReportId(a.id)}
             onNewRun={newRun}
             onOpenSettings={() => setTab('config')}
           />
@@ -414,6 +511,7 @@ export function App() {
             onEdit={(run) => openForm(toInput(run), run.id)}
             onDuplicate={(run) => openForm({ ...toInput(run), date: toYmd(new Date()) })}
             onDelete={deleteRun}
+            onOpenReport={(a) => setReportId(a.id)}
           />
         )}
         {tab === 'config' && (
@@ -431,7 +529,7 @@ export function App() {
       {form && (
         <RunForm
           key={form.key}
-          heading={form.id ? 'Editar registro' : 'Nuevo registro'}
+          heading={form.id ? t.editRun : t.newRun}
           initial={form.initial}
           settings={state.settings}
           onSubmit={saveRun}
@@ -439,17 +537,26 @@ export function App() {
         />
       )}
       {regressionOpen && <RegressionDialog onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
+      {report && (
+        <ReportDialog
+          key={report.id}
+          automation={report}
+          run={state.runs.find((r) => r.id === report.runId)}
+          onClose={() => setReportId(null)}
+          onStop={stopAutomation}
+        />
+      )}
       <div className={`toast${toast ? ` on ${toast.kind}` : ''}`} role={toast?.kind === 'error' ? 'alert' : 'status'}>
         {toast && (
           <>
             <Icon name={toast.kind === 'error' ? 'alert' : 'check'} />
             <span>{toast.text}</span>
-            <button className="toast-close" aria-label="Cerrar aviso" onClick={() => setToast(null)}>
+            <button className="toast-close" aria-label={t.closeToast} onClick={() => setToast(null)}>
               <Icon name="close" size={14} />
             </button>
           </>
         )}
       </div>
-    </>
+    </LangProvider>
   );
 }

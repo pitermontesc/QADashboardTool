@@ -1,4 +1,5 @@
 /** Utilidades de fecha sobre días locales en formato YYYY-MM-DD (sin zonas horarias). */
+import type { Lang } from './types.js';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
@@ -21,43 +22,65 @@ export function addDays(d: Date, days: number): Date {
   return copy;
 }
 
-/** 2026-11-17 → 17/11/2026 */
-export function formatDmy(s: string): string {
+/** 2026-11-17 → 17/11/2026 (es) o 11/17/2026 (en). */
+export function formatDmy(s: string, lang: Lang = 'es'): string {
   const d = parseYmd(s);
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const [day, month] = [pad(d.getDate()), pad(d.getMonth() + 1)];
+  return lang === 'en' ? `${month}/${day}/${d.getFullYear()}` : `${day}/${month}/${d.getFullYear()}`;
 }
 
-export function shortLabel(d: Date): string {
-  return `${d.getDate()}/${d.getMonth() + 1}`;
+export function shortLabel(d: Date, lang: Lang = 'es'): string {
+  return lang === 'en' ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-export function relativeDay(s: string, today: Date): string {
+export function relativeDay(s: string, today: Date, lang: Lang = 'es'): string {
   const days = Math.round((startOfDay(today).getTime() - parseYmd(s).getTime()) / 86_400_000);
+  if (lang === 'en') {
+    if (days <= 0) return 'today';
+    return days === 1 ? 'yesterday' : `${days} days ago`;
+  }
   if (days <= 0) return 'hoy';
   return days === 1 ? 'ayer' : `hace ${days} días`;
 }
 
 /** Marca de tiempo → "hace un momento", "hace 5 min", "hace 2 h", "ayer a las 9:54"… */
-export function relativeTime(timestamp: number, now: number = Date.now()): string {
+export function relativeTime(timestamp: number, now: number = Date.now(), lang: Lang = 'es'): string {
+  const en = lang === 'en';
   const minutes = Math.floor((now - timestamp) / 60_000);
-  if (minutes < 1) return 'hace un momento';
-  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 1) return en ? 'just now' : 'hace un momento';
+  if (minutes < 60) return en ? `${minutes} min ago` : `hace ${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 24) return en ? `${hours} h ago` : `hace ${hours} h`;
   const d = new Date(timestamp);
   const time = `${d.getHours()}:${pad(d.getMinutes())}`;
-  return hours < 48 ? `ayer a las ${time}` : `${formatDmy(toYmd(d))} ${time}`;
+  if (hours < 48) return en ? `yesterday at ${time}` : `ayer a las ${time}`;
+  return `${formatDmy(toYmd(d), lang)} ${time}`;
 }
 
-const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-
-/** "martes 18 de noviembre" */
-export function longDate(d: Date): string {
-  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+/** Fecha y hora completas: "18/11/2026, 15:26" (es) o "11/18/2026, 3:26 PM" (en). */
+export function dateTime(timestamp: number, lang: Lang = 'es'): string {
+  return new Date(timestamp).toLocaleString(lang === 'en' ? 'en-US' : 'es-ES', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
-export function greeting(d: Date): string {
+const WEEKDAYS = {
+  es: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+};
+const MONTHS = {
+  es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+};
+
+/** "martes 18 de noviembre" / "Tuesday, November 18" */
+export function longDate(d: Date, lang: Lang = 'es'): string {
+  const [weekday, month] = [WEEKDAYS[lang][d.getDay()], MONTHS[lang][d.getMonth()]];
+  return lang === 'en' ? `${weekday}, ${month} ${d.getDate()}` : `${weekday} ${d.getDate()} de ${month}`;
+}
+
+export function greeting(d: Date, lang: Lang = 'es'): string {
   const h = d.getHours();
+  if (lang === 'en') return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   return h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches';
 }

@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { orchestratorCommand, regressionCommand } from '../src/server/orchestrator';
+import { orchestratorPrompt, regressionPrompt } from '../src/server/orchestrator';
+import type { ClaudeJob } from '../src/server/claudeRunner';
 import { Store } from '../src/server/store';
 import { fakeJira, lastBoardJql, startServer } from './helpers';
 
@@ -116,13 +117,23 @@ describe('API', () => {
 });
 
 /** Comando sin la instrucción final para reportar el resultado al dashboard. */
-const withoutReport = (command: string): string => command.replace(/ -- Al terminar.*'$/, "'");
+const withoutReport = (prompt: string): string => prompt.replace(/ -- Corres sin supervision.*$/s, '');
 
 describe('Orquestador QA', () => {
   const launched: string[] = [];
+  /** Procesos simulados: la prueba decide cuándo «termina» cada uno. */
+  const jobs = new Map<string, ClaudeJob>();
+  const stopped: string[] = [];
   let srv: Awaited<ReturnType<typeof startServer>>;
   beforeAll(async () => {
-    srv = await startServer({ fetchImpl: fakeJira, launchTerminal: async (command) => void launched.push(command) });
+    srv = await startServer({
+      fetchImpl: fakeJira,
+      launchClaude: async (job) => {
+        launched.push(job.prompt);
+        jobs.set(job.id, job);
+        return { pid: null, logFile: '', stop: () => void stopped.push(job.id) };
+      },
+    });
     await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
     await srv.call('POST', '/api/jira/refresh', {});
   });
@@ -133,7 +144,7 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // estado "Test"
     expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
     expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
-    expect(launched.map(withoutReport)).toEqual(["claude --chrome '/avm-qa-orchestrator AVM-101'"]);
+    expect(launched.map(withoutReport)).toEqual(['/avm-qa-orchestrator AVM-101']);
     expect(launched[0]).toContain('verdict (PASSED, PASSED W/F, FAILED o BLOCKED;');
     launched.length = 0;
   });
@@ -145,9 +156,9 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/regression', { run: "#abc'; rm -rf ~" })).status).toBe(400);
     expect((await srv.call('POST', '/api/regression', { run: 'https://evil.example/runs/1' })).status).toBe(400);
     expect(launched.map(withoutReport)).toEqual([
-      "claude --chrome '/avm-qa-skills:avm-regression-runner #b333fb92'",
-      "claude --chrome '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92'",
-      "claude --chrome '/avm-qa-skills:avm-regression-runner'",
+      '/avm-qa-skills:avm-regression-runner #b333fb92',
+      '/avm-qa-skills:avm-regression-runner https://app.testomat.io/projects/avm/runs/b333fb92',
+      '/avm-qa-skills:avm-regression-runner',
     ]);
   });
 
@@ -158,8 +169,8 @@ describe('Orquestador QA', () => {
     expect((await srv.call('POST', '/api/smoke', {})).status).toBe(400);
     expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).status).toBe(400);
     expect(launched.map(withoutReport)).toEqual([
-      "claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)'",
-      "claude --chrome '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)'",
+      '/avm-qa-skills:avm-smoke-tester run smoke on QA (https://qa.alpinevm.com)',
+      '/avm-qa-skills:avm-smoke-tester run smoke on STG (https://staging.alpinevm.com)',
     ]);
   });
 
@@ -203,6 +214,34 @@ describe('Orquestador QA', () => {
     expect(run).toMatchObject({ result: 'blocked', blocked: 8, title: 'Smoke STG con Claude · BLOCKED' });
   });
 
+  it('guarda el reporte QA detallado con módulos, pasos y bugs', async () => {
+    launched.length = 0;
+    const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    expect(launched[0]).toContain('details, el reporte QA completo');
+    const url = `/api/automation/${automation.id}/result`;
+    const module = { name: 'Work Orders', status: 'PASS', minutes: 4, steps: [{ name: 'Abrir listado', status: 'ok' }, { name: 'Filtrar por estado', status: 'not tested', notes: 'Sin datos' }] };
+
+    const bad = await srv.call('POST', url, { verdict: 'GO', details: { modules: [{ ...module, status: 'quizás' }] } });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/passed, failed, blocked, skipped/);
+
+    const { body: done } = await srv.call('POST', url, {
+      verdict: 'NO-GO', passed: 7, failed: 1, bugs: 1, summary: 'Reports no carga',
+      details: { build: '2.14.0', modules: [module], bugs: [{ title: 'Reports da 500', severity: 'High', key: 'AVM-9000', module: 'Reports' }] },
+    });
+    expect(done.details).toEqual({
+      build: '2.14.0',
+      notes: '',
+      modules: [{
+        name: 'Work Orders', status: 'passed', minutes: 4, notes: '',
+        steps: [{ name: 'Abrir listado', status: 'passed', notes: '' }, { name: 'Filtrar por estado', status: 'skipped', notes: 'Sin datos' }],
+      }],
+      bugs: [{ title: 'Reports da 500', severity: 'High', key: 'AVM-9000', link: '', module: 'Reports' }],
+    });
+    const { body: state } = await srv.call('GET', '/api/state');
+    expect(state.automations.find((a: { id: string }) => a.id === automation.id).details.modules).toHaveLength(1);
+  });
+
   it('registra el orquestador de un ticket y descarta el registro de una ejecución sin terminar', async () => {
     const { body: automation } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
     const result = await srv.call('POST', `/api/automation/${automation.id}/result`, { verdict: 'passed with findings', passed: 9, failed: 0, bugs: 1 });
@@ -217,10 +256,36 @@ describe('Orquestador QA', () => {
     expect((await srv.call('GET', '/api/state')).body.runs.some((r: { id: string }) => r.id === pending.runId)).toBe(false);
   });
 
-  it('arma el comando de Claude Code con el skill', () => {
-    expect(orchestratorCommand('AVM-7057')).toBe("claude --chrome '/avm-qa-orchestrator AVM-7057'");
-    expect(() => orchestratorCommand("x'y")).toThrow();
-    expect(regressionCommand('')).toBe("claude --chrome '/avm-qa-skills:avm-regression-runner'");
-    expect(() => regressionCommand("#a b'c")).toThrow();
+  it('corre sin supervisión y cierra como BLOCKED lo que termina sin reportar o se detiene', async () => {
+    launched.length = 0;
+    const { body: first } = await srv.call('POST', '/api/smoke', { site: 'qa' });
+    expect(launched[0]).toContain('nadie respondera preguntas');
+    jobs.get(first.id)!.onExit({ code: 1, lastMessage: 'Chrome no respondió' });
+    const { body: state } = await srv.call('GET', '/api/state');
+    const closed = state.automations.find((a: { id: string }) => a.id === first.id);
+    expect(closed).toMatchObject({ verdict: 'BLOCKED', pid: null });
+    expect(closed.summary).toContain('Claude terminó sin reportar el resultado (código de salida 1).');
+    expect(closed.summary).toContain('Chrome no respondió');
+    expect(state.runs.find((r: { id: string }) => r.id === first.runId)).toMatchObject({ result: 'blocked' });
+
+    // Si ya reportó, el fin del proceso no cambia nada.
+    const { body: second } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    await srv.call('POST', `/api/automation/${second.id}/result`, { verdict: 'GO', passed: 8 });
+    jobs.get(second.id)!.onExit({ code: 0, lastMessage: '' });
+    expect((await srv.call('GET', '/api/state')).body.automations.find((a: { id: string }) => a.id === second.id).verdict).toBe('GO');
+
+    const { body: third } = await srv.call('POST', '/api/smoke', { site: 'stg' });
+    expect((await srv.call('GET', `/api/automation/${third.id}/activity`)).body).toEqual({ items: [], logFile: '' });
+    const { body: halted } = await srv.call('POST', `/api/automation/${third.id}/stop`, {});
+    expect(stopped).toContain(third.id);
+    expect(halted).toMatchObject({ verdict: 'BLOCKED', summary: 'Detenida desde QA Dashboard.' });
+    expect((await srv.call('POST', `/api/automation/${third.id}/stop`, {})).status).toBe(409);
+  });
+
+  it('arma el prompt de Claude Code con el skill', () => {
+    expect(orchestratorPrompt('AVM-7057')).toBe('/avm-qa-orchestrator AVM-7057');
+    expect(() => orchestratorPrompt("x'y")).toThrow();
+    expect(regressionPrompt('')).toBe('/avm-qa-skills:avm-regression-runner');
+    expect(() => regressionPrompt("#a b'c")).toThrow();
   });
 });

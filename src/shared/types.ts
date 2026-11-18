@@ -1,5 +1,9 @@
 /** Modelo de dominio compartido entre el servidor y la interfaz. */
 
+/** Idiomas de la interfaz. */
+export const LANGUAGES = ['es', 'en'] as const;
+export type Lang = (typeof LANGUAGES)[number];
+
 export const RESULTS = ['passed', 'failed', 'blocked', 'progress'] as const;
 export type Result = (typeof RESULTS)[number];
 
@@ -37,6 +41,8 @@ export interface Settings {
   envs: string[];
   /** URL a la que se añade la clave del ticket para enlazarlo. */
   ticketBase: string;
+  /** Idioma de la interfaz y de los reportes de Claude. */
+  language: Lang;
 }
 
 export interface JiraTicket {
@@ -80,6 +86,43 @@ export type AutomationKind = 'smoke' | 'regression' | 'orchestrator';
 export const VERDICTS = ['GO', 'NO-GO', 'PASSED', 'PASSED W/F', 'FAILED', 'BLOCKED'] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
+export const STEP_STATUSES = ['passed', 'failed', 'blocked', 'skipped'] as const;
+export type StepStatus = (typeof STEP_STATUSES)[number];
+
+export interface ReportStep {
+  name: string;
+  status: StepStatus;
+  notes: string;
+}
+
+/** Área probada (Login, Work Orders…) con sus pasos. */
+export interface ReportModule {
+  name: string;
+  status: StepStatus;
+  minutes: number | null;
+  notes: string;
+  steps: ReportStep[];
+}
+
+export interface ReportBug {
+  title: string;
+  severity: string;
+  /** Clave del bug en Jira, si se creó. */
+  key: string;
+  link: string;
+  module: string;
+}
+
+/** Reporte QA detallado que Claude envía al terminar: módulos, pasos y bugs. */
+export interface AutomationDetails {
+  /** Versión o build probado, si se ve en el sitio. */
+  build: string;
+  modules: ReportModule[];
+  bugs: ReportBug[];
+  /** Observaciones, riesgos o lo que quedó sin probar. */
+  notes: string;
+}
+
 /** Ejecución lanzada con Claude Code desde la app (smoke, regresión u orquestador); Claude reporta el resultado al terminar. */
 export interface Automation {
   id: string;
@@ -94,8 +137,20 @@ export interface Automation {
   verdict: Verdict | null;
   summary: string;
   link: string;
+  /** Reporte detallado; null si Claude solo envió el resumen. */
+  details: AutomationDetails | null;
   /** Registro que la refleja: «En progreso» al lanzarla y con el veredicto al terminar. */
   runId: string | null;
+  /** Proceso de Claude Code en segundo plano mientras corre (para detenerlo). */
+  pid: number | null;
+  /** Log de la ejecución (stream-json de Claude Code). */
+  logFile: string;
+}
+
+/** Paso de lo que va haciendo Claude, leído de su log. */
+export interface ActivityItem {
+  kind: 'start' | 'text' | 'tool' | 'result' | 'error';
+  text: string;
 }
 
 export interface AppState {

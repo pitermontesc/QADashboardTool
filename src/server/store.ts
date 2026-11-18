@@ -57,10 +57,12 @@ export class Store {
     return {
       ...base,
       ...saved,
+      // Los ajustes anteriores a la v1.9.0 no traen idioma.
+      settings: { ...base.settings, ...saved.settings },
       jira: { ...base.jira, ...saved.jira },
       jiraCache: { ...base.jiraCache, ...saved.jiraCache },
       // Las ejecuciones de la v1.7.0 no traían título.
-      automations: (saved.automations ?? []).map((a) => ({ ...a, title: a.title ?? '' })),
+      automations: (saved.automations ?? []).map((a) => ({ ...a, title: a.title ?? '', details: a.details ?? null, pid: a.pid ?? null, logFile: a.logFile ?? '' })),
     };
     } catch (cause) {
       // No se sobrescribe un archivo ilegible: podría contener datos recuperables.
@@ -96,7 +98,7 @@ export class Store {
   /** Además crea su registro «En progreso», para que la ejecución se vea en Registros desde que se lanza. */
   startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'>, runFor: (a: Automation) => TestRunInput): Automation {
     const automation: Automation = {
-      ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', runId: null,
+      ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
     };
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
     this.data.runs.push(run);
@@ -106,12 +108,20 @@ export class Store {
     return automation;
   }
 
+  /** Guarda el proceso y el log de una ejecución recién lanzada. */
+  setAutomationProcess(id: string, pid: number | null, logFile: string): void {
+    const automation = this.getAutomation(id);
+    if (!automation) return;
+    Object.assign(automation, { pid, logFile });
+    this.persist();
+  }
+
   getAutomation(id: string): Automation | null {
     return this.data.automations.find((a) => a.id === id) ?? null;
   }
 
   /** Cierra la ejecución con el veredicto de Claude y el registro que lo refleja en el dashboard. */
-  finishAutomation(id: string, result: Pick<Automation, 'verdict' | 'summary' | 'link'>, runInput: TestRunInput): Automation | null {
+  finishAutomation(id: string, result: Pick<Automation, 'verdict' | 'summary' | 'link' | 'details'>, runInput: TestRunInput): Automation | null {
     const automation = this.getAutomation(id);
     if (!automation) return null;
     // Se actualiza el registro «En progreso»; si el usuario lo borró, se crea de nuevo.
@@ -122,7 +132,7 @@ export class Store {
       this.data.runs.push(run);
       automation.runId = run.id;
     }
-    Object.assign(automation, result, { finishedAt: Date.now() });
+    Object.assign(automation, result, { finishedAt: Date.now(), pid: null });
     this.persist();
     return automation;
   }

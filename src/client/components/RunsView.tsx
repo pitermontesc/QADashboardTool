@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RESULT_META } from '../../shared/defaults';
+import { resultLabel } from '../../shared/defaults';
+import { useLang, useText } from '../i18n';
 import { EMPTY_FILTERS, filterRuns, isResult, sortRuns, type RunFilters } from '../../shared/stats';
-import { RESULTS, type AppState, type TestRun } from '../../shared/types';
+import { RESULTS, type AppState, type Automation, type TestRun } from '../../shared/types';
 import { Icon } from './icons';
 import { RunsTable } from './ui';
 
@@ -10,12 +11,31 @@ interface RunsViewProps {
   onEdit: (run: TestRun) => void;
   onDuplicate: (run: TestRun) => void;
   onDelete: (run: TestRun) => void;
+  onOpenReport: (automation: Automation) => void;
 }
 
 const CONFIRM_WINDOW_MS = 3000;
 
-export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps) {
+const TEXT = {
+  es: {
+    search: 'Buscar título, ticket o notas…  ( / )', searchLabel: 'Buscar registros',
+    allTypes: 'Todos los tipos', allEnvs: 'Todos los ambientes', allResults: 'Todos los resultados',
+    from: 'Desde', to: 'Hasta', count: (n: number, total: number) => `${n} de ${total} registros`,
+    clear: 'Limpiar filtros', report: 'Reporte', edit: 'Editar', duplicate: 'Duplicar', confirm: '¿Confirmar?', remove: 'Borrar',
+  },
+  en: {
+    search: 'Search title, ticket or notes…  ( / )', searchLabel: 'Search runs',
+    allTypes: 'All types', allEnvs: 'All environments', allResults: 'All results',
+    from: 'From', to: 'To', count: (n: number, total: number) => `${n} of ${total} runs`,
+    clear: 'Clear filters', report: 'Report', edit: 'Edit', duplicate: 'Duplicate', confirm: 'Confirm?', remove: 'Delete',
+  },
+};
+
+export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }: RunsViewProps) {
   const { settings, runs } = state;
+  const lang = useLang();
+  const t = useText(TEXT);
+  const automationByRun = new Map(state.automations.filter((a) => a.runId).map((a) => [a.runId!, a]));
   const [filters, setFilters] = useState<RunFilters>(EMPTY_FILTERS);
   /** Registro cuyo borrado espera un segundo clic de confirmación. */
   const [armedId, setArmedId] = useState<string | null>(null);
@@ -37,38 +57,38 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps
           <Icon name="search" />
           <input
             id="runs-search"
-            placeholder="Buscar título, ticket o notas…  ( / )"
-            aria-label="Buscar registros"
+            placeholder={t.search}
+            aria-label={t.searchLabel}
             value={filters.query}
             onChange={(e) => set('query', e.target.value)}
           />
         </label>
         <select value={filters.typeId} onChange={(e) => set('typeId', e.target.value)}>
-          <option value="">Todos los tipos</option>
+          <option value="">{t.allTypes}</option>
           {settings.types.map((t) => (
             <option key={t.id} value={t.id}>{t.major ? '★ ' : ''}{t.name}</option>
           ))}
         </select>
         <select value={filters.env} onChange={(e) => set('env', e.target.value)}>
-          <option value="">Todos los ambientes</option>
+          <option value="">{t.allEnvs}</option>
           {settings.envs.map((env) => (
             <option key={env} value={env}>{env}</option>
           ))}
         </select>
         <select value={filters.result} onChange={(e) => set('result', isResult(e.target.value) ? e.target.value : '')}>
-          <option value="">Todos los resultados</option>
+          <option value="">{t.allResults}</option>
           {RESULTS.map((r) => (
-            <option key={r} value={r}>{RESULT_META[r].label}</option>
+            <option key={r} value={r}>{resultLabel(r, lang)}</option>
           ))}
         </select>
-        <input type="date" title="Desde" value={filters.from} onChange={(e) => set('from', e.target.value)} />
-        <input type="date" title="Hasta" value={filters.to} onChange={(e) => set('to', e.target.value)} />
+        <input type="date" title={t.from} value={filters.from} onChange={(e) => set('from', e.target.value)} />
+        <input type="date" title={t.to} value={filters.to} onChange={(e) => set('to', e.target.value)} />
       </div>
       <div className="row">
-        <span className="hint">{rows.length} de {runs.length} registros</span>
+        <span className="hint">{t.count(rows.length, runs.length)}</span>
         <div className="spacer" />
         {JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS) && (
-          <button className="link" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar filtros</button>
+          <button className="link" onClick={() => setFilters(EMPTY_FILTERS)}>{t.clear}</button>
         )}
       </div>
       <div className="card">
@@ -78,8 +98,11 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps
             settings={settings}
             actions={(run) => (
               <>
-                <button className="link" onClick={() => onEdit(run)}>Editar</button>
-                <button className="link" onClick={() => onDuplicate(run)}>Duplicar</button>
+                {automationByRun.has(run.id) && (
+                  <button className="link" onClick={() => onOpenReport(automationByRun.get(run.id)!)}>{t.report}</button>
+                )}
+                <button className="link" onClick={() => onEdit(run)}>{t.edit}</button>
+                <button className="link" onClick={() => onDuplicate(run)}>{t.duplicate}</button>
                 <button
                   className="link danger"
                   onClick={() => {
@@ -91,7 +114,7 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete }: RunsViewProps
                     }
                   }}
                 >
-                  {armedId === run.id ? '¿Confirmar?' : 'Borrar'}
+                  {armedId === run.id ? t.confirm : t.remove}
                 </button>
               </>
             )}

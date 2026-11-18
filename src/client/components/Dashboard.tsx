@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { RESULT_META } from '../../shared/defaults';
+import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy, greeting, longDate, parseYmd, relativeDay, relativeTime, toYmd } from '../../shared/dates';
 import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
@@ -7,16 +7,138 @@ import {
 } from '../../shared/stats';
 import { ORCHESTRATOR_SKILL, SMOKE_SITES, canOrchestrate, isRegressionType, isSmokeType, type SmokeSite } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type Automation, type JiraTicket } from '../../shared/types';
-import { Automations } from './Automations';
+import { Automations, elapsedMin, runningOf } from './Automations';
+import { useLang, useText } from '../i18n';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
 
-const PERIODS: ReadonlyArray<{ value: Period; label: string }> = [
-  { value: 7, label: '7 días' },
-  { value: 30, label: '30 días' },
-  { value: 90, label: '90 días' },
-  { value: 0, label: 'Todo' },
-];
+const PERIODS: readonly Period[] = [7, 30, 90, 0];
+
+const TEXT = {
+  es: {
+    period: (p: Period) => (p === 0 ? 'Todo' : `${p} días`),
+    periodLabel: 'Período',
+    executionsAt: (label: string, n: number) => `${label}: ${n} ejecuciones`,
+    connectJiraHint: 'Conecta Jira para ver aquí los tickets que tienes que probar y registrarlos con un clic.',
+    connectJira: 'Conectar Jira',
+    jiraFailed: 'No se pudo conectar con Jira:',
+    retry: 'Reintentar',
+    checkConnection: 'Revisar conexión',
+    allClear: 'Todo al día: no hay tickets pendientes de probar con tu filtro. 🎉',
+    configured: 'La conexión está configurada. Carga los tickets para empezar.',
+    loadTickets: 'Cargar tickets',
+    ticketsTitle: 'Tickets por probar',
+    ticketsMeta: (n: number, ago: string, every: number) =>
+      `${n} ${n === 1 ? 'ticket' : 'tickets'} · actualizado ${ago} · se actualiza solo cada ${every} min`,
+    filterTickets: 'Filtrar tickets…',
+    filterTicketsLabel: 'Filtrar tickets',
+    refreshJira: 'Actualizar desde Jira',
+    refreshing: 'Actualizando…',
+    noMatch: (q: string) => `Ningún ticket coincide con “${q}”.`,
+    logTestFor: (key: string) => `Registrar un test para ${key}`,
+    logged: (n: number) => `${n} reg.`,
+    noRuns: 'Sin registros',
+    logTest: 'Registrar test',
+    openInJira: (key: string) => `Abrir ${key} en Jira`,
+    orchestratorTitle: (cmd: string) => `Corre Claude Code en segundo plano: ${cmd}`,
+    openingTerminal: 'Iniciando…',
+    runningFor: (what: string, min: number) => `Running · ${what} · ${min} min`,
+    validating: 'validando',
+    seeProgress: 'Ver el progreso de la ejecución',
+    runOrchestrator: 'Ejecutar orquestador QA',
+    startTitle: 'Empieza en dos pasos',
+    stepJira: 'Conecta Jira',
+    stepJiraHint: 'Tus tickets aparecerán como tarjetas listas para registrar.',
+    connect: 'Conectar',
+    stepRun: 'Registra tu primer test',
+    stepRunHint: 'Pulsa un ticket o crea un registro libre (Smoke, Regression…).',
+    newRun: 'Nuevo registro',
+    kpiExecutions: 'Ejecuciones',
+    today: (n: number) => `${n} hoy`,
+    kpiCases: 'Casos ejecutados',
+    noData: 'sin datos',
+    passBasis: (num: number, den: number, cases: boolean) => `${num} de ${den} ${cases ? 'casos' : 'ejecuciones'}`,
+    kpiBugs: 'Bugs encontrados',
+    inPeriod: 'en el período',
+    noneInPeriod: 'ninguno en el período',
+    kpiTime: 'Tiempo',
+    todayRuns: (n: number): string => (n === 1 ? 'registro hoy' : 'registros hoy'),
+    cases: 'casos',
+    summary: 'Resumen',
+    noRunsOf: (name: string) => `Aún no hay ejecuciones de ${name}.`,
+    countInPeriod: (n: number) => `${n} en el período`,
+    regressionTitle: 'Corre Claude Code en segundo plano con el skill de regresión',
+    runRegression: 'Ejecutar regresión',
+    smokeTitle: (url: string) => `Corre Claude Code en segundo plano con el smoke en ${url}`,
+    smokeOn: (site: string) => `Smoke en ${site}`,
+    activity: (daily: boolean, weeks: number) => `Actividad ${daily ? 'por día' : `por semana (últimas ${weeks})`}`,
+    byType: 'Por tipo de test',
+    noneInPeriodRuns: 'Sin ejecuciones en el período.',
+    latest: 'Últimos registros',
+  },
+  en: {
+    period: (p: Period) => (p === 0 ? 'All' : `${p} days`),
+    periodLabel: 'Period',
+    executionsAt: (label: string, n: number) => `${label}: ${n} runs`,
+    connectJiraHint: 'Connect Jira to see the tickets you need to test here and log them in one click.',
+    connectJira: 'Connect Jira',
+    jiraFailed: 'Could not connect to Jira:',
+    retry: 'Retry',
+    checkConnection: 'Check connection',
+    allClear: 'All caught up: no tickets waiting to be tested with your filter. 🎉',
+    configured: 'The connection is set up. Load the tickets to get started.',
+    loadTickets: 'Load tickets',
+    ticketsTitle: 'Tickets to test',
+    ticketsMeta: (n: number, ago: string, every: number) =>
+      `${n} ${n === 1 ? 'ticket' : 'tickets'} · updated ${ago} · refreshes every ${every} min`,
+    filterTickets: 'Filter tickets…',
+    filterTicketsLabel: 'Filter tickets',
+    refreshJira: 'Refresh from Jira',
+    refreshing: 'Refreshing…',
+    noMatch: (q: string) => `No ticket matches “${q}”.`,
+    logTestFor: (key: string) => `Log a test for ${key}`,
+    logged: (n: number) => `${n} ${n === 1 ? 'run' : 'runs'}`,
+    noRuns: 'No runs',
+    logTest: 'Log test',
+    openInJira: (key: string) => `Open ${key} in Jira`,
+    orchestratorTitle: (cmd: string) => `Runs Claude Code in the background: ${cmd}`,
+    openingTerminal: 'Starting…',
+    runningFor: (what: string, min: number) => `Running · ${what} · ${min} min`,
+    validating: 'validating',
+    seeProgress: 'See the run progress',
+    runOrchestrator: 'Run QA orchestrator',
+    startTitle: 'Get started in two steps',
+    stepJira: 'Connect Jira',
+    stepJiraHint: 'Your tickets will show up as cards ready to log.',
+    connect: 'Connect',
+    stepRun: 'Log your first test',
+    stepRunHint: 'Click a ticket or create a free-form run (Smoke, Regression…).',
+    newRun: 'New run',
+    kpiExecutions: 'Runs',
+    today: (n: number) => `${n} today`,
+    kpiCases: 'Cases executed',
+    noData: 'no data',
+    passBasis: (num: number, den: number, cases: boolean) => `${num} of ${den} ${cases ? 'cases' : 'runs'}`,
+    kpiBugs: 'Bugs found',
+    inPeriod: 'in the period',
+    noneInPeriod: 'none in the period',
+    kpiTime: 'Time',
+    todayRuns: (n: number): string => (n === 1 ? 'run today' : 'runs today'),
+    cases: 'cases',
+    summary: 'Summary',
+    noRunsOf: (name: string) => `No ${name} runs yet.`,
+    countInPeriod: (n: number) => `${n} in the period`,
+    regressionTitle: 'Runs Claude Code in the background with the regression skill',
+    runRegression: 'Run regression',
+    smokeTitle: (url: string) => `Runs Claude Code in the background with the smoke on ${url}`,
+    smokeOn: (site: string) => `Smoke on ${site}`,
+    activity: (daily: boolean, weeks: number) => `Activity ${daily ? 'per day' : `per week (last ${weeks})`}`,
+    byType: 'By test type',
+    noneInPeriodRuns: 'No runs in the period.',
+    latest: 'Latest runs',
+  },
+};
+type Text = typeof TEXT.es;
 
 /** A partir de cuántos tickets aparece el buscador de la sección. */
 const TICKET_SEARCH_FROM = 7;
@@ -34,29 +156,32 @@ interface DashboardProps {
   onRegression: () => void;
   onSmoke: (site: SmokeSite) => void;
   onDismissAutomation: (automation: Automation) => void;
+  onOpenReport: (automation: Automation) => void;
   onNewRun: () => void;
   onOpenSettings: () => void;
 }
 
 /** Segmentos apilados por resultado; se usa en ambos gráficos. */
 function Segments({ counts }: { counts: ResultCounts }) {
+  const lang = useLang();
   return (
     <>
       {RESULTS.filter((r) => counts[r] > 0).map((r) => (
-        <i key={r} style={{ flex: counts[r], background: RESULT_META[r].color }} title={`${RESULT_META[r].label}: ${counts[r]}`} />
+        <i key={r} style={{ flex: counts[r], background: RESULT_META[r].color }} title={`${resultLabel(r, lang)}: ${counts[r]}`} />
       ))}
     </>
   );
 }
 
-function ActivityChart({ buckets }: { buckets: Bucket[] }) {
+function ActivityChart({ buckets, t }: { buckets: Bucket[]; t: Text }) {
+  const lang = useLang();
   const max = Math.max(1, ...buckets.map((b) => b.total));
   const labelEvery = Math.ceil(buckets.length / 10);
   return (
     <>
       <div className="chart">
         {buckets.map((b) => (
-          <div key={b.from} className={b.total ? 'col' : 'col empty'} title={`${b.label}: ${b.total} ejecuciones`}>
+          <div key={b.from} className={b.total ? 'col' : 'col empty'} title={t.executionsAt(b.label, b.total)}>
             <div className="stack" style={b.total ? { height: `${Math.max(4, (b.total / max) * 100)}%` } : undefined}>
               <Segments counts={b.counts} />
             </div>
@@ -72,7 +197,7 @@ function ActivityChart({ buckets }: { buckets: Bucket[] }) {
         {RESULTS.map((r) => (
           <span key={r}>
             <span className="dot" style={{ background: RESULT_META[r].color }} />
-            {RESULT_META[r].label}
+            {resultLabel(r, lang)}
           </span>
         ))}
       </div>
@@ -90,10 +215,14 @@ interface TicketsProps {
   onOrchestrate: (ticket: JiraTicket) => void;
   launching: string | null;
   onOpenSettings: () => void;
+  automations: Automation[];
+  onOpenReport: (automation: Automation) => void;
+  t: Text;
 }
 
 /** Tickets de Jira como tarjetas: el punto de partida habitual para registrar un test. */
-function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings }: TicketsProps) {
+function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, t }: TicketsProps) {
+  const lang = useLang();
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const tickets = q
@@ -106,23 +235,23 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
     empty =
       jira.connection === 'none' ? (
         <>
-          <p>Conecta Jira para ver aquí los tickets que tienes que probar y registrarlos con un clic.</p>
-          <button className="btn primary" onClick={onOpenSettings}>Conectar Jira</button>
+          <p>{t.connectJiraHint}</p>
+          <button className="btn primary" onClick={onOpenSettings}>{t.connectJira}</button>
         </>
       ) : jira.connection === 'error' ? (
         <>
-          <p className="text-bad">No se pudo conectar con Jira: {jira.error}</p>
+          <p className="text-bad">{t.jiraFailed} {jira.error}</p>
           <div className="btn-row">
-            <button className="btn" onClick={onRefresh} disabled={loading}>Reintentar</button>
-            <button className="btn" onClick={onOpenSettings}>Revisar conexión</button>
+            <button className="btn" onClick={onRefresh} disabled={loading}>{t.retry}</button>
+            <button className="btn" onClick={onOpenSettings}>{t.checkConnection}</button>
           </div>
         </>
       ) : jira.connection === 'connected' ? (
-        <p>Todo al día: no hay tickets pendientes de probar con tu filtro. 🎉</p>
+        <p>{t.allClear}</p>
       ) : (
         <>
-          <p>La conexión está configurada. Carga los tickets para empezar.</p>
-          <button className="btn primary" onClick={onRefresh} disabled={loading}>Cargar tickets</button>
+          <p>{t.configured}</p>
+          <button className="btn primary" onClick={onRefresh} disabled={loading}>{t.loadTickets}</button>
         </>
       );
   }
@@ -131,12 +260,12 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
     <div className="card section-tickets">
       <div className="card-head">
         <div>
-          <h3 className="title">Tickets por probar</h3>
+          <h3 className="title">{t.ticketsTitle}</h3>
           <div className="card-sub">
             <JiraStatus jira={jira} loading={loading} />
             {jira.connection === 'connected' && jira.fetchedAt !== null && (
               <span className="hint">
-                {jira.tickets.length} {jira.tickets.length === 1 ? 'ticket' : 'tickets'} · actualizado {relativeTime(jira.fetchedAt)} · se actualiza solo cada {JIRA_AUTO_REFRESH_MIN} min
+                {t.ticketsMeta(jira.tickets.length, relativeTime(jira.fetchedAt, Date.now(), lang), JIRA_AUTO_REFRESH_MIN)}
               </span>
             )}
           </div>
@@ -145,13 +274,13 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
         {jira.tickets.length >= TICKET_SEARCH_FROM && (
           <label className="search small">
             <Icon name="search" />
-            <input placeholder="Filtrar tickets…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Filtrar tickets" />
+            <input placeholder={t.filterTickets} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.filterTicketsLabel} />
           </label>
         )}
         {jira.connection !== 'none' && (
-          <button className="btn" onClick={onRefresh} disabled={loading} title={`Actualizar desde Jira (${MOD}R)`}>
+          <button className="btn" onClick={onRefresh} disabled={loading} title={`${t.refreshJira} (${MOD}R)`}>
             <span className={loading ? 'spin' : ''}><Icon name="refresh" /></span>
-            {loading ? 'Actualizando…' : 'Actualizar desde Jira'}
+            {loading ? t.refreshing : t.refreshJira}
           </button>
         )}
       </div>
@@ -159,17 +288,18 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
       {empty ? (
         <div className="empty-state">{empty}</div>
       ) : tickets.length === 0 ? (
-        <div className="empty-msg">Ningún ticket coincide con “{query}”.</div>
+        <div className="empty-msg">{t.noMatch(query)}</div>
       ) : (
         <div className="tickets">
           {tickets.map((ticket) => {
             const logged = perTicket.get(ticket.key) ?? 0;
             const ready = canOrchestrate(ticket.status);
+            const active = runningOf(automations, 'orchestrator', ticket.key);
             return (
-              <div key={ticket.key} className={`tk${ready ? ' has-run' : ''}`}>
+              <div key={ticket.key} className={`tk${ready || active ? ' has-run' : ''}${active ? ' is-running' : ''}`}>
                 <button
                   className="tk-main"
-                  title={`Registrar un test para ${ticket.key}`}
+                  title={t.logTestFor(ticket.key)}
                   onClick={() => onTicket(ticket)}
                 >
                   <span className="tk-top">
@@ -179,11 +309,11 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
                   <span className="tk-sum">{ticket.summary}</span>
                   <span className="tk-foot">
                     {logged > 0 ? (
-                      <span className="tk-logged"><Icon name="check" size={13} /> {logged} reg.</span>
+                      <span className="tk-logged"><Icon name="check" size={13} /> {t.logged(logged)}</span>
                     ) : (
-                      <span className="hint">Sin registros</span>
+                      <span className="hint">{t.noRuns}</span>
                     )}
-                    <span className="tk-cta">Registrar test <Icon name="arrow" size={13} /></span>
+                    <span className="tk-cta">{t.logTest} <Icon name="arrow" size={13} /></span>
                   </span>
                 </button>
                 {base && (
@@ -192,21 +322,26 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
                     href={base + encodeURIComponent(ticket.key)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={`Abrir ${ticket.key} en Jira`}
-                    aria-label={`Abrir ${ticket.key} en Jira`}
+                    title={t.openInJira(ticket.key)}
+                    aria-label={t.openInJira(ticket.key)}
                   >
                     <Icon name="external" size={14} />
                   </a>
                 )}
-                {ready && (
+                {active ? (
+                  <button className="tk-run running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
+                    <i className="run-dot" />
+                    {t.runningFor(t.validating, elapsedMin(active))}
+                  </button>
+                ) : ready && (
                   <button
                     className="tk-run"
                     onClick={() => onOrchestrate(ticket)}
                     disabled={launching !== null}
-                    title={`Abre Terminal con Claude Code: ${ORCHESTRATOR_SKILL} ${ticket.key}`}
+                    title={t.orchestratorTitle(`${ORCHESTRATOR_SKILL} ${ticket.key}`)}
                   >
                     <Icon name="play" size={13} />
-                    {launching === ticket.key ? 'Abriendo Terminal…' : 'Ejecutar orquestador QA'}
+                    {launching === ticket.key ? t.openingTerminal : t.runOrchestrator}
                   </button>
                 )}
               </div>
@@ -219,34 +354,36 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
 }
 
 /** Primeros pasos: solo mientras no hay registros. */
-function Onboarding({ jiraConnected, onOpenSettings, onNewRun }: { jiraConnected: boolean; onOpenSettings: () => void; onNewRun: () => void }) {
+function Onboarding({ jiraConnected, onOpenSettings, onNewRun, t }: { jiraConnected: boolean; onOpenSettings: () => void; onNewRun: () => void; t: Text }) {
   return (
     <div className="card onboarding">
-      <h3 className="title">Empieza en dos pasos</h3>
+      <h3 className="title">{t.startTitle}</h3>
       <ol className="steps">
         <li className={jiraConnected ? 'done' : ''}>
           <span className="step-n">{jiraConnected ? <Icon name="check" size={14} /> : 1}</span>
           <div>
-            <b>Conecta Jira</b>
-            <p className="hint">Tus tickets aparecerán como tarjetas listas para registrar.</p>
+            <b>{t.stepJira}</b>
+            <p className="hint">{t.stepJiraHint}</p>
           </div>
-          {!jiraConnected && <button className="btn" onClick={onOpenSettings}>Conectar</button>}
+          {!jiraConnected && <button className="btn" onClick={onOpenSettings}>{t.connect}</button>}
         </li>
         <li>
           <span className="step-n">2</span>
           <div>
-            <b>Registra tu primer test</b>
-            <p className="hint">Pulsa un ticket o crea un registro libre (Smoke, Regression…).</p>
+            <b>{t.stepRun}</b>
+            <p className="hint">{t.stepRunHint}</p>
           </div>
-          <button className="btn primary" onClick={onNewRun}>Nuevo registro</button>
+          <button className="btn primary" onClick={onNewRun}>{t.newRun}</button>
         </li>
       </ol>
     </div>
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onDismissAutomation, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onDismissAutomation, onOpenReport, onNewRun, onOpenSettings }: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
+  const lang = useLang();
+  const t = useText(TEXT);
   const { settings, runs, jira } = state;
   // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
   const todayYmd = toYmd(new Date());
@@ -259,29 +396,29 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
       inPeriod,
       summary: summarize(inPeriod),
       today: summarize(todayRuns),
-      buckets: buildBuckets(runs, period, today),
+      buckets: buildBuckets(runs, period, today, lang),
       byType: countByType(inPeriod),
       lastByType: lastRunByType(runs),
       perTicket: countByTicket(runs),
       recent: sortRuns(runs).slice(0, 8),
       todayCount: todayRuns.length,
     };
-  }, [runs, period, today, todayYmd]);
+  }, [runs, period, today, todayYmd, lang]);
 
   const { summary } = view;
   const kpis: Array<[label: string, value: string | number, sub: string, tone?: string]> = [
-    ['Ejecuciones', summary.executions, `${view.todayCount} hoy`],
-    ['Casos ejecutados', summary.cases, `${summary.failed} failed · ${summary.blocked} blocked`],
+    [t.kpiExecutions, summary.executions, t.today(view.todayCount)],
+    [t.kpiCases, summary.cases, `${summary.failed} failed · ${summary.blocked} blocked`],
     [
       'Pass rate',
       summary.passRate === null ? '—' : `${summary.passRate}%`,
       summary.passRateBasis === 'none'
-        ? 'sin datos'
-        : `${summary.passNumerator} de ${summary.passDenominator} ${summary.passRateBasis === 'cases' ? 'casos' : 'ejecuciones'}`,
+        ? t.noData
+        : t.passBasis(summary.passNumerator, summary.passDenominator, summary.passRateBasis === 'cases'),
       summary.passRate === null ? undefined : summary.passRate >= 90 ? 'ok' : summary.passRate >= 70 ? 'warn' : 'bad',
     ],
-    ['Bugs encontrados', summary.bugs, summary.bugs ? 'en el período' : 'ninguno en el período', summary.bugs ? 'bad' : undefined],
-    ['Tiempo', `${(summary.minutes / 60).toFixed(1)} h`, `${summary.minutes} min`],
+    [t.kpiBugs, summary.bugs, summary.bugs ? t.inPeriod : t.noneInPeriod, summary.bugs ? 'bad' : undefined],
+    [t.kpiTime, `${(summary.minutes / 60).toFixed(1)} h`, `${summary.minutes} min`],
   ];
   const maxByType = view.byType[0]?.total ?? 1;
   const daily = period === 7 || period === 30;
@@ -291,19 +428,19 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
     <section className="dashboard">
       <div className="hero">
         <div>
-          <h2>{greeting(new Date())}</h2>
-          <p className="hint cap">{longDate(new Date())}</p>
+          <h2>{greeting(new Date(), lang)}</h2>
+          <p className="hint cap">{longDate(new Date(), lang)}</p>
         </div>
         <div className="spacer" />
         <div className="today">
-          <span><b>{view.todayCount}</b> {view.todayCount === 1 ? 'registro' : 'registros'} hoy</span>
-          <span><b>{view.today.cases}</b> casos</span>
+          <span><b>{view.todayCount}</b> {t.todayRuns(view.todayCount)}</span>
+          <span><b>{view.today.cases}</b> {t.cases}</span>
           <span className={view.today.bugs ? 'text-bad' : ''}><b>{view.today.bugs}</b> bugs</span>
         </div>
       </div>
 
       {runs.length === 0 && (
-        <Onboarding jiraConnected={jira.connection === 'connected'} onOpenSettings={onOpenSettings} onNewRun={onNewRun} />
+        <Onboarding jiraConnected={jira.connection === 'connected'} onOpenSettings={onOpenSettings} onNewRun={onNewRun} t={t} />
       )}
 
       <JiraTickets
@@ -316,15 +453,18 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
         onOrchestrate={onOrchestrate}
         launching={launching}
         onOpenSettings={onOpenSettings}
+        automations={state.automations}
+        onOpenReport={onOpenReport}
+        t={t}
       />
 
       <div className="row section-head">
-        <h2>Resumen</h2>
+        <h2>{t.summary}</h2>
         <div className="spacer" />
-        <div className="seg" role="group" aria-label="Período">
+        <div className="seg" role="group" aria-label={t.periodLabel}>
           {PERIODS.map((p) => (
-            <button key={p.value} className={p.value === period ? 'on' : ''} aria-pressed={p.value === period} onClick={() => setPeriod(p.value)}>
-              {p.label}
+            <button key={p} className={p === period ? 'on' : ''} aria-pressed={p === period} onClick={() => setPeriod(p)}>
+              {t.period(p)}
             </button>
           ))}
         </div>
@@ -344,41 +484,61 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
         <div className="majors">
           {majors.map((type) => {
             const last = view.lastByType.get(type.id);
+            const kind = isSmokeType(type.name) ? 'smoke' : isRegressionType(type.name) ? 'regression' : null;
+            const busy = kind ? runningOf(state.automations, kind) : undefined;
             return (
               <div key={type.id} className="card major" style={{ borderLeftColor: type.color }}>
                 <div className="major-head">
                   <div className="name"><span className="star">★</span> {type.name}</div>
-                  {last && <ResultPill result={last.result} />}
+                  {busy ? (
+                    <button className="status-pill tone-prog pulsing pill-btn" onClick={() => onOpenReport(busy)} title={t.seeProgress}>
+                      <i />Running
+                    </button>
+                  ) : last && <ResultPill result={last.result} />}
                 </div>
                 {last ? (
                   <div className="meta">
                     <b>{last.title}</b>
                     <br />
-                    {formatDmy(last.date)} · {relativeDay(last.date, today)}{last.env ? ` · ${last.env}` : ''}
+                    {formatDmy(last.date, lang)} · {relativeDay(last.date, today, lang)}{last.env ? ` · ${last.env}` : ''}
                   </div>
                 ) : (
-                  <div className="meta">Aún no hay ejecuciones de {type.name}.</div>
+                  <div className="meta">{t.noRunsOf(type.name)}</div>
                 )}
-                <div className="meta">{view.inPeriod.filter((r) => r.typeId === type.id).length} en el período</div>
-                {isRegressionType(type.name) && (
-                  <button className="btn small major-run" onClick={onRegression} title="Abre Terminal con Claude Code y el skill de regresión">
-                    <Icon name="play" size={13} /> Ejecutar regresión
-                  </button>
-                )}
+                <div className="meta">{t.countInPeriod(view.inPeriod.filter((r) => r.typeId === type.id).length)}</div>
+                {isRegressionType(type.name) && (() => {
+                  const active = runningOf(state.automations, 'regression');
+                  return active ? (
+                    <button className="btn small major-run running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
+                      <i className="run-dot" /> {t.runningFor(active.target || 'testomat.io', elapsedMin(active))}
+                    </button>
+                  ) : (
+                    <button className="btn small major-run" onClick={onRegression} title={t.regressionTitle}>
+                      <Icon name="play" size={13} /> {t.runRegression}
+                    </button>
+                  );
+                })()}
                 {isSmokeType(type.name) && (
                   <div className="major-run btn-row">
-                    {(Object.keys(SMOKE_SITES) as SmokeSite[]).map((site) => (
+                    {(Object.keys(SMOKE_SITES) as SmokeSite[]).map((site) => {
+                      const active = runningOf(state.automations, 'smoke', SMOKE_SITES[site].label);
+                      return active ? (
+                        <button key={site} className="btn small running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
+                          <i className="run-dot" /> {t.runningFor(SMOKE_SITES[site].label, elapsedMin(active))}
+                        </button>
+                      ) : (
                       <button
                         key={site}
                         className="btn small"
                         onClick={() => onSmoke(site)}
                         disabled={launching !== null}
-                        title={`Abre Terminal con Claude Code y el smoke en ${SMOKE_SITES[site].url}`}
+                        title={t.smokeTitle(SMOKE_SITES[site].url)}
                       >
                         <Icon name="play" size={13} />
-                        {launching === `smoke:${site}` ? 'Abriendo Terminal…' : `Smoke en ${SMOKE_SITES[site].label}`}
+                        {launching === `smoke:${site}` ? t.openingTerminal : t.smokeOn(SMOKE_SITES[site].label)}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -387,17 +547,17 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
         </div>
       )}
 
-      <Automations automations={state.automations} runs={state.runs} onDismiss={onDismissAutomation} />
+      <Automations automations={state.automations} runs={state.runs} onDismiss={onDismissAutomation} onOpen={onOpenReport} />
 
       <div className="grid2">
         <div className="card">
-          <h3>Actividad {daily ? 'por día' : `por semana (últimas ${view.buckets.length})`}</h3>
-          <ActivityChart buckets={view.buckets} />
+          <h3>{t.activity(daily, view.buckets.length)}</h3>
+          <ActivityChart buckets={view.buckets} t={t} />
         </div>
         <div className="card">
-          <h3>Por tipo de test</h3>
+          <h3>{t.byType}</h3>
           {view.byType.length === 0 ? (
-            <div className="empty-msg">Sin ejecuciones en el período.</div>
+            <div className="empty-msg">{t.noneInPeriodRuns}</div>
           ) : (
             view.byType.map((entry) => {
               const type = findType(settings, entry.typeId);
@@ -421,7 +581,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
       </div>
 
       <div className="card">
-        <h3>Últimos registros</h3>
+        <h3>{t.latest}</h3>
         <div className="tablewrap">
           <RunsTable runs={view.recent} settings={settings} />
         </div>

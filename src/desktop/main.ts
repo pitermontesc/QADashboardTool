@@ -11,9 +11,40 @@ const PORT = Number(process.env.QA_DASH_PORT ?? DEFAULT_PORT);
 const URL_ = `http://${HOST}:${PORT}`;
 const WINDOW_FILE = path.join(defaultDataDir(), 'window.json');
 
+type Lang = 'es' | 'en';
+
+/** Idioma guardado en los ajustes de la app (el archivo se lee antes de arrancar el servidor). */
+function savedLanguage(): Lang {
+  try {
+    const data = JSON.parse(readFileSync(path.join(defaultDataDir(), 'qa-tests.json'), 'utf8')) as { settings?: { language?: string } };
+    return data.settings?.language === 'en' ? 'en' : 'es';
+  } catch {
+    return 'es';
+  }
+}
+
+let lang: Lang = savedLanguage();
+
+const TEXT = {
+  es: {
+    file: 'Archivo', newRun: 'Nuevo registro', refreshJira: 'Actualizar tickets de Jira', view: 'Ver',
+    dashboard: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes', search: 'Buscar registros',
+    resetZoom: 'Tamaño real', zoomIn: 'Acercar', zoomOut: 'Alejar', fullscreen: 'Pantalla completa',
+    portBusy: (port: number) => `El puerto ${port} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`,
+    startFailed: 'No se pudo iniciar la app:',
+  },
+  en: {
+    file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
+    dashboard: 'Dashboard', runs: 'Runs', config: 'Types & settings', search: 'Search runs',
+    resetZoom: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen',
+    portBusy: (port: number) => `Port ${port} is used by another program. Close it or open the app with QA_DASH_PORT=8770.`,
+    startFailed: 'The app could not start:',
+  },
+};
+
 app.setName(APP_NAME);
-// Interfaz en español: fechas dd/mm/aaaa en los selectores y textos del sistema en castellano.
-app.commandLine.appendSwitch('lang', 'es-ES');
+// Fechas de los selectores y textos del sistema en el idioma de la app.
+app.commandLine.appendSwitch('lang', lang === 'en' ? 'en-US' : 'es-ES');
 // La caché de Chromium va en una subcarpeta para no mezclarse con qa-tests.json.
 app.setPath('sessionData', path.join(defaultDataDir(), 'electron'));
 
@@ -69,33 +100,34 @@ function sendCommand(command: string): void {
 }
 
 function buildMenu(): void {
+  const t = TEXT[lang];
   const isMac = process.platform === 'darwin';
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: 'appMenu' as const }] : []),
     {
-      label: 'Archivo',
+      label: t.file,
       submenu: [
-        { label: 'Nuevo registro', accelerator: 'CmdOrCtrl+N', click: () => sendCommand('new-run') },
+        { label: t.newRun, accelerator: 'CmdOrCtrl+N', click: () => sendCommand('new-run') },
         { type: 'separator' },
-        { label: 'Actualizar tickets de Jira', accelerator: 'CmdOrCtrl+R', click: () => sendCommand('refresh-jira') },
+        { label: t.refreshJira, accelerator: 'CmdOrCtrl+R', click: () => sendCommand('refresh-jira') },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
       ],
     },
     { role: 'editMenu' },
     {
-      label: 'Ver',
+      label: t.view,
       submenu: [
-        { label: 'Dashboard', accelerator: 'CmdOrCtrl+1', click: () => sendCommand('tab:dash') },
-        { label: 'Registros', accelerator: 'CmdOrCtrl+2', click: () => sendCommand('tab:runs') },
-        { label: 'Tipos y ajustes', accelerator: 'CmdOrCtrl+3', click: () => sendCommand('tab:config') },
-        { label: 'Buscar registros', accelerator: 'CmdOrCtrl+F', click: () => sendCommand('search') },
+        { label: t.dashboard, accelerator: 'CmdOrCtrl+1', click: () => sendCommand('tab:dash') },
+        { label: t.runs, accelerator: 'CmdOrCtrl+2', click: () => sendCommand('tab:runs') },
+        { label: t.config, accelerator: 'CmdOrCtrl+3', click: () => sendCommand('tab:config') },
+        { label: t.search, accelerator: 'CmdOrCtrl+F', click: () => sendCommand('search') },
         { type: 'separator' },
-        { role: 'resetZoom', label: 'Tamaño real' },
-        { role: 'zoomIn', label: 'Acercar' },
-        { role: 'zoomOut', label: 'Alejar' },
+        { role: 'resetZoom', label: t.resetZoom },
+        { role: 'zoomIn', label: t.zoomIn },
+        { role: 'zoomOut', label: t.zoomOut },
         { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Pantalla completa' },
+        { role: 'togglefullscreen', label: t.fullscreen },
         ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' as const }]),
       ],
     },
@@ -139,6 +171,21 @@ function createWindow(): void {
   });
 
   void win.loadURL(URL_);
+
+  // Al cambiar el idioma en la interfaz (atributo lang de la página) se rehace el menú.
+  const timer = setInterval(() => {
+    if (win.isDestroyed()) return;
+    win.webContents
+      .executeJavaScript('document.documentElement.lang')
+      .then((value: unknown) => {
+        if ((value === 'es' || value === 'en') && value !== lang) {
+          lang = value;
+          buildMenu();
+        }
+      })
+      .catch(() => undefined);
+  }, 1500);
+  win.on('closed', () => clearInterval(timer));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -171,8 +218,8 @@ if (!app.requestSingleInstanceLock()) {
       dialog.showErrorBox(
         APP_NAME,
         busy
-          ? `El puerto ${PORT} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`
-          : `No se pudo iniciar la app:\n${String(err)}`,
+          ? TEXT[lang].portBusy(PORT)
+          : `${TEXT[lang].startFailed}\n${String(err)}`,
       );
       app.quit();
     });

@@ -1,5 +1,5 @@
 import { addDays, shortLabel, startOfDay, toYmd } from './dates.js';
-import { RESULTS, type Result, type TestRun } from './types.js';
+import { type Lang, RESULTS, type Result, type TestRun } from './types.js';
 
 /** Días hacia atrás que cubre el dashboard; 0 = todo el historial. */
 export type Period = 7 | 30 | 90 | 0;
@@ -74,11 +74,11 @@ export interface Bucket {
 }
 
 /** Un bucket por día para 7 y 30 días; por semana (lunes a domingo) para 90 días y "todo". */
-export function buildBuckets(runs: readonly TestRun[], period: Period, today: Date): Bucket[] {
+export function buildBuckets(runs: readonly TestRun[], period: Period, today: Date, lang: Lang = 'es'): Bucket[] {
   const t0 = startOfDay(today);
   const buckets: Bucket[] = [];
   const push = (from: Date, to: Date): void => {
-    buckets.push({ from: toYmd(from), to: toYmd(to), label: shortLabel(from), total: 0, counts: emptyCounts() });
+    buckets.push({ from: toYmd(from), to: toYmd(to), label: shortLabel(from, lang), total: 0, counts: emptyCounts() });
   };
   if (period === 7 || period === 30) {
     for (let i = period - 1; i >= 0; i--) {
