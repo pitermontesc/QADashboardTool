@@ -4,7 +4,7 @@ import {
 } from '../src/shared/stats';
 import type { TestRun } from '../src/shared/types';
 
-const TODAY = new Date(2026, 10, 17); // martes 17/11/2026
+const TODAY = new Date(2026, 10, 17); // Tuesday 2026-11-17
 
 let seq = 0;
 function run(overrides: Partial<TestRun>): TestRun {
@@ -16,7 +16,7 @@ function run(overrides: Partial<TestRun>): TestRun {
 }
 
 describe('summarize', () => {
-  it('calcula el pass rate sobre casos cuando hay conteos', () => {
+  it('computes the pass rate over cases when counts exist', () => {
     const s = summarize([
       run({ passed: 20, failed: 0 }),
       run({ result: 'failed', passed: 80, failed: 5, blocked: 0, bugs: 3, minutes: 90 }),
@@ -24,12 +24,12 @@ describe('summarize', () => {
     expect(s).toMatchObject({ executions: 2, cases: 105, passRate: 95, passRateBasis: 'cases', bugs: 3, minutes: 90 });
   });
 
-  it('usa ejecuciones terminadas cuando no hay conteos de casos', () => {
+  it('uses finished runs when there are no case counts', () => {
     const s = summarize([run({}), run({ result: 'failed' }), run({ result: 'progress' })]);
     expect(s).toMatchObject({ passRate: 50, passRateBasis: 'runs', passNumerator: 1, passDenominator: 2 });
   });
 
-  it('devuelve null sin datos', () => {
+  it('returns null without data', () => {
     expect(summarize([]).passRate).toBeNull();
     expect(summarize([run({ result: 'progress' })]).passRateBasis).toBe('none');
   });
@@ -38,17 +38,17 @@ describe('summarize', () => {
 describe('filterByPeriod', () => {
   const runs = [run({ date: '2026-11-17' }), run({ date: '2026-11-11' }), run({ date: '2026-11-10' }), run({ date: '2025-01-01' })];
 
-  it('incluye hoy y los N-1 días anteriores', () => {
+  it('includes today and the previous N-1 days', () => {
     expect(filterByPeriod(runs, 7, TODAY).map((r) => r.date)).toEqual(['2026-11-17', '2026-11-11']);
   });
 
-  it('0 devuelve todo el historial', () => {
+  it('0 returns the full history', () => {
     expect(filterByPeriod(runs, 0, TODAY)).toHaveLength(4);
   });
 });
 
 describe('buildBuckets', () => {
-  it('crea un bucket por día y cuenta por resultado', () => {
+  it('creates one bucket per day and counts by result', () => {
     const buckets = buildBuckets([run({}), run({ result: 'failed' }), run({ date: '2026-11-16', result: 'blocked' })], 7, TODAY);
     expect(buckets).toHaveLength(7);
     expect(buckets.at(-1)).toMatchObject({ from: '2026-11-17', total: 2, counts: { passed: 1, failed: 1 } });
@@ -56,7 +56,7 @@ describe('buildBuckets', () => {
     expect(buckets[0]?.from).toBe('2026-11-11');
   });
 
-  it('agrupa por semanas de lunes a domingo en períodos largos', () => {
+  it('groups by Monday-to-Sunday weeks for long periods', () => {
     const buckets = buildBuckets([run({ date: '2026-11-15' }), run({ date: '2026-11-16' })], 90, TODAY);
     expect(buckets).toHaveLength(13);
     expect(buckets.at(-1)).toMatchObject({ from: '2026-11-16', to: '2026-11-22', total: 1 });
@@ -65,33 +65,33 @@ describe('buildBuckets', () => {
   });
 });
 
-describe('agrupaciones', () => {
+describe('groupings', () => {
   const runs = [
     run({ typeId: 'smoke', date: '2026-11-10', ticket: 'AVM-1' }),
     run({ typeId: 'smoke', date: '2026-11-15', ticket: 'AVM-1', result: 'failed' }),
     run({ typeId: 'api', date: '2026-11-12' }),
   ];
 
-  it('ordena por fecha descendente', () => {
+  it('sorts by date descending', () => {
     expect(sortRuns(runs).map((r) => r.date)).toEqual(['2026-11-15', '2026-11-12', '2026-11-10']);
   });
 
-  it('cuenta por tipo, de mayor a menor', () => {
+  it('counts by type, highest first', () => {
     expect(countByType(runs)).toEqual([
       { typeId: 'smoke', total: 2, counts: { passed: 1, failed: 1, blocked: 0, progress: 0 } },
       { typeId: 'api', total: 1, counts: { passed: 1, failed: 0, blocked: 0, progress: 0 } },
     ]);
   });
 
-  it('encuentra la última ejecución de cada tipo', () => {
+  it('finds the latest run of each type', () => {
     expect(lastRunByType(runs).get('smoke')?.date).toBe('2026-11-15');
   });
 
-  it('cuenta registros por ticket ignorando los vacíos', () => {
+  it('counts runs per ticket, ignoring empty ones', () => {
     expect([...countByTicket(runs)]).toEqual([['AVM-1', 2]]);
   });
 
-  it('filtra por texto, tipo, resultado y fechas', () => {
+  it('filters by text, type, result and dates', () => {
     expect(filterRuns(runs, { ...EMPTY_FILTERS, query: 'avm-1', result: 'failed' })).toHaveLength(1);
     expect(filterRuns(runs, { ...EMPTY_FILTERS, typeId: 'api' })).toHaveLength(1);
     expect(filterRuns(runs, { ...EMPTY_FILTERS, from: '2026-11-11', to: '2026-11-13' })).toHaveLength(1);

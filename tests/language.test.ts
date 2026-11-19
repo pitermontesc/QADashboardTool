@@ -8,7 +8,7 @@ import { Store } from '../src/server/store';
 import { defaultSettings } from '../src/shared/defaults';
 import { fakeJira, startServer } from './helpers';
 
-/** Comentarios que recibió el Jira simulado. */
+/** Comments received by the simulated Jira. */
 const comments: { key: string; body: string }[] = [];
 const jira: typeof fetch = async (input, init) => {
   const match = /\/rest\/api\/2\/issue\/([^/]+)\/comment$/.exec(new URL(String(input)).pathname);
@@ -17,7 +17,7 @@ const jira: typeof fetch = async (input, init) => {
   return Response.json({ id: '10042' }, { status: 201 });
 };
 
-/** Traductor simulado: antepone [EN] a cada texto, como haría Claude al traducir. */
+/** Simulated translator: prefixes each text with [EN], as Claude would when translating. */
 const translations: ReportTranslation[] = [];
 const fakeTranslate = async (report: ReportTranslation) => {
   translations.push(report);
@@ -27,13 +27,13 @@ const fakeTranslate = async (report: ReportTranslation) => {
     details: report.details && {
       ...report.details,
       notes: tr(report.details.notes),
-      // Una traducción que cambia un estado o pierde pasos no debe romper el reporte.
+      // A translation that changes a status or drops steps must not break the report.
       modules: report.details.modules.map((m) => ({ ...m, status: 'failed', name: tr(m.name), steps: m.steps.slice(0, 1).map((s) => ({ ...s, name: tr(s.name) })) })),
     },
   };
 };
 
-describe('Idioma de los datos y comentario de Jira', () => {
+describe('Data language and Jira comment', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
   const settings = async () => (await srv.call('GET', '/api/state')).body.settings;
   const setLanguage = async (language: 'es' | 'en') => srv.call('PUT', '/api/settings', { ...(await settings()), language });
@@ -52,7 +52,7 @@ describe('Idioma de los datos y comentario de Jira', () => {
   });
   afterAll(() => srv.close());
 
-  it('al pasar a inglés traduce tipos, títulos, notas y el reporte de Claude, y respeta lo editado', async () => {
+  it("switching to English translates types, titles, notes and Claude's report, and keeps user edits", async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     await srv.call('POST', `/api/automation/${smoke.id}/result`, {
       verdict: 'GO', passed: 2, summary: 'Todo pasa',
@@ -72,16 +72,16 @@ describe('Idioma de los datos y comentario de Jira', () => {
     const run = state.runs.find((r: { id: string }) => r.id === smoke.runId);
     expect(auto.title).toBe('Smoke STG with Claude');
     expect(run).toMatchObject({ title: 'Smoke STG with Claude · GO', notes: 'Verdict GO.\n[EN] Todo pasa' });
-    // Se traduce el texto; estados y pasos salen del original.
+    // The text is translated; statuses and steps come from the original.
     expect(auto.translations.en.details.modules).toEqual([
       { name: '[EN] Login', status: 'passed', minutes: null, notes: '', steps: [{ name: '[EN] Entrar', status: 'passed', notes: '' }, { name: 'Salir', status: 'skipped', notes: '' }] },
     ]);
     expect(auto.translations.en.details.notes).toBe('[EN] Sin novedades');
     expect(auto.summary).toBe('Todo pasa');
-    // El registro editado a mano conserva sus notas.
+    // The hand-edited test run keeps its notes.
     expect(state.runs.find((r: { id: string }) => r.id === edited.runId).notes).toBe('Mi nota');
 
-    // De vuelta en español no hace falta traducir: es el idioma original.
+    // Back in Spanish there is nothing to translate: it is the original language.
     const before = translations.length;
     await setLanguage('es');
     const back = (await srv.call('GET', '/api/state')).body;
@@ -90,17 +90,17 @@ describe('Idioma de los datos y comentario de Jira', () => {
     expect(translations.length).toBe(before);
   });
 
-  it('publica en Jira el comentario que Claude dejó listo, una sola vez', async () => {
+  it('posts to Jira the comment Claude left ready, only once', async () => {
     const { body: orch } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
     expect(orch.title).toBe('Orquestador QA: Work order totals');
     await srv.call('POST', `/api/automation/${orch.id}/result`, {
       verdict: 'PASSED', summary: 'OK',
       details: { jiraComment: { key: 'avm-101', body: '**QA Verdict: PASSED**\n\n| # | Test |\n|---|---|\n| 1 | `GET /api/x` |' } },
     });
-    const edited = '**QA Verdict: PASSED**\n\n- revisado';
+    const edited = '**QA Verdict: PASSED**\n\n- reviewed';
     const { status, body } = await srv.call('POST', `/api/automation/${orch.id}/jira-comment`, { body: edited });
     expect(status).toBe(200);
-    expect(comments).toEqual([{ key: 'AVM-101', body: '*QA Verdict: PASSED*\n\n* revisado' }]);
+    expect(comments).toEqual([{ key: 'AVM-101', body: '*QA Verdict: PASSED*\n\n* reviewed' }]);
     expect(body.details.jiraComment).toEqual({
       key: 'AVM-101', body: edited, posted: true, url: 'https://example.atlassian.net/browse/AVM-101?focusedCommentId=10042', dismissed: false,
     });
@@ -112,22 +112,22 @@ describe('Idioma de los datos y comentario de Jira', () => {
     expect(comments).toHaveLength(1);
   });
 
-  it('descarta un comentario que ya se publicó por otro lado y lo puede recuperar', async () => {
+  it('dismisses a comment that was already posted elsewhere and can restore it', async () => {
     const { body: orch } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
-    await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'PASSED W/F', details: { jiraComment: { key: 'AVM-101', body: 'Borrador' } } });
+    await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'PASSED W/F', details: { jiraComment: { key: 'AVM-101', body: 'Draft' } } });
     const url = `/api/automation/${orch.id}/jira-comment`;
 
     expect((await srv.call('POST', `${url}/dismiss`, {})).body.details.jiraComment).toMatchObject({ dismissed: true, posted: false });
     expect((await srv.call('POST', url, {})).status).toBe(409);
     expect((await srv.call('POST', `${url}/dismiss`, { dismissed: false })).body.details.jiraComment.dismissed).toBe(false);
     expect((await srv.call('POST', url, {})).status).toBe(200);
-    expect((await srv.call('POST', `${url}/dismiss`, {})).status).toBe(409); // ya publicado
-    expect(comments.at(-1)).toEqual({ key: 'AVM-101', body: 'Borrador' });
+    expect((await srv.call('POST', `${url}/dismiss`, {})).status).toBe(409); // already posted
+    expect(comments.at(-1)).toEqual({ key: 'AVM-101', body: 'Draft' });
   });
 });
 
-describe('Datos guardados en el otro idioma', () => {
-  it('al abrir la app se ponen en su idioma los textos que escribió la app', () => {
+describe('Data saved in the other language', () => {
+  it('opening the app puts the texts the app wrote into its language', () => {
     const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
     const automation = {
       id: 'a1', kind: 'smoke', target: 'STG', title: 'Smoke STG con Claude', env: 'STG', startedAt: 1, finishedAt: 2, verdict: 'GO',
@@ -140,23 +140,23 @@ describe('Datos guardados en el otro idioma', () => {
     const state = new Store(file).getState();
     expect(state.settings.types.find((t) => t.id === 't2')?.name).toBe('Functional');
     expect(state.runs[0]).toMatchObject({ title: 'Smoke STG with Claude · GO', notes: 'Verdict GO.\nTodo pasa' });
-    // Se detecta el idioma del resumen para traducirlo después.
+    // The summary's language is detected so it can be translated later.
     expect(state.automations[0]).toMatchObject({ title: 'Smoke STG with Claude', lang: 'es', translations: {} });
   });
 });
 
 describe('markdownToJira', () => {
-  it('convierte títulos, tablas, listas, negrita, código y links', () => {
+  it('converts headings, tables, lists, bold, code and links', () => {
     const md = [
       '### Results',
       '| # | Test | Result |',
       '|---|---|---|',
       '| 1 | Issue **103** | `GET /api/files/294` → 200 |',
       '',
-      '- uno',
-      '  - dos',
-      '1. primero',
-      'Ver [el ticket](https://example.atlassian.net/browse/AVM-1).',
+      '- one',
+      '  - two',
+      '1. first',
+      'See [the ticket](https://example.atlassian.net/browse/AVM-1).',
       '```',
       'a **b**',
       '```',
@@ -167,10 +167,10 @@ describe('markdownToJira', () => {
         '||#||Test||Result||',
         '|1|Issue *103*|{{GET /api/files/294}} → 200|',
         '',
-        '* uno',
-        '** dos',
-        '# primero',
-        'Ver [el ticket|https://example.atlassian.net/browse/AVM-1].',
+        '* one',
+        '** two',
+        '# first',
+        'See [the ticket|https://example.atlassian.net/browse/AVM-1].',
         '{code}',
         'a **b**',
         '{code}',

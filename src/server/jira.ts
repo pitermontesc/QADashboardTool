@@ -24,7 +24,7 @@ const TIMEOUT_MS = 25_000;
 const MAX_TICKETS = 100;
 const FIELDS = 'summary,status,issuetype';
 
-/** JQL para pedir los tickets de un board: su filtro rápido + el JQL adicional, sin los ya terminados. */
+/** JQL to fetch a board's tickets: its quick filter + the extra JQL, excluding finished ones. */
 export function boardJql(board: JiraBoardRef, extraJql: string): string {
   const extra = extraJql.replace(/\s+ORDER\s+BY\s+[\s\S]*$/i, '').trim();
   return [board.filter, extra, 'statusCategory != Done']
@@ -34,18 +34,18 @@ export function boardJql(board: JiraBoardRef, extraJql: string): string {
 }
 
 /**
- * Busca tickets con la API REST de Jira Cloud usando email + API token: los de
- * un board (API Agile) si hay link de board, o una búsqueda JQL si no.
+ * Fetches tickets with the Jira Cloud REST API using email + API token: a board's
+ * tickets (Agile API) if there is a board link, or a JQL search otherwise.
  */
 export async function fetchJiraTickets(
   creds: JiraCredentials,
   fetchImpl: typeof fetch = fetch,
 ): Promise<JiraTicket[]> {
   if (!/^https?:\/\//i.test(creds.site)) {
-    throw new HttpError(400, 'Configura el sitio de Jira (https://tu-sitio.atlassian.net)');
+    throw new HttpError(400, 'Set up the Jira site (https://your-site.atlassian.net)');
   }
   if (!creds.email || !creds.token) {
-    throw new HttpError(400, 'Falta el email o el API token de Jira');
+    throw new HttpError(400, 'The Jira email or API token is missing');
   }
 
   const site = creds.site.replace(/\/+$/, '');
@@ -63,7 +63,7 @@ export async function fetchJiraTickets(
     return (body.issues ?? []).map(toTicket);
   }
 
-  // La API Agile pagina de a 50 como máximo.
+  // The Agile API pages 50 at most.
   const issues: JiraIssue[] = [];
   const jql = boardJql(board, creds.jql);
   for (;;) {
@@ -88,19 +88,19 @@ async function request(fetchImpl: typeof fetch, url: string, auth: string): Prom
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
-    throw new HttpError(502, 'No se pudo conectar con Jira (revisa el sitio y tu conexión)');
+    throw new HttpError(502, 'Could not connect to Jira (check the site and your connection)');
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new HttpError(502, 'Jira rechazó las credenciales (revisa email y API token)');
+    throw new HttpError(502, 'Jira rejected the credentials (check the email and API token)');
   }
   const body = (await response.json().catch(() => ({}))) as JiraSearchResponse;
   if (response.status === 404) {
-    throw new HttpError(502, 'Jira no encontró el board (revisa el link y que tengas acceso)');
+    throw new HttpError(502, 'Jira could not find the board (check the link and that you have access)');
   }
   if (!response.ok) {
     const detail = body.errorMessages?.join('; ');
-    throw new HttpError(502, `Jira respondió ${response.status}${detail ? `: ${detail}` : ''}`);
+    throw new HttpError(502, `Jira responded ${response.status}${detail ? `: ${detail}` : ''}`);
   }
   return body;
 }
@@ -113,8 +113,8 @@ const toTicket = (issue: JiraIssue): JiraTicket => ({
 });
 
 /**
- * Publica un comentario en un ticket con la API REST v2 (acepta wiki markup) y
- * devuelve el link al comentario. Usa el mismo email + API token que la lista de tickets.
+ * Posts a comment on a ticket with the REST API v2 (accepts wiki markup) and returns
+ * the link to the comment. Uses the same email + API token as the ticket list.
  */
 export async function postJiraComment(
   creds: JiraCredentials,
@@ -123,7 +123,7 @@ export async function postJiraComment(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
   if (!/^https?:\/\//i.test(creds.site) || !creds.email || !creds.token) {
-    throw new HttpError(400, 'Configura Jira (sitio, email y API token) en Tipos y ajustes para publicar comentarios');
+    throw new HttpError(400, 'Set up Jira (site, email and API token) in Types & settings to post comments');
   }
   const site = creds.site.replace(/\/+$/, '');
   const auth = `Basic ${Buffer.from(`${creds.email}:${creds.token}`).toString('base64')}`;
@@ -136,16 +136,16 @@ export async function postJiraComment(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
-    throw new HttpError(502, 'No se pudo conectar con Jira (revisa el sitio y tu conexión)');
+    throw new HttpError(502, 'Could not connect to Jira (check the site and your connection)');
   }
   if (response.status === 401 || response.status === 403) {
-    throw new HttpError(502, 'Jira rechazó las credenciales (revisa email y API token)');
+    throw new HttpError(502, 'Jira rejected the credentials (check the email and API token)');
   }
   const body = (await response.json().catch(() => ({}))) as { id?: string; errorMessages?: string[]; errors?: Record<string, string> };
-  if (response.status === 404) throw new HttpError(502, `Jira no encontró el ticket ${key} (o no tienes acceso)`);
+  if (response.status === 404) throw new HttpError(502, `Jira did not find ticket ${key} (or you have no access)`);
   if (!response.ok) {
     const detail = [...(body.errorMessages ?? []), ...Object.values(body.errors ?? {})].join('; ');
-    throw new HttpError(502, `Jira respondió ${response.status}${detail ? `: ${detail}` : ''}`);
+    throw new HttpError(502, `Jira responded ${response.status}${detail ? `: ${detail}` : ''}`);
   }
   return `${site}/browse/${encodeURIComponent(key)}${body.id ? `?focusedCommentId=${body.id}` : ''}`;
 }

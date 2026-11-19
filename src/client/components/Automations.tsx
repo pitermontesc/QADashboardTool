@@ -10,28 +10,28 @@ interface AutomationsProps {
   onOpen: (automation: Automation) => void;
 }
 
-/** Ejecución en curso de ese tipo (y objetivo, si se indica): para marcar «Running» en el dashboard. */
+/** In-progress automation of that kind (and target, if given): used to show "Running" on the dashboard. */
 export function runningOf(automations: Automation[], kind: AutomationKind, target?: string): Automation | undefined {
   return automations.find((a) => a.finishedAt === null && a.kind === kind && (target === undefined || a.target === target));
 }
 
 /**
- * Resumen y reporte de una ejecución en el idioma de la app: el original si Claude lo
- * escribió en ese idioma, o su traducción. `pending` indica que aún falta traducirlo.
+ * Summary and report of an automation in the app's language: the original if Claude
+ * wrote it in that language, otherwise its translation. `pending` means it is not translated yet.
  */
 export function reportIn(a: Automation, lang: Lang): { summary: string; details: Automation['details']; pending: boolean } {
   if (a.lang === lang || a.finishedAt === null) return { summary: a.summary, details: a.details, pending: false };
   const translation = a.translations[lang];
   if (!translation) return { summary: a.summary, details: a.details, pending: a.summary !== '' || a.details !== null };
-  // El comentario de Jira no se traduce: siempre el original.
+  // The Jira comment is never translated: always the original.
   const details = translation.details && a.details ? { ...translation.details, jiraComment: a.details.jiraComment } : a.details;
   return { summary: translation.summary || a.summary, details, pending: false };
 }
 
-/** Minutos desde que empezó, para «Running · 5 min». */
+/** Minutes since it started, for "Running · 5 min". */
 export const elapsedMin = (a: Automation, now = Date.now()): number => Math.max(0, Math.floor((now - a.startedAt) / 60_000));
 
-/** Tras este tiempo sin reporte se asume que Claude no llegó a reportar. */
+/** After this long without a report, assume Claude never reported. */
 const STALE_MS = 12 * 60 * 60_000;
 const SHOWN = 6;
 
@@ -72,7 +72,7 @@ function counts(run: TestRun | undefined): string {
   return parts.join(' · ');
 }
 
-/** Ejecuciones lanzadas con Claude (smoke, regresión, orquestador): en curso y con su veredicto. */
+/** Automations launched with Claude (smoke, regression, orchestrator): in progress and with their verdict. */
 export function Automations({ automations, runs, onDismiss, onOpen }: AutomationsProps) {
   const lang = useLang();
   const t = useText(TEXT);

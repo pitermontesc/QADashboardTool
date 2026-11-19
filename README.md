@@ -1,126 +1,126 @@
 # QA Dashboard Tool
 
-Aplicación local para registrar los tests del día a día (funcional, exploratorio, re-test…) y las suites grandes (Smoke, Regression), con dashboard de métricas y tickets de Jira cargados como botones.
+A local app to log day-to-day tests (functional, exploratory, re-test…) and large suites (Smoke, Regression), with a metrics dashboard and Jira tickets loaded as buttons.
 
-Escrita en TypeScript de punta a punta: interfaz en React, servidor en Node (Express) y un modelo de dominio compartido entre ambos.
+Written in TypeScript end to end: React UI, Node (Express) server and a domain model shared by both. The UI can be switched between English and Spanish.
 
-> 📘 **¿Vas a usar la app?** Lee la [guía de uso paso a paso](docs/GUIA-DE-USO.md), con capturas de cada pantalla.
+> 📘 **Going to use the app?** Read the [step-by-step user guide](docs/USER-GUIDE.md), with screenshots of every screen.
 
-## Requisitos
+## Requirements
 
-Node.js 20 o superior.
+Node.js 20 or later.
 
-## Uso
-
-```bash
-npm install     # solo la primera vez
-npm start       # compila y abre la app en http://127.0.0.1:8765
-```
-
-En macOS también sirve el doble clic en `Iniciar QA Dashboard.command` (la primera vez: clic derecho → Abrir).
-
-La app se abre en su propia ventana. Deja la terminal abierta mientras la uses; `Ctrl+C` la cierra.
-
-### App de escritorio
+## Usage
 
 ```bash
-npm run desktop        # compila y abre la app en una ventana de Electron (sin terminal ni navegador)
-npm run desktop:pack   # genera release/mac-*/QA Dashboard.app
+npm install     # first time only
+npm start       # builds and opens the app at http://127.0.0.1:8765
 ```
 
-Atajos (también en el menú de la app):
+On macOS you can also double-click `Start QA Dashboard.command` (the first time: right-click → Open).
 
-| Atajo | Acción |
+The app opens in its own window. Keep the terminal open while you use it; `Ctrl+C` closes it.
+
+### Desktop app
+
+```bash
+npm run desktop        # builds and opens the app in an Electron window (no terminal or browser)
+npm run desktop:pack   # generates release/mac-*/QA Dashboard.app
+```
+
+Shortcuts (also in the app menu):
+
+| Shortcut | Action |
 | --- | --- |
-| `⌘N` o `N` | Nuevo registro |
-| `⌘1` `⌘2` `⌘3` | Dashboard, Registros, Tipos y ajustes |
-| `⌘F` o `/` | Buscar registros |
-| `⌘R` | Actualizar tickets de Jira |
-| `⌘K` | Asistente de Claude |
-| `⌘↵` / `Esc` | Guardar / cancelar el formulario |
+| `⌘N` or `N` | New run |
+| `⌘1` `⌘2` `⌘3` | Dashboard, Runs, Types & settings |
+| `⌘F` or `/` | Search runs |
+| `⌘R` | Refresh Jira tickets |
+| `⌘K` | Claude assistant |
+| `⌘↵` / `Esc` | Save / cancel the form |
 
-La ventana recuerda su tamaño y posición. Arrastra `QA Dashboard.app` a `/Applications` y ábrela como cualquier otra app. No está firmada: la primera vez, clic derecho → Abrir. Los enlaces a Jira se abren en el navegador. Si `npm start` ya está corriendo, la app de escritorio reutiliza ese servidor.
+The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. It is not signed: the first time, right-click → Open. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
 
-| Variable | Para qué | Por defecto |
+| Variable | Purpose | Default |
 | --- | --- | --- |
-| `QA_DASH_PORT` | Puerto del servidor | `8765` |
-| `QA_DASH_DATA` | Carpeta de datos | macOS: `~/Library/Application Support/QA Dashboard` |
+| `QA_DASH_PORT` | Server port | `8765` |
+| `QA_DASH_DATA` | Data folder | macOS: `~/Library/Application Support/QA Dashboard` |
 
-## Dar de alta a otro QA
+## Onboarding another QA
 
-La checklist para que otra persona del equipo use la app y los skills de QA con su propia cuenta está en [docs/ALTA-NUEVO-QA.md](docs/ALTA-NUEVO-QA.md): instalación, Claude Code y Claude in Chrome, su perfil de QA (`~/.config/avm-qa/profile.json`, para que los skills le asignen los tickets a ella y no a otra persona), la configuración de la app y una prueba final.
+The checklist for another team member to use the app and the QA skills with their own account is in [docs/NEW-QA-ONBOARDING.md](docs/NEW-QA-ONBOARDING.md): installation, Claude Code and Claude in Chrome, their QA profile (`~/.config/avm-qa/profile.json`, so the skills assign tickets to them and not to someone else), the app settings and a final check.
 
 ## Demo
 
-`npm run demo` (o `npm run demo:en`) abre la app en `http://127.0.0.1:8790` con datos de ejemplo en una carpeta temporal, que se reinicia en cada arranque. Jira, Claude Code y la traducción están simulados (`src/server/demo.ts`): las ejecuciones con Claude escriben su actividad paso a paso y reportan un resultado de ejemplo, y nada sale de la máquina. En la app de escritorio está en **Ayuda → Abrir demo**. El guion para presentarla está en [docs/DEMO.md](docs/DEMO.md) (en inglés: [docs/DEMO.en.md](docs/DEMO.en.md)).
+`npm run demo` (or `npm run demo:en`) opens the app at `http://127.0.0.1:8790` with sample data in a temporary folder that is reset on every start. Jira, Claude Code and translation are simulated (`src/server/demo.ts`): Claude runs write their activity step by step and report a sample result, and nothing leaves the machine. In the desktop app it is under **Help → Open demo (sample data)**. The script for presenting it is in [docs/DEMO.md](docs/DEMO.md).
 
-## Tickets de Jira
+## Jira tickets
 
-En **Tipos y ajustes → Conexión con Jira** indica el sitio (`https://tu-sitio.atlassian.net`), tu email y un API token (id.atlassian.com → Seguridad → API tokens). El JQL por defecto trae los tickets que tuviste asignados en los últimos 14 días:
+In **Types & settings → Jira connection**, enter the site (`https://your-site.atlassian.net`), your email and an API token (id.atlassian.com → Security → API tokens). The default JQL loads the tickets assigned to you in the last 14 days:
 
 ```
 assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC
 ```
 
-Para traer los tickets de un **board**, pega su link en el campo *Board* tal como lo copias del navegador, incluido el filtro de personas si lo tiene:
+To load the tickets of a **board**, paste its link in the *Board* field as you copy it from the browser, including the people filter if it has one:
 
 ```
-https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=assignee+IN+(...)
+https://your-site.atlassian.net/jira/software/projects/ABC/boards/1?filter=assignee+IN+(...)
 ```
 
-La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Jira y omite los que ya están terminados. El campo JQL pasa a ser un filtro adicional opcional. Los tickets se actualizan solos cada 5 minutos y al volver a la ventana, con aviso cuando entra uno nuevo en On QA u On Staging; **Actualizar desde Jira** en el dashboard vuelve a consultar el board al instante.
+The app takes the site and the filter from the link, requests the tickets from the Jira Agile API and leaves out the ones that are already done. The JQL field becomes an optional extra filter. Tickets refresh on their own every 5 minutes and when you return to the window, with a notice when a new one lands in On QA or On Staging; **Refresh from Jira** on the dashboard queries the board again right away.
 
-Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: corre Claude Code en segundo plano con `/avm-qa-orchestrator <TICKET>` (requiere el comando `claude` y el skill instalado).
+Tickets in **On QA** or **On Staging** have the **Run QA orchestrator** button: it runs Claude Code in the background with `/avm-qa-orchestrator <TICKET>` (requires the `claude` command and the skill installed).
 
-La tarjeta de la suite **Smoke** tiene un botón por cada sitio configurado (por defecto **Smoke en QA** y **Smoke en STG**, sobre qa.alpinevm.com y staging.alpinevm.com) y la de **Regression** el botón **Ejecutar regresión**. Los sitios, los estados de Jira listos para el orquestador, los dominios de los test runs y los skills (por defecto `/avm-qa-orchestrator`, `/avm-qa-skills:avm-smoke-tester` y `/avm-qa-skills:avm-regression-runner`) se configuran en **Tipos y ajustes → Sitios y skills**. Las ejecuciones corren sin ventana ni preguntas (`claude -p --chrome --permission-mode auto` en `~/qa-dashboard-runs`, con su log en `logs/`); el dashboard las marca como **Running** en la cabecera, en la tarjeta de la suite o en la del ticket, y su reporte muestra la actividad en vivo y un botón para detenerlas. Toda ejecución lanzada con Claude (orquestador, smoke, regresión) aparece en Registros como «En progreso» desde que se lanza; al terminar, Claude reporta el veredicto a `POST /api/automation/:id/result` y la app completa ese registro y lo muestra en la sección **Ejecuciones de QA automatizadas**.
+The **Smoke** suite card has one button per configured site (by default **Smoke on QA** and **Smoke on STG**, against qa.alpinevm.com and staging.alpinevm.com) and the **Regression** card has the **Run regression** button. The sites, the Jira statuses that are ready for the orchestrator, the test run domains and the skills (by default `/avm-qa-orchestrator`, `/avm-qa-skills:avm-smoke-tester` and `/avm-qa-skills:avm-regression-runner`) are configured in **Types & settings → Sites & skills**. Runs execute with no window and no questions (`claude -p --chrome --permission-mode auto` in `~/qa-dashboard-runs`, with their log in `logs/`); the dashboard marks them as **Running** in the header, on the suite card or on the ticket card, and their report shows the live activity and a button to stop them. Every run launched with Claude (orchestrator, smoke, regression) appears in Runs as "In progress" as soon as it is launched; when it finishes, Claude reports the verdict to `POST /api/automation/:id/result`, and the app completes that run and shows it in the **Automated QA runs** section.
 
-Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
+Each ticket appears as a button on the dashboard; clicking it opens a new run with the ticket and title already filled in.
 
-## Datos y seguridad
+## Data and security
 
-- Todo se guarda en `qa-tests.json` dentro de la carpeta de datos (ver `QA_DASH_DATA`), fuera del repositorio; el navegador y la app de escritorio comparten el mismo archivo. Ese archivo contiene el API token de Jira y se crea con permisos `0600`.
-- El servidor escucha solo en `127.0.0.1` y rechaza peticiones con `Host` u `Origin` externos.
-- El token nunca se envía a la interfaz; la API solo informa si hay uno guardado.
-- **Tipos y ajustes → Respaldo de datos** exporta JSON o CSV e importa un respaldo JSON.
+- Everything is stored in `qa-tests.json` in the data folder (see `QA_DASH_DATA`), outside the repository; the browser and the desktop app share the same file. That file contains the Jira API token and is created with `0600` permissions.
+- The server listens only on `127.0.0.1` and rejects requests with an external `Host` or `Origin`.
+- The token is never sent to the UI; the API only reports whether one is saved.
+- **Types & settings → Data backup** exports JSON or CSV and imports a JSON backup.
 
-## Desarrollo
+## Development
 
 ```bash
-npm run dev         # servidor con recarga + Vite en http://localhost:5173
-npm test            # Vitest: lógica, API e interfaz
-npm run typecheck   # TypeScript estricto, cliente y servidor
-npm run build       # compila a dist/
+npm run dev         # server with reload + Vite at http://localhost:5173
+npm test            # Vitest: logic, API and UI
+npm run typecheck   # strict TypeScript, client and server
+npm run build       # builds to dist/
 ```
 
-### Estructura
+### Structure
 
 ```
 src/
-  shared/    Modelo de dominio y lógica pura (tipos, fechas, estadísticas)
-  server/    API REST: validación (zod), persistencia, cliente de Jira
-  desktop/   Proceso principal de Electron (ventana de escritorio)
-  client/    Interfaz React
-tests/       Estadísticas, API (servidor real en puerto temporal) e interfaz (jsdom)
+  shared/    Domain model and pure logic (types, dates, statistics)
+  server/    REST API: validation (zod), persistence, Jira client
+  desktop/   Electron main process (desktop window)
+  client/    React UI
+tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 ```
 
-### Decisiones
+### Decisions
 
-- **Persistencia en un archivo JSON** con escritura atómica en lugar de una base de datos: son unos pocos registros por día y así no hay dependencias nativas que compilar. `Store` aísla el acceso por si algún día conviene cambiarlo.
-- **Validación en el borde:** toda entrada a la API pasa por esquemas zod; el resto del código trabaja con tipos ya validados.
-- **Lógica de métricas pura** en `src/shared/stats.ts`, sin dependencias de React ni de Node, para poder probarla de forma aislada.
-- **Jira inyectable:** el servidor recibe la función `fetch`, de modo que los tests simulan Jira sin red.
+- **Persistence in a JSON file** with atomic writes instead of a database: there are only a few runs per day, and this way there are no native dependencies to compile. `Store` isolates access in case it is worth changing some day.
+- **Validation at the edge:** every API input goes through zod schemas; the rest of the code works with already validated types.
+- **Pure metrics logic** in `src/shared/stats.ts`, with no React or Node dependencies, so it can be tested in isolation.
+- **Injectable Jira:** the server receives the `fetch` function, so tests simulate Jira without network access.
 
 ### API
 
-| Método | Ruta | Descripción |
+| Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/state` | Ajustes, registros y estado de Jira |
-| POST | `/api/runs` | Crea un registro |
-| PUT / DELETE | `/api/runs/:id` | Edita o borra un registro |
-| PUT | `/api/settings` | Guarda tipos, ambientes y URL de tickets |
-| POST | `/api/import` | Reemplaza los datos con un respaldo |
-| PUT | `/api/jira/config` | Guarda la conexión con Jira |
-| POST | `/api/jira/refresh` | Recarga los tickets desde Jira |
-| POST | `/api/assistant` | Asistente: `{messages}` → `{reply, actions}`; las acciones solo se proponen, la app las ejecuta si el usuario confirma |
-| POST | `/api/automation/:id/translate` | Traduce el reporte de Claude al idioma pedido (`{lang}`) |
-| POST | `/api/automation/:id/jira-comment` | Publica en Jira el comentario de QA que dejó Claude (`{body}` opcional, editado) |
+| GET | `/api/state` | Settings, runs and Jira status |
+| POST | `/api/runs` | Creates a run |
+| PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
+| PUT | `/api/settings` | Saves types, environments and ticket URL |
+| POST | `/api/import` | Replaces the data with a backup |
+| PUT | `/api/jira/config` | Saves the Jira connection |
+| POST | `/api/jira/refresh` | Reloads the tickets from Jira |
+| POST | `/api/assistant` | Assistant: `{messages}` → `{reply, actions}`; actions are only proposed, and the app runs them if the user confirms |
+| POST | `/api/automation/:id/translate` | Translates Claude's report into the requested language (`{lang}`) |
+| POST | `/api/automation/:id/jira-comment` | Posts to Jira the QA comment Claude left (optional edited `{body}`) |

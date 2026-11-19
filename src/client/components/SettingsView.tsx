@@ -88,7 +88,7 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
   const boardRef = parseJiraBoardUrl(jiraForm.board);
   const boardInvalid = jiraForm.board.trim() !== '' && !boardRef;
 
-  /** Al pegar un link de board se toma su sitio y el JQL pasa a ser solo un filtro adicional. */
+  /** Pasting a board link takes its site, and the JQL becomes just an extra filter. */
   const setBoard = (board: string): void => {
     const ref = parseJiraBoardUrl(board);
     setJiraForm({

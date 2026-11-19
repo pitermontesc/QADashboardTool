@@ -10,8 +10,8 @@ export const DEFAULT_PORT = 8765;
 export const APP_NAME = 'QA Dashboard';
 
 /**
- * Carpeta de datos compartida por todas las formas de abrir la app (navegador
- * o escritorio), en la ubicación estándar del sistema para datos de usuario.
+ * Data folder shared by every way of opening the app (browser or desktop),
+ * in the system's standard location for user data.
  */
 export function defaultDataDir(): string {
   if (process.env.QA_DASH_DATA) return process.env.QA_DASH_DATA;
@@ -24,9 +24,9 @@ export function defaultDataDir(): string {
 export interface StartOptions {
   port: number;
   dataDir: string;
-  /** Carpeta con la interfaz compilada; si no existe solo se sirve la API. */
+  /** Folder with the built UI; if it does not exist, only the API is served. */
   clientDir: string;
-  /** Opciones de la API (por ejemplo, las del modo demo). */
+  /** API options (for example, the demo mode ones). */
   appOptions?: Omit<AppOptions, 'clientDir'>;
 }
 
@@ -37,7 +37,7 @@ export interface RunningServer {
   server: Server;
 }
 
-/** Arranca el servidor; rechaza con el error de `listen` (p. ej. EADDRINUSE). */
+/** Starts the server; rejects with the `listen` error (e.g. EADDRINUSE). */
 export function startServer({ port, dataDir, clientDir, appOptions = {} }: StartOptions): Promise<RunningServer> {
   const dataFile = path.join(dataDir, 'qa-tests.json');
   const hasClient = existsSync(clientDir);

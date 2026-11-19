@@ -10,17 +10,18 @@ export const RESULT_META: Record<Result, { label: string; color: string }> = {
   passed: { label: 'Passed', color: 'var(--ok)' },
   failed: { label: 'Failed', color: 'var(--bad)' },
   blocked: { label: 'Blocked', color: 'var(--warn)' },
+  // Spanish label; resultLabel() returns the English one.
   progress: { label: 'En progreso', color: 'var(--prog)' },
 };
 
-/** Nombre del resultado en el idioma de la interfaz (Passed/Failed/Blocked son términos de QA y no se traducen). */
+/** Result name in the UI language (Passed/Failed/Blocked are QA terms and are not translated). */
 export function resultLabel(result: Result, lang: Lang): string {
   return result === 'progress' && lang === 'en' ? 'In progress' : RESULT_META[result].label;
 }
 
 export const DEFAULT_JQL = 'assignee WAS currentUser() AND updated >= -14d ORDER BY updated DESC';
 
-/** Tipos de test por defecto, en español e inglés; al cambiar de idioma se traducen los que no se editaron. */
+/** Default test types, in Spanish and English; on a language change, the ones not edited are translated. */
 export const DEFAULT_TYPES: ReadonlyArray<readonly [es: string, en: string, major: boolean]> = [
   ['Smoke', 'Smoke', true],
   ['Regression', 'Regression', true],
@@ -53,7 +54,7 @@ export function defaultSettings(language: Lang = 'es'): Settings {
   };
 }
 
-/** Tipos por defecto en el idioma elegido; los que el usuario renombró quedan como están. */
+/** Default types in the chosen language; types the user renamed stay as they are. */
 export function localizeTypes(types: Settings['types'], lang: Lang): Settings['types'] {
   return types.map((type) => {
     const match = /^t(\d+)$/.exec(type.id);
@@ -62,7 +63,7 @@ export function localizeTypes(types: Settings['types'], lang: Lang): Settings['t
   });
 }
 
-/** Idioma probable de un texto de Claude (para reportes guardados antes de que se registrara el idioma). */
+/** Likely language of a Claude text (for reports saved before the language was recorded). */
 export function guessLang(text: string): Lang {
   const es = (text.match(/[áéíóúñ¿¡]|\b(de|del|los|las|el|en|con|sin|para|que|una?|pasos?|se|no)\b/gi) ?? []).length;
   const en = (text.match(/\b(the|of|and|with|without|for|to|is|are|was|steps?|not|no)\b/gi) ?? []).length;

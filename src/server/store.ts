@@ -26,7 +26,7 @@ interface StoreData {
   automations: Automation[];
 }
 
-/** Ejecuciones de QA automatizadas que se conservan (las más recientes). */
+/** Automated QA runs that are kept (the most recent ones). */
 const MAX_AUTOMATIONS = 30;
 
 const emptyData = (): StoreData => ({
@@ -39,20 +39,20 @@ const emptyData = (): StoreData => ({
 });
 
 /**
- * Persistencia en un único archivo JSON. El volumen de datos (unos pocos
- * registros por día) no justifica una base de datos: se mantiene todo en
- * memoria y cada cambio se escribe de forma atómica (archivo temporal + rename).
+ * Persistence in a single JSON file. The data volume (a few test runs per day)
+ * does not justify a database: everything is kept in memory and every change is
+ * written atomically (temporary file + rename).
  */
 export class Store {
   private data: StoreData;
 
   constructor(private readonly file: string) {
     this.data = this.load();
-    // Datos de versiones anteriores pueden tener textos de la app en el otro idioma.
+    // Data from earlier versions may have app texts in the other language.
     this.localizeAll();
   }
 
-  /** Tipos por defecto, títulos y notas de la app en el idioma actual (no toca lo que editó el usuario). */
+  /** Default types and app-generated titles and notes in the current language (leaves user edits alone). */
   private localizeAll(): void {
     this.data.settings = { ...this.data.settings, types: localizeTypes(this.data.settings.types, this.data.settings.language) };
     for (const automation of this.data.automations) this.localizeAutomation(automation);
@@ -63,15 +63,15 @@ export class Store {
     try {
       const saved = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<StoreData>;
     const base = emptyData();
-    // Archivos de versiones anteriores no traen `board`.
+    // Files from earlier versions have no `board`.
     return {
       ...base,
       ...saved,
-      // Los ajustes anteriores a la v1.9.0 no traen idioma.
+      // Settings from before v1.9.0 have no language.
       settings: { ...base.settings, ...saved.settings },
       jira: { ...base.jira, ...saved.jira },
       jiraCache: { ...base.jiraCache, ...saved.jiraCache },
-      // Las ejecuciones de la v1.7.0 no traían título.
+      // Runs from v1.7.0 had no title.
       automations: (saved.automations ?? []).map((a) => ({
         ...a,
         title: a.title ?? '',
@@ -80,22 +80,22 @@ export class Store {
           : null,
         pid: a.pid ?? null,
         logFile: a.logFile ?? '',
-        // Antes de la v1.9.2 no se guardaba en qué idioma escribió Claude.
-        // El título lo generó la app en el idioma con que se lanzó: es la mejor pista.
+        // Before v1.9.2 the language Claude wrote in was not saved.
+        // The app generated the title in the language the run was launched with: it is the best hint.
         lang: a.lang ?? guessLang([a.title, a.summary, a.details?.notes, ...(a.details?.modules ?? []).map((m) => m.name)].join(' ')),
         translations: a.translations ?? {},
       })),
     };
     } catch (cause) {
-      // No se sobrescribe un archivo ilegible: podría contener datos recuperables.
-      throw new Error(`No se pudo leer ${this.file}. Corrígelo o muévelo para empezar de cero.`, { cause });
+      // An unreadable file is not overwritten: it could contain recoverable data.
+      throw new Error(`Could not read ${this.file}. Fix it or move it to start from scratch.`, { cause });
     }
   }
 
   private persist(): void {
     mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.tmp`;
-    // 0600: el archivo contiene el API token de Jira.
+    // 0600: the file contains the Jira API token.
     writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
     renameSync(tmp, this.file);
   }
@@ -116,8 +116,10 @@ export class Store {
     return this.data.jira;
   }
 
-  /** Registra un smoke o una regresión recién lanzado; se guardan los últimos MAX_AUTOMATIONS. */
-  /** Además crea su registro «En progreso», para que la ejecución se vea en Registros desde que se lanza. */
+  /**
+   * Records a just-launched smoke, regression or orchestrator run; the last MAX_AUTOMATIONS are kept.
+   * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
+   */
   startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'>, runFor: (a: Automation) => TestRunInput): Automation {
     const automation: Automation = {
       ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
@@ -131,7 +133,7 @@ export class Store {
     return automation;
   }
 
-  /** Guarda el proceso y el log de una ejecución recién lanzada. */
+  /** Saves the process and log of a just-launched run. */
   setAutomationProcess(id: string, pid: number | null, logFile: string): void {
     const automation = this.getAutomation(id);
     if (!automation) return;
@@ -143,11 +145,11 @@ export class Store {
     return this.data.automations.find((a) => a.id === id) ?? null;
   }
 
-  /** Cierra la ejecución con el veredicto de Claude y el registro que lo refleja en el dashboard. */
+  /** Closes the run with Claude's verdict and the test run that reflects it on the dashboard. */
   finishAutomation(id: string, result: Pick<Automation, 'verdict' | 'summary' | 'link' | 'details'>, runInput: TestRunInput): Automation | null {
     const automation = this.getAutomation(id);
     if (!automation) return null;
-    // Se actualiza el registro «En progreso»; si el usuario lo borró, se crea de nuevo.
+    // Updates the "In progress" test run; if the user deleted it, it is created again.
     const existing = this.data.runs.find((r) => r.id === automation.runId);
     if (existing) Object.assign(existing, runInput);
     else {
@@ -160,7 +162,7 @@ export class Store {
     return automation;
   }
 
-  /** Descarta la ejecución; si no terminó, también su registro «En progreso». */
+  /** Discards the run; if it has not finished, also its "In progress" test run. */
   deleteAutomation(id: string): boolean {
     const automation = this.getAutomation(id);
     if (automation && automation.finishedAt === null) this.data.runs = this.data.runs.filter((r) => r.id !== automation.runId);
@@ -196,7 +198,7 @@ export class Store {
     return true;
   }
 
-  /** Guarda los ajustes; si cambia el idioma, también traduce lo que escribió la app (tipos por defecto, títulos y notas). */
+  /** Saves the settings; if the language changes, also translates what the app wrote (default types, titles and notes). */
   saveSettings(settings: Settings): Settings {
     const changed = settings.language !== this.data.settings.language;
     this.data.settings = settings;
@@ -205,14 +207,14 @@ export class Store {
     return this.data.settings;
   }
 
-  /** Resumen de una ejecución en un idioma: el original o su traducción, si la hay. */
+  /** A run's summary in a language: the original or its translation, if there is one. */
   private summaryIn(automation: Automation, lang: Lang): string {
     return automation.lang === lang ? automation.summary : automation.translations[lang]?.summary ?? automation.summary;
   }
 
   /**
-   * Pone en el idioma de la app el título de la ejecución y el de su registro y sus notas.
-   * Solo cambia el registro si conserva el texto que generó la app (en cualquier idioma): si el usuario lo editó, se respeta.
+   * Puts the run's title, and its test run's title and notes, in the app language.
+   * Only changes the test run if it still has the app-generated text (in any language): user edits are kept.
    */
   private localizeAutomation(automation: Automation): void {
     const lang = this.data.settings.language;
@@ -232,7 +234,7 @@ export class Store {
     automation.title = titleIn(lang);
   }
 
-  /** Guarda la traducción de un reporte y, si es la del idioma de la app, actualiza las notas de su registro. */
+  /** Saves a report's translation and, if it is in the app language, updates its test run's notes. */
   saveTranslation(id: string, lang: Lang, translation: ReportTranslation): Automation | null {
     const automation = this.getAutomation(id);
     if (!automation) return null;
@@ -242,7 +244,7 @@ export class Store {
     return automation;
   }
 
-  /** Descarta (o recupera) el comentario de Jira de una ejecución: descartado, la app no lo publica. */
+  /** Dismisses (or restores) a run's Jira comment: once dismissed, the app does not post it. */
   setJiraCommentDismissed(id: string, dismissed: boolean): Automation | null {
     const automation = this.getAutomation(id);
     const comment = automation?.details?.jiraComment;
@@ -252,7 +254,7 @@ export class Store {
     return automation;
   }
 
-  /** Marca como publicado el comentario de Jira de una ejecución (con el texto que se publicó). */
+  /** Marks a run's Jira comment as posted (with the text that was posted). */
   saveJiraCommentPosted(id: string, body: string, url: string): Automation | null {
     const automation = this.getAutomation(id);
     const comment = automation?.details?.jiraComment;
@@ -271,15 +273,15 @@ export class Store {
   saveJiraConfig(config: { site: string; email: string; board: string; jql: string; token?: string }): void {
     const board = parseJiraBoardUrl(config.board);
     this.data.jira = {
-      // El sitio del board manda: así no pueden quedar desalineados.
+      // The board's site wins, so the two cannot get out of sync.
       site: board?.site ?? config.site.replace(/\/+$/, ''),
       email: config.email,
       board: board ? config.board : '',
-      // Con board, el JQL es un filtro adicional opcional; sin board, la búsqueda completa.
+      // With a board, the JQL is an optional extra filter; without one, it is the whole search.
       jql: board ? (config.jql === DEFAULT_JQL ? '' : config.jql) : config.jql || DEFAULT_JQL,
       token: config.token || this.data.jira.token,
     };
-    // La configuración cambió: hay que volver a probar la conexión.
+    // The configuration changed: the connection must be tested again.
     this.data.jiraCache = { ...this.data.jiraCache, ok: null, error: null };
     this.persist();
   }
@@ -289,7 +291,7 @@ export class Store {
     this.persist();
   }
 
-  /** Registra que la última consulta a Jira falló; se conservan los tickets anteriores. */
+  /** Records that the last Jira query failed; the previous tickets are kept. */
   saveJiraError(error: string): void {
     this.data.jiraCache = { ...this.data.jiraCache, ok: false, error };
     this.persist();

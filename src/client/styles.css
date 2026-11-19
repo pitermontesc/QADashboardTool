@@ -10,7 +10,7 @@
   --ring:0 0 0 3px rgba(47,91,216,.25);
   color-scheme:light;
 }
-/* Oscuro: el del sistema (tema Automático) o el elegido en la app (data-theme). */
+/* Dark: from the system (Automatic theme) or chosen in the app (data-theme). */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0f1218; --panel:#171b23; --panel-2:#1c212b; --ink:#eef0f4; --ink-2:#c9ced8; --muted:#98a2b3; --line:#262c38; --line-2:#343b4a;
@@ -42,7 +42,7 @@ a{color:var(--accent)}
 .cap::first-letter{text-transform:uppercase}
 .text-ok{color:var(--ok)} .text-bad{color:var(--bad)} .text-warn{color:var(--warn)} .text-accent{color:var(--accent)}
 
-/* ── Cabecera / barra de título ─────────────────────────────── */
+/* ── Header / title bar ─────────────────────────────────────── */
 header{display:flex;align-items:center;gap:18px;padding:10px 24px;height:60px;background:color-mix(in srgb,var(--panel) 85%,transparent);backdrop-filter:saturate(1.6) blur(14px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 .desktop header{padding-left:92px;-webkit-app-region:drag;user-select:none}
 .desktop header button,.desktop header a,.desktop header input{-webkit-app-region:no-drag}
@@ -57,7 +57,7 @@ nav button:hover{color:var(--ink)}
 nav button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
 nav button.on .icon{color:var(--accent)}
 
-/* ── Botones ─────────────────────────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────────── */
 button.btn,label.btn,a.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:var(--radius-sm);font:inherit;font-weight:500;cursor:pointer;text-decoration:none;transition:border-color .15s,background .15s,box-shadow .15s;white-space:nowrap}
 button.btn:hover:not(:disabled),label.btn:hover{border-color:var(--accent);background:var(--panel-2)}
 button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(47,91,216,.3)}
@@ -142,7 +142,7 @@ dialog.narrow{width:min(520px,94vw)}
 .step-n{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--soft);color:var(--accent);font-weight:700;flex:none}
 .steps li.done .step-n{background:var(--ok-bg);color:var(--ok)}
 
-/* Tickets de Jira */
+/* Jira tickets */
 .section-tickets{margin-bottom:6px}
 .tickets{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
 .tk{position:relative;min-width:0}
@@ -174,7 +174,7 @@ dialog.narrow{width:min(520px,94vw)}
 .status-detail::before{content:'·';margin-right:6px}
 @keyframes pulse{50%{opacity:.3}}
 
-/* Gráficos */
+/* Charts */
 .chart{display:flex;align-items:flex-end;gap:3px;height:170px}
 .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;min-width:0}
 .col .stack{display:flex;flex-direction:column-reverse;border-radius:4px 4px 1px 1px;overflow:hidden}
@@ -189,7 +189,7 @@ dialog.narrow{width:min(520px,94vw)}
 .hbar .track{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--muted-bg)}
 .hbar .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 
-/* ── Tablas ──────────────────────────────────────────────────── */
+/* ── Tables ──────────────────────────────────────────────────── */
 table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
@@ -209,7 +209,7 @@ tr:last-child td{border-bottom:0}
 .loading{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);padding:80px 0}
 .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--accent);animation:spin .8s linear infinite}
 
-/* ── Formularios ─────────────────────────────────────────────── */
+/* ── Forms ───────────────────────────────────────────────────── */
 input,select,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:var(--radius-sm);padding:8px 10px;width:100%;transition:border-color .15s,box-shadow .15s}
 input::placeholder,textarea::placeholder{color:color-mix(in srgb,var(--muted) 75%,transparent)}
 input:hover,select:hover,textarea:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2))}
@@ -235,7 +235,7 @@ label.f>input,label.f>select,label.f>textarea,label.f>.input-affix{margin-top:5p
 .inline-add{display:flex;gap:8px;margin-top:12px}
 .inline-add input{flex:1}
 
-/* Diálogo de registro */
+/* Run log dialog */
 dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(680px,94vw);box-shadow:var(--shadow-pop)}
 dialog[open]{animation:pop .16s ease-out}
 dialog::backdrop{background:rgba(10,14,22,.45);backdrop-filter:blur(3px)}
@@ -263,7 +263,7 @@ label.count input{text-align:center;font-variant-numeric:tabular-nums}
 .shortcut-hint{display:inline-flex;align-items:center;gap:4px}
 @media (max-width:640px){.fgrid3{grid-template-columns:repeat(3,1fr)}.result-picker{grid-template-columns:1fr 1fr}.shortcut-hint{display:none}}
 
-/* ── Avisos ──────────────────────────────────────────────────── */
+/* ── Notices ─────────────────────────────────────────────────── */
 .toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,12px);display:flex;align-items:center;gap:10px;max-width:min(560px,92vw);background:var(--ink);color:var(--bg);padding:10px 10px 10px 14px;border-radius:12px;box-shadow:var(--shadow-pop);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:20;font-weight:500}
 .toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast.ok .icon:first-child{color:var(--ok)}
@@ -273,7 +273,7 @@ label.count input{text-align:center;font-variant-numeric:tabular-nums}
 
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-/* Reporte QA de una ejecución con Claude */
+/* QA report of a Claude run */
 dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .report{padding:22px 24px 20px}
 .report .dialog-head{align-items:center}
@@ -307,12 +307,12 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .auto-row:hover{background:var(--soft)}
 @media (max-width:640px){.rep-stats{grid-template-columns:repeat(3,1fr)}}
 
-/* Selector de idioma de la cabecera */
+/* Header language selector */
 .lang-switch{display:flex;gap:2px;background:var(--muted-bg);padding:3px;border-radius:9px}
 .lang-switch button{background:none;border:0;color:var(--muted);font:inherit;font-size:12px;font-weight:700;padding:4px 8px;border-radius:6px;cursor:pointer;letter-spacing:.03em}
 .lang-switch button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
 
-/* Ejecuciones en curso: «Running» en la cabecera, las tarjetas y el reporte */
+/* Runs in progress: "Running" in the header, the cards and the report */
 .run-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--prog);box-shadow:0 0 0 3px color-mix(in srgb,var(--prog) 25%,transparent);animation:pulse 1s ease-in-out infinite;flex:none}
 .running-indicator{display:inline-flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--prog) 35%,transparent);background:var(--prog-bg);color:var(--prog);font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 .running-indicator:hover{filter:brightness(.97)}
@@ -341,7 +341,7 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .rep-jira-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
 .demo-badge{margin-left:10px;padding:3px 8px;border-radius:999px;background:var(--warn);color:var(--bg);font:700 11px/1 inherit;letter-spacing:.08em;cursor:help}
 
-/* ── Asistente ─────────────────────────────────────────────── */
+/* ── Assistant ─────────────────────────────────────────────── */
 .assistant-btn .icon{color:var(--accent)}
 .assistant-btn.on{border-color:var(--accent);background:var(--soft)}
 .assistant{position:fixed;top:60px;right:0;bottom:0;width:min(420px,100vw);z-index:20;display:flex;flex-direction:column;overflow:hidden;background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow-pop)}
@@ -370,7 +370,7 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .assistant-input{display:flex;gap:8px;align-items:flex-end;padding:12px 16px 4px;border-top:1px solid var(--line)}
 .assistant-input textarea{resize:none;min-height:44px;max-height:160px}
 .assistant-hint{margin:0;padding:0 16px 12px}
-/* Cabecera: nada se parte en dos líneas; con poco ancho, el asistente queda solo con su icono. */
+/* Header: nothing wraps onto two lines; when narrow, the assistant shows only its icon. */
 header h1,nav button{white-space:nowrap}
 .running-indicator{min-width:0;flex-shrink:1}
 @media (max-width:1440px){.assistant-btn .assistant-label{display:none}}
@@ -386,7 +386,7 @@ header h1,nav button{white-space:nowrap}
 @media (max-width:900px){.qa-sites-grid,.qa-sites-grid.three{grid-template-columns:minmax(0,1fr)}}
 .table-wrap{overflow-x:auto}
 
-/* 5: con poco ancho la cabecera prescinde de lo accesorio antes de desbordarse. */
+/* 5: when narrow, the header drops non-essentials before it overflows. */
 @media (max-width:1240px){header .kbd{display:none}nav button .icon{display:none}header{gap:12px}}
 @media (max-width:1100px){.brand-sep,.ravn-logo{display:none}}
 .auto-row>.status-pill{justify-self:start}
@@ -394,12 +394,12 @@ header h1,nav button{white-space:nowrap}
 .qa-sites-table th:nth-child(1){width:13%}.qa-sites-table th:nth-child(2){width:15%}.qa-sites-table th:nth-child(3){width:34%}
 .qa-sites-table th:nth-child(4){width:14%}.qa-sites-table th:nth-child(5){width:16%}.qa-sites-table th:nth-child(6){width:8%}
 .qa-sites-table input{min-width:0}
-/* Acciones de cada registro: una debajo de otra, para que nunca queden cortadas. */
+/* Per-run actions: stacked vertically so they are never cut off. */
 td.acts{white-space:nowrap;text-align:right;vertical-align:top;padding-top:6px}
 td.acts>button{display:inline-grid;vertical-align:middle;margin-left:2px}
 td.acts>.icon-btn.danger:hover{color:var(--bad);background:var(--bad-bg)}
 td.acts>.icon-btn:hover{color:var(--accent);background:var(--soft)}
-/* Registros con poco ancho: las etiquetas de tipo se parten y las celdas se compactan para que la tabla quepa. */
+/* Narrow run log: type labels wrap and cells compact so the table fits. */
 td .tag{white-space:normal}
 @media (max-width:1240px){.tablewrap th,.tablewrap td{padding:9px 8px}}
 td.acts>.icon-btn{width:26px;height:26px;margin-left:0}

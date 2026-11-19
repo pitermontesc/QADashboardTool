@@ -9,7 +9,7 @@ import { automationDetailsSchema, runInputSchema } from '../src/server/schemas';
 import { Store } from '../src/server/store';
 import type { AppState, Automation } from '../src/shared/types';
 
-describe('Modo demo', () => {
+describe('Demo mode', () => {
   const dir = path.join(mkdtempSync(path.join(tmpdir(), 'qa-demo-')), 'data');
   let base = '';
   let close = (): Promise<void> => Promise.resolve();
@@ -24,7 +24,7 @@ describe('Modo demo', () => {
 
   beforeAll(async () => {
     seedDemoData(dir, 'es');
-    // Pasos de 5 ms: la ejecución simulada termina enseguida.
+    // 5 ms steps: the simulated run finishes right away.
     const server = createApp(new Store(path.join(dir, 'qa-tests.json')), demoAppOptions(dir, 5)).listen(0, '127.0.0.1');
     await new Promise((r) => server.once('listening', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -32,7 +32,7 @@ describe('Modo demo', () => {
   });
   afterAll(() => close());
 
-  it('arranca con datos de ejemplo válidos, en los dos idiomas', async () => {
+  it('starts with valid sample data in both languages', async () => {
     const s = await state();
     expect(s.demo).toBe(true);
     expect(s.jira.connection).toBe('connected');
@@ -47,7 +47,7 @@ describe('Modo demo', () => {
     expect(s.automations[0]!.details!.jiraComment).toMatchObject({ key: 'AVM-7057', posted: false });
   });
 
-  it('simula un smoke: Running, actividad en vivo y el reporte al terminar', async () => {
+  it('simulates a smoke test: running, live activity and the report at the end', async () => {
     const { body: launched } = await call('POST', '/api/smoke', { site: 'stg' });
     expect(launched.finishedAt).toBeNull();
     let done: Automation | undefined;
@@ -62,7 +62,7 @@ describe('Modo demo', () => {
     expect(activity.items.at(-1)).toMatchObject({ kind: 'result' });
   });
 
-  it('el orquestador simulado deja el comentario y la demo lo «publica» sin salir de la máquina', async () => {
+  it('the simulated orchestrator leaves the comment and the demo "posts" it without leaving the machine', async () => {
     const { body: launched } = await call('POST', '/api/orchestrator/AVM-7061', {});
     await until(async () => (await state()).automations.some((a) => a.id === launched.id && a.finishedAt !== null));
     const { body } = await call('POST', `/api/automation/${launched.id}/jira-comment`, {});
@@ -70,7 +70,7 @@ describe('Modo demo', () => {
     expect(body.details.jiraComment.url).toMatch(/^https:\/\/example\.atlassian\.net\/browse\/AVM-7061\?focusedCommentId=\d+$/);
   });
 
-  it('al pasar a inglés todo queda en inglés, también las ejecuciones simuladas', async () => {
+  it('switching to English leaves everything in English, including simulated runs', async () => {
     const settings = (await state()).settings;
     await call('PUT', '/api/settings', { ...settings, language: 'en' });
     await until(async () => (await state()).translating === 0);
@@ -78,6 +78,7 @@ describe('Modo demo', () => {
     const smoke = s.automations.find((a) => a.kind === 'smoke' && a.lang === 'es' && a.target === 'STG' && a.finishedAt! > Date.now() - 60_000);
     expect(smoke?.translations.en?.summary).toMatch(/^Smoke on STG: GO/);
     expect(smoke?.translations.en?.details?.modules[0]?.name).toBe('Login and Dashboard');
+    // No Spanish run titles or notes remain after the switch.
     expect(s.runs.filter((r) => /con Claude|Veredicto/.test(`${r.title} ${r.notes}`))).toEqual([]);
   });
 });

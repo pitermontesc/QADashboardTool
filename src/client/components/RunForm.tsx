@@ -49,7 +49,7 @@ const toCount = (text: string): number | null => {
   return Number.isNaN(n) ? null : Math.max(0, n);
 };
 
-/** Resultado que sugieren los conteos: cualquier failed manda, luego blocked. */
+/** Result suggested by the counts: any failed wins, then blocked. */
 function suggestedResult(counts: Record<CountField, string>): Result | null {
   if ((toCount(counts.failed) ?? 0) > 0) return 'failed';
   if ((toCount(counts.blocked) ?? 0) > 0) return 'blocked';
@@ -70,7 +70,7 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
     bugs: toText(initial.bugs),
     minutes: toText(initial.minutes),
   });
-  // Si el registro ya trae conteos (edición o duplicado) se respeta su resultado; si no, lo deciden los conteos hasta elegirlo a mano.
+  // If the run already has counts (edit or duplicate) its result is kept; otherwise the counts decide it until it is picked by hand.
   const [resultTouched, setResultTouched] = useState(
     initial.passed !== null || initial.failed !== null || initial.blocked !== null,
   );
@@ -119,7 +119,7 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
     }
   };
 
-  // El ambiente o tipo de un registro antiguo puede haberse quitado de los ajustes: se conserva como opción.
+  // An old run's environment or type may have been removed from settings: keep it as an option.
   const envs = draft.env && !settings.envs.includes(draft.env) ? [...settings.envs, draft.env] : settings.envs;
   const fromTicket = initial.ticket !== '' && initial.title !== '';
 

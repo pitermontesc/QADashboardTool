@@ -1,20 +1,20 @@
 /**
- * Markdown (como lo redactan los skills de QA) a wiki markup de Jira, el formato que
- * acepta la API REST v2 de comentarios: títulos, tablas, listas, negrita, código y links.
+ * Markdown (as the QA skills write it) to Jira wiki markup, the format the comments
+ * REST API v2 accepts: headings, tables, lists, bold, code and links.
  */
 
-/** Negrita, código y links dentro de una línea. */
+/** Bold, code and links within a line. */
 function inline(text: string): string {
   const codes: string[] = [];
-  // El código se aparta primero para no convertir lo que tenga dentro.
+  // Code is set aside first so its contents are not converted.
   let out = text.replace(/`([^`]+)`/g, (_, code: string) => {
     codes.push(code);
     return `\u0000${codes.length - 1}\u0000`;
   });
   out = out
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '[$1|$2]')
-    // Cursiva de Markdown (*texto*) a la de Jira (_texto_); cualquier otro asterisco suelto se escapa,
-    // porque en Jira *texto* es negrita (2*3*4 tiene que seguir leyéndose igual).
+    // Markdown italics (*text*) to Jira italics (_text_); any other stray asterisk is escaped,
+    // because in Jira *text* is bold (2*3*4 must still read the same).
     .replace(/(?<![*\w])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![*\w])/g, '_$1_')
     .replace(/(?<!\*)\*(?!\*)/g, '\\*')
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
@@ -49,7 +49,7 @@ export function markdownToJira(markdown: string): string {
     }
 
     if (isTableRow(line)) {
-      // La fila seguida del separador |---| es la cabecera.
+      // The row followed by the |---| separator is the header.
       const header = i + 1 < lines.length && isSeparator(lines[i + 1]!);
       out.push(header ? `||${cells(line).join('||')}||` : `|${cells(line).join('|')}|`);
       if (header) i++;

@@ -55,7 +55,7 @@ function Cases({ run }: { run: TestRun }) {
 interface RunsTableProps {
   runs: TestRun[];
   settings: Settings;
-  /** Celda de acciones por fila; si se omite la tabla es de solo lectura. */
+  /** Per-row actions cell; if omitted the table is read-only. */
   actions?: (run: TestRun) => ReactNode;
 }
 
@@ -115,7 +115,7 @@ const JIRA_TEXT = {
   en: { none: 'Not connected', pending: 'Not tested', connected: 'Connected', error: 'Connection error', loading: 'Connecting…' },
 };
 
-/** Indicador del estado de la conexión con Jira, con el sitio y el board como detalle. */
+/** Jira connection status indicator, with the site and board as detail. */
 export function JiraStatus({ jira, loading, detail = true }: { jira: JiraState; loading: boolean; detail?: boolean }) {
   const t = JIRA_TEXT[useLang()];
   const meta = loading ? { label: t.loading, tone: 'prog' } : { label: t[jira.connection], tone: JIRA_TONE[jira.connection] };
@@ -130,7 +130,7 @@ export function JiraStatus({ jira, loading, detail = true }: { jira: JiraState; 
   );
 }
 
-/** Tono de color para el estado de un ticket de Jira según su nombre. */
+/** Color tone for a Jira ticket status, based on its name. */
 export function ticketTone(status: string): string {
   const s = status.toLowerCase();
   if (/stag/.test(s)) return 'stage';
@@ -140,7 +140,7 @@ export function ticketTone(status: string): string {
   return 'muted';
 }
 
-/** Atajo de teclado mostrado como teclas (⌘N). */
+/** Keyboard shortcut rendered as keys (⌘N). */
 export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="kbd">{children}</kbd>;
 }

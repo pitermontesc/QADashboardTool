@@ -21,7 +21,7 @@ import { RavnLogo } from './components/RavnLogo';
 import { Kbd, MOD } from './components/ui';
 import { KIND_LABEL, elapsedMin, reportIn } from './components/Automations';
 
-/** Cada cuánto se consulta el resultado de un smoke o una regresión en curso. */
+/** How often the result of a running smoke or regression is polled. */
 const AUTOMATION_POLL_MS = 10_000;
 
 type Tab = 'dash' | 'runs' | 'config';
@@ -95,15 +95,15 @@ const TEXT = {
 type ToastKind = 'ok' | 'error' | 'info';
 interface Toast { text: string; kind: ToastKind; id: number }
 
-/** En la app de escritorio la cabecera hace de barra de título (se arrastra la ventana desde ella). */
+/** In the desktop app the header doubles as the title bar (the window is dragged from it). */
 const IS_DESKTOP = typeof navigator !== 'undefined' && /Electron/.test(navigator.userAgent);
 if (IS_DESKTOP) document.documentElement.classList.add('desktop');
 
-/** ¿El foco está en un campo de texto? Entonces las teclas sueltas no son atajos. */
+/** Is focus in a text field? Then single keys are not shortcuts. */
 const typing = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 
-/** Formulario abierto: `id` presente = edición; ausente = registro nuevo. */
+/** Open form: `id` present = editing; absent = new run. */
 interface FormState {
   key: number;
   id?: string;
@@ -136,14 +136,14 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
   const [regressionOpen, setRegressionOpen] = useState(false);
-  /** Ejecución cuyo reporte QA está abierto (se lee del estado para verlo actualizarse). */
+  /** Automation whose QA report is open (read from state so it updates live). */
   const [reportId, setReportId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  /** La conversación sigue al cerrar y abrir el panel; «Nueva conversación» la vacía. */
+  /** The conversation survives closing and reopening the panel; "New conversation" clears it. */
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const formKey = useRef(0);
   const lang: Lang = state?.settings.language ?? systemLang();
@@ -158,20 +158,20 @@ export function App() {
 
   const notify = useCallback((text: string, kind: ToastKind = 'ok') => setToast({ text, kind, id: Date.now() }), []);
   const fail = useCallback((error: unknown) => notify(errorMessage(error), 'error'), [notify]);
-  /** Aviso importante: toast y, si el sistema lo permite (la app de escritorio sí), notificación nativa. */
+  /** Important notice: a toast and, if the system allows it (the desktop app does), a native notification. */
   const announce = useCallback(
     (title: string, body: string) => {
       notify(`${title}: ${body}`);
       try {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body });
       } catch {
-        // Sin notificaciones del sistema basta con el toast.
+        // Without system notifications the toast is enough.
       }
     },
     [notify],
   );
 
-  // Los tickets de Jira se actualizan solos: cada pocos minutos y al volver a la ventana.
+  // Jira tickets refresh on their own: every few minutes and when the window regains focus.
   const autoRefresh = useRef<() => void>(() => undefined);
   useEffect(() => {
     const tick = (): void => autoRefresh.current();
@@ -188,7 +188,7 @@ export function App() {
     };
   }, []);
 
-  // Mientras Claude corre una ejecución o se traducen reportes, se consulta el estado cada pocos segundos.
+  // While Claude runs an automation or reports are being translated, state is polled every few seconds.
   const running = (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0;
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -216,7 +216,7 @@ export function App() {
 
   useEffect(() => {
     if (!toast) return;
-    // Los errores se quedan más tiempo: hay que poder leerlos.
+    // Errors stay longer so they can be read.
     const timer = setTimeout(() => setToast(null), toast.kind === 'error' ? 7000 : 3200);
     return () => clearTimeout(timer);
   }, [toast]);
@@ -225,15 +225,15 @@ export function App() {
     api.getState().then(setState, (error: unknown) => setLoadError(errorMessage(error)));
   }, []);
 
-  // Comandos del menú de la app de escritorio y atajos de teclado. Se guardan en una ref
-  // para que el listener (registrado una sola vez) use siempre el estado actual.
+  // Desktop app menu commands and keyboard shortcuts. Kept in a ref so the listener
+  // (registered once) always sees the current state.
   const commands = useRef<(command: string) => void>(() => undefined);
   useEffect(() => {
     const onCommand = (event: Event): void => commands.current((event as CustomEvent<string>).detail);
     const onKey = (event: KeyboardEvent): void => {
       if (document.querySelector('dialog[open]')) return;
       const mod = event.metaKey || event.ctrlKey;
-      // En escritorio el menú ya atiende ⌘N, ⌘1… (no llegan aquí); en el navegador sí.
+      // On desktop the menu already handles ⌘N, ⌘1… (they never reach here); in the browser they do.
       if (mod && /^[123]$/.test(event.key)) {
         event.preventDefault();
         commands.current(`tab:${TABS[Number(event.key) - 1]!.id}`);
@@ -300,11 +300,11 @@ export function App() {
 
   const saveSettings = async (settings: Settings): Promise<void> => {
     const previous = state.settings;
-    patch({ settings }); // Optimista: los ajustes responden al instante y se revierten si el guardado falla.
+    patch({ settings }); // Optimistic: settings respond instantly and revert if saving fails.
     try {
       const saved = await api.saveSettings(settings);
       if (saved.language !== previous.language) {
-        // Al cambiar de idioma el servidor traduce tipos, títulos y notas, y empieza a traducir los reportes de Claude.
+        // On a language change the server translates types, titles and notes, and starts translating Claude's reports.
         const next = await api.getState();
         patch({ settings: next.settings, runs: next.runs, automations: next.automations, translating: next.translating });
       } else patch({ settings: saved });
@@ -327,18 +327,18 @@ export function App() {
       }
     } catch (error) {
       fail(error);
-      // El servidor guardó el error de conexión: se recarga el estado para mostrarlo.
+      // The server stored the connection error: reload state to show it.
       api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined);
     } finally {
       setJiraLoading(false);
     }
   };
 
-  /** Actualización automática: sin avisos salvo tickets nuevos en On QA / On Staging. */
+  /** Automatic refresh: silent except for new tickets in On QA / On Staging. */
   autoRefresh.current = () => {
     const { jira } = state;
     if (jiraLoading || !jira.hasToken || jira.connection === 'none') return;
-    // Al volver a la ventana no se repite si la última carga es muy reciente.
+    // When returning to the window, skip if the last load was very recent.
     if (jira.fetchedAt !== null && Date.now() - jira.fetchedAt < 60_000) return;
     const known = new Set(jira.tickets.map((t) => t.key));
     setJiraLoading(true);
@@ -350,7 +350,7 @@ export function App() {
         if (fresh.length === 1) announce(t.newTicketIn(fresh[0]!.status), `${fresh[0]!.key} · ${fresh[0]!.summary}`);
         else if (fresh.length > 1) announce(t.newTickets, fresh.map((t) => t.key).join(', '));
       })
-      // El error queda en el estado de conexión de la tarjeta; no se interrumpe con un aviso.
+      // The error shows in the card's connection status; no interrupting toast.
       .catch(() => api.getState().then((next) => patch({ jira: next.jira })).catch(() => undefined))
       .finally(() => setJiraLoading(false));
   };
@@ -383,7 +383,7 @@ export function App() {
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
   };
 
-  /** Tras lanzar una ejecución, su registro «En progreso» ya está en Registros. */
+  /** After launching an automation, its "In progress" run is already in Runs. */
   const reloadRuns = async (automation: Automation): Promise<void> => {
     const next = await api.getState().catch(() => null);
     if (next) patch({ runs: next.runs, automations: next.automations });
@@ -435,7 +435,7 @@ export function App() {
   const dismissAutomation = async (automation: Automation): Promise<void> => {
     try {
       await api.deleteAutomation(automation.id);
-      // Si no había terminado, su registro «En progreso» también se quitó.
+      // If it had not finished, its "In progress" run was removed too.
       const next = await api.getState();
       patch({ runs: next.runs, automations: next.automations });
     } catch (err) {
@@ -476,7 +476,7 @@ export function App() {
     }
   };
 
-  /** Acción del asistente, confirmada por el usuario: la misma lógica que los botones de la app. */
+  /** Assistant action, confirmed by the user: same logic as the app's buttons. */
   const doAssistantAction = async (action: AssistantAction): Promise<boolean> => {
     try {
       switch (action.type) {

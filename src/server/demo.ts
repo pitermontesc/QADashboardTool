@@ -13,21 +13,21 @@ import type { ClaudeLauncher, ReportTranslator } from './claudeRunner.js';
 import type { AssistantRunner } from './assistant.js';
 
 /**
- * Modo demo: la app con datos de ejemplo en una carpeta temporal y todo lo externo
- * simulado (Jira, Claude Code y la traducción). Nada sale de la máquina: sirve para
- * presentar la herramienta o probarla sin tocar los datos reales.
+ * Demo mode: the app with sample data in a temp folder and everything external
+ * simulated (Jira, Claude Code and translation). Nothing leaves the machine: use it
+ * to present the tool or try it out without touching real data.
  */
 
 export const DEMO_PORT = 8790;
 export const DEMO_SITE = 'https://example.atlassian.net';
 
-/** Carpeta de la demo; se vacía cada vez que se abre para empezar siempre igual. */
+/** Demo data folder; emptied every time the demo opens so it always starts the same. */
 export const demoDataDir = (port = DEMO_PORT): string => path.join(os.tmpdir(), `qa-dashboard-demo-${port}`);
 
 type Bi = { es: string; en: string };
 const bi = (es: string, en: string): Bi => ({ es, en });
 
-/** Todos los textos bilingües de la demo: con ellos se «traduce» sin llamar a Claude. */
+/** Every bilingual text in the demo: used to "translate" without calling Claude. */
 const dictionary = new Map<string, string>();
 const remember = (text: Bi): Bi => {
   dictionary.set(text.es, text.en);
@@ -223,7 +223,7 @@ export const DEMO_TICKETS: JiraTicket[] = [
   { key: 'AVM-7072', summary: 'PM schedule shows the wrong next due date for hour meters', status: 'Test', type: 'Bug' },
 ];
 
-/** Registros manuales de las últimas semanas: [días atrás, tipo, título, ticket, ambiente, resultado, passed, failed, blocked, bugs, minutos]. */
+/** Manual runs from the last few weeks: [days ago, type, title, ticket, env, result, passed, failed, blocked, bugs, minutes]. */
 const MANUAL_RUNS: Array<[number, string, string, string, string, TestRun['result'], number, number, number, number, number]> = [
   [0, 't2', 'Vendor import keeps duplicated contacts after mass update', 'AVM-7064', 'STG', 'passed', 6, 0, 0, 0, 35],
   [0, 't3', 'Exploratory: purchase orders with partial receipts', '', 'QA', 'passed', 9, 0, 0, 0, 40],
@@ -250,7 +250,7 @@ const MANUAL_RUNS: Array<[number, string, string, string, string, TestRun['resul
   [26, 't9', 'Performance: work orders list with 10k rows', '', 'STG', 'failed', 2, 1, 0, 1, 60],
 ];
 
-/** Ejecución con Claude ya terminada, con su registro y su reporte en ambos idiomas. */
+/** A finished Claude run, with its test run record and its report in both languages. */
 function seededAutomation(
   lang: Lang, kind: AutomationKind, target: string, env: string, verdict: Verdict, def: ReportDef | null, startedAt: number, minutes: number,
   extra: { subject?: string; link?: string; summary?: Bi; jiraComment?: AutomationDetails['jiraComment']; typeId: string },
@@ -275,7 +275,7 @@ function seededAutomation(
   return { automation, run };
 }
 
-/** Escribe los datos de la demo (relativos a hoy) en una carpeta vacía. */
+/** Writes the demo data (relative to today) into an empty folder. */
 export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now()): string {
   rmSync(dataDir, { recursive: true, force: true });
   mkdirSync(path.join(dataDir, 'logs'), { recursive: true });
@@ -320,7 +320,7 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
   return file;
 }
 
-/** Jira simulado: devuelve los tickets de la demo y acepta comentarios sin publicarlos en ningún sitio. */
+/** Simulated Jira: returns the demo tickets and accepts comments without posting them anywhere. */
 export const demoFetch: typeof fetch = async (input, init) => {
   const url = new URL(String(input));
   if (init?.method === 'POST' && /\/rest\/api\/2\/issue\/[^/]+\/comment$/.test(url.pathname)) {
@@ -330,7 +330,7 @@ export const demoFetch: typeof fetch = async (input, init) => {
   return Response.json({ issues, total: issues.length });
 };
 
-/** «Traduce» con el diccionario de la demo: los textos de ejemplo están escritos en los dos idiomas. */
+/** "Translates" with the demo dictionary: the sample texts are written in both languages. */
 export const demoTranslate: ReportTranslator = async (report) => {
   const tr = (text: string) => dictionary.get(text) ?? text;
   const d = report.details;
@@ -345,7 +345,7 @@ export const demoTranslate: ReportTranslator = async (report) => {
   };
 };
 
-/** Lo que «hace» Claude en cada ejecución simulada: [texto o acción, es herramienta]. */
+/** What Claude "does" in each simulated run: [text or action, is a tool call]. */
 const SCRIPT: Record<AutomationKind, Array<[Bi, boolean]>> = {
   smoke: [
     [bi('Abro el sitio en Chrome y compruebo la sesión.', 'Opening the site in Chrome and checking the session.'), false],
@@ -377,7 +377,7 @@ const SCRIPT: Record<AutomationKind, Array<[Bi, boolean]>> = {
 };
 for (const steps of Object.values(SCRIPT)) for (const [text] of steps) remember(text);
 
-/** Resultado que «reporta» Claude en una ejecución simulada, como lo haría el skill real. */
+/** Result Claude "reports" in a simulated run, as the real skill would. */
 function simulatedResult(kind: AutomationKind, target: string, lang: Lang, minutes: number) {
   if (kind === 'smoke') {
     const def = { ...SMOKE_GO, summary: remember(bi(
@@ -400,8 +400,8 @@ function simulatedResult(kind: AutomationKind, target: string, lang: Lang, minut
 }
 
 /**
- * Claude simulado: escribe su actividad en el log paso a paso (mismo formato
- * `stream-json` que Claude Code) y al final reporta el resultado a la API local.
+ * Simulated Claude: writes its activity to the log step by step (same `stream-json`
+ * format as Claude Code) and reports the result to the local API at the end.
  */
 export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
   return async (job) => {
@@ -412,7 +412,7 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
     const kind: AutomationKind = /smoke/i.test(job.prompt) ? 'smoke' : /regression/i.test(job.prompt) ? 'regression' : 'orchestrator';
     const target = kind === 'smoke' ? (/run smoke on (\w+)/.exec(job.prompt)?.[1] ?? 'STG') : (/[A-Z][A-Z0-9]+-\d+/.exec(job.prompt)?.[0] ?? '');
     const reportUrl = /http:\/\/127\.0\.0\.1:\d+\/api\/automation\/[\w-]+\/result/.exec(job.prompt)?.[0];
-    // El smoke lleva la URL del sitio configurado en el prompt; para el resto, un sitio de ejemplo.
+    // The smoke prompt carries the configured site URL; the other kinds use a sample site.
     const siteUrl = (/\((https?:\/\/[^)\s]+)\)/.exec(job.prompt)?.[1] ?? 'https://staging.alpinevm.com').replace(/\/+$/, '');
     const steps = SCRIPT[kind];
     let i = 0;
@@ -456,18 +456,19 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
 }
 
 /**
- * Asistente simulado: reconoce unas pocas peticiones típicas y responde con los datos
- * de la demo, igual que el asistente real (texto y acciones para confirmar).
+ * Simulated assistant: recognizes a few typical requests (in Spanish or English) and
+ * answers with the demo data, like the real assistant (text plus actions to confirm).
  */
 export const demoAssistant: AssistantRunner = async ({ context, messages, lang }) => {
   const en = lang === 'en';
   const ask = (messages.at(-1)?.text ?? '').toLowerCase();
+  // The keyword patterns below match both Spanish and English requests.
   const wants = /lanz|corr|ejecut|run|launch|start|valid/.test(ask);
   const key = /[a-z][a-z0-9]+-\d+/i.exec(ask)?.[0]?.toUpperCase();
   const latest = context.claudeRuns.find((a) => a.status === 'finished');
 
   if (wants && /smoke/.test(ask)) {
-    // El sitio que se nombre (por nombre o id); si no se nombra ninguno, el de la regresión.
+    // The site named in the request (by name or id); if none is named, the regression site.
     const named = context.sites.find((s) => new RegExp(`\\b(${s.id}|${s.name.toLowerCase()})\\b`).test(ask));
     const site = named ?? context.sites.find((s) => s.id === context.regressionSite) ?? context.sites[0];
     if (!site) return { reply: en ? 'There are no sites configured.' : 'No hay sitios configurados.', actions: [] };
@@ -524,7 +525,7 @@ export const demoAssistant: AssistantRunner = async ({ context, messages, lang }
   };
 };
 
-/** Opciones de la API en modo demo: todo lo externo simulado. */
+/** API options for demo mode: everything external is simulated. */
 export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo'> {
   return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true };
 }

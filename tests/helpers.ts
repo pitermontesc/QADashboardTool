@@ -5,12 +5,12 @@ import path from 'node:path';
 import { createApp, type AppOptions } from '../src/server/app';
 import { Store } from '../src/server/store';
 
-/** Levanta la API real en un puerto libre con un archivo de datos temporal. */
+/** Starts the real API on a free port with a temporary data file. */
 export async function startServer(options: AppOptions = {}) {
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
-  // Nunca se lanza Claude de verdad para traducir en las pruebas.
+  // Tests never launch the real Claude to translate.
   const translateReport: AppOptions['translateReport'] = async () => {
-    throw new Error('sin traductor en las pruebas');
+    throw new Error('no translator in tests');
   };
   const server = createApp(new Store(file), { translateReport, ...options }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -30,20 +30,20 @@ export async function startServer(options: AppOptions = {}) {
   };
 }
 
-/** Último JQL que recibió el endpoint de board del Jira simulado. */
+/** Last JQL received by the simulated Jira board endpoint. */
 export let lastBoardJql = '';
 
-/** Tickets que el Jira simulado agrega a la búsqueda JQL (para probar tickets nuevos). */
+/** Tickets the simulated Jira adds to the JQL search (to test new tickets). */
 export const extraIssues: { key: string; summary: string; status: string }[] = [];
 
-/** Jira simulado: acepta solo el token "good"; la búsqueda JQL devuelve dos tickets y el board 1, sesenta. */
+/** Simulated Jira: only accepts the token "good"; the JQL search returns two tickets and board 1 returns sixty. */
 export const fakeJira: typeof fetch = async (input, init) => {
   const url = new URL(String(input));
   const auth = new Headers(init?.headers).get('Authorization') ?? '';
   const [, token] = Buffer.from(auth.replace('Basic ', ''), 'base64').toString().split(':');
   if (token !== 'good') return new Response('{}', { status: 401 });
   if (url.pathname === '/rest/agile/1.0/board/1/issue') {
-    // Board con 60 tickets que Jira entrega de a 50.
+    // Board with 60 tickets that Jira returns 50 at a time.
     lastBoardJql = url.searchParams.get('jql') ?? '';
     const startAt = Number(url.searchParams.get('startAt') ?? 0);
     const keys = Array.from({ length: 60 }, (_, i) => `AVM-${i + 1}`).slice(startAt, startAt + 50);
@@ -54,7 +54,7 @@ export const fakeJira: typeof fetch = async (input, init) => {
   }
   if (url.pathname !== '/rest/api/3/search/jql') return new Response('{}', { status: 404 });
   if (url.searchParams.get('jql')?.includes('BAD')) {
-    return Response.json({ errorMessages: ['JQL mal formado'] }, { status: 400 });
+    return Response.json({ errorMessages: ['Malformed JQL'] }, { status: 400 });
   }
   return Response.json({
     issues: [

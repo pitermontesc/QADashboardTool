@@ -1,181 +1,187 @@
 # Changelog
 
-Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
+This project follows [Semantic Versioning](https://semver.org/).
+
+## [1.13.2] - 2026-11-19
+
+### Changed
+- **The whole project is written in English**: code, comments, tests, server messages, internal prompts, documentation and file names (`docs/USER-GUIDE.md`, `docs/DEMO.md`, `docs/NEW-QA-ONBOARDING.md`, `Start QA Dashboard.command`, the screenshots in `docs/img/`). The app still works in English and Spanish: Spanish lives only in the UI translations.
+- Server error messages are written in English and translated to Spanish when the app is in Spanish; users see the same messages as before.
 
 ## [1.13.1] - 2026-11-19
 
-### Agregado
-- **Checklist de alta de un QA nuevo** en `docs/ALTA-NUEVO-QA.md`: qué prepara quien invita, qué instala y configura el QA nuevo (Claude Code, Claude in Chrome, skills, su perfil de QA, Jira y sitios) y una prueba final.
+### Added
+- **Checklist for onboarding a new QA** in `docs/NEW-QA-ONBOARDING.md`: what the person inviting prepares, what the new QA installs and sets up (Claude Code, Claude in Chrome, skills, their QA profile, Jira and sites) and a final check.
 
-### Cambiado
-- La sección **Ejecuciones con Claude** del dashboard pasa a llamarse **Ejecuciones de QA automatizadas** (en inglés, **Automated QA runs**): el nombre dice qué son (smoke, regresión y validación de tickets) y no con qué herramienta corren.
+### Changed
+- The dashboard section **Claude runs** is renamed **Automated QA runs**: the name says what they are (smoke, regression and ticket validation), not which tool runs them.
 
 ## [1.13.0] - 2026-11-19
 
-### Agregado
-- **Sitios y skills configurables** en **Tipos y ajustes → Sitios y skills**: los sitios donde se prueba (nombre, URL, ambiente y el estado de Jira cuyos tickets se validan ahí), el sitio de la regresión, los dominios aceptados para los test runs y los skills de Claude Code del orquestador, el smoke y la regresión. Antes estaban fijos en el código (QA y STG de alpinevm.com, On QA / On Staging, testomat.io y los skills de AVM), que quedan como valores por defecto. El smoke muestra un botón por sitio y el asistente conoce los sitios configurados.
+### Added
+- **Configurable sites and skills** in **Types & settings → Sites & skills**: the sites where you test (name, URL, environment and the Jira status whose tickets are validated there), the regression site, the accepted test run domains and the Claude Code skills for the orchestrator, the smoke test and the regression. They used to be hard-coded (QA and STG on alpinevm.com, On QA / On Staging, testomat.io and the AVM skills); those are now the defaults. The smoke test shows one button per site, and the assistant knows the configured sites.
 
-### Cambiado
-- Los registros de un smoke o una regresión en STG llevan el ambiente del sitio (**STG**); antes quedaban como «Staging» aunque ese ambiente no estuviera en la lista.
-- En **Registros**, las acciones de cada fila son iconos (reporte, editar, duplicar, borrar) con su nombre al pasar el ratón; ya no se cortan con poco ancho.
+### Changed
+- Runs of a smoke test or a regression on STG take the site's environment (**STG**); before, they were saved as "Staging" even when that environment was not in the list.
+- In **Runs**, the row actions are icons (report, edit, duplicate, delete) with their name on hover; they no longer get cut off at narrow widths.
 
-### Corregido
-- Revisión visual de la interfaz a 1100, 1320 y 1600 px:
-  - Las tarjetas ya no se estiran a la altura de la vecina (Tipos de test en los ajustes, Por tipo de test en el dashboard).
-  - Las filas de **Ejecuciones con Claude** quedan alineadas.
-  - Las notas de los registros usan el ancho de su columna y las URLs largas se parten.
-  - La cabecera ya no se desborda a 1100 px.
+### Fixed
+- Visual review of the UI at 1100, 1320 and 1600 px:
+  - Cards no longer stretch to the height of their neighbor (Test types in settings, By test type on the dashboard).
+  - The rows of **Claude runs** are aligned.
+  - Run notes use the width of their column, and long URLs wrap.
+  - The header no longer overflows at 1100 px.
 
 ## [1.12.0] - 2026-11-19
 
-### Agregado
-- **Asistente de Claude.** Un panel de chat (botón **Asistente** en la cabecera, `⌘K` o **Ver → Asistente de Claude**) que responde sobre tus registros, tickets de Jira y reportes de las ejecuciones con Claude, y propone acciones: lanzar el smoke o la regresión, ejecutar el orquestador sobre un ticket, crear un registro, publicar el comentario de Jira pendiente o abrir un reporte. Cada acción se ejecuta solo al confirmarla. Usa Claude Code con tu sesión (sin API key), sin herramientas, y nunca recibe el token ni el email de Jira. Las acciones que la app no podría hacer (un ticket que no está, un comentario ya publicado…) se descartan antes de mostrarlas. En la demo, el asistente está simulado.
+### Added
+- **Claude assistant.** A chat panel (**Assistant** button in the header, `⌘K` or **View → Claude assistant**) that answers questions about your runs, Jira tickets and Claude run reports, and proposes actions: launch the smoke test or the regression, run the orchestrator on a ticket, create a run, post the pending Jira comment or open a report. Each action runs only after you confirm it. It uses Claude Code with your session (no API key), without tools, and never receives the Jira token or email. Actions the app could not perform (a ticket that is not loaded, a comment already posted…) are discarded before they are shown. In the demo, the assistant is simulated.
 
-### Corregido
-- La cabecera ya no parte en dos líneas «QA Dashboard» ni las pestañas cuando hay una ejecución en curso; con poco ancho, el botón del asistente queda solo con su icono.
+### Fixed
+- The header no longer splits "QA Dashboard" or the tabs over two lines while a run is in progress; at narrow widths, the assistant button shows only its icon.
 
 ## [1.11.1] - 2026-11-19
 
-### Cambiado
-- **El reporte de Claude ya no se rechaza por detalles de formato.** Los textos que pasan del límite (resumen, notas, módulos, pasos, bugs, comentario de Jira) se recortan con «…»; los números enviados como texto (`"7"`, `"12.4"`) se aceptan, y un texto vacío cuenta como sin dato; las listas muy largas se acortan (hasta 100 módulos, 500 pasos por módulo y 200 bugs). Siguen rechazándose los valores que no son números, los negativos, los links que no son http(s) y los veredictos que no corresponden. El formulario de registros mantiene sus validaciones.
+### Changed
+- **Claude's report is no longer rejected over formatting details.** Text over the limit (summary, notes, modules, steps, bugs, Jira comment) is trimmed with "…"; numbers sent as text (`"7"`, `"12.4"`) are accepted, and an empty text counts as no data; very long lists are shortened (up to 100 modules, 500 steps per module and 200 bugs). Values that are not numbers, negative values, links that are not http(s) and verdicts that do not apply are still rejected. The run form keeps its validations.
 
-### Corregido
-- Un resumen largo hacía que las notas del registro (veredicto + resumen + link) pasaran del límite y el resultado se rechazara.
+### Fixed
+- A long summary made the run notes (verdict + summary + link) go over the limit, and the result was rejected.
 
 ## [1.11.0] - 2026-11-19
 
-### Agregado
-- **Modo oscuro a elección.** Tema **Automático** (sigue a macOS), **Claro** u **Oscuro**, desde el botón de la cabecera, **Tipos y ajustes → Apariencia** o el menú **Ver → Apariencia** de la app de escritorio. Se guarda con los ajustes, se aplica al abrir sin destello claro y la ventana de la app lo sigue. Antes el modo oscuro solo se activaba con el de macOS.
+### Added
+- **Dark mode on demand.** **Automatic** (follows macOS), **Light** or **Dark** theme, from the header button, **Types & settings → Appearance** or the **View → Appearance** menu of the desktop app. It is saved with the settings, applied on launch without a light flash, and the app window follows it. Before, dark mode was only enabled with the macOS one.
 
-### Corregido
-- En modo oscuro, el texto del botón del orquestador al pasar el ratón y el de la marca DEMO tenían poco contraste.
-- Casos que la API aceptaba sin deber (encontrados con pruebas de casos borde):
-  - Fechas que no existen (`2026-02-30`), que acababan en otro día en los gráficos.
-  - Registros con un tipo de test que no existe, también dentro de un respaldo importado.
-  - Quitar un tipo con registros o repetir el id de un tipo desde la API (la interfaz ya lo impedía).
-  - Un veredicto que no corresponde a la ejecución, por ejemplo PASSED en un smoke.
-  - Dos clics a la vez en **Publicar en Jira** publicaban el comentario dos veces.
-  - Lanzar el mismo smoke, regresión u orquestador de un ticket mientras ya corre arrancaba otro Claude sobre lo mismo; ahora responde «Ya hay una ejecución en curso». Otro sitio u otro ticket sí pueden correr a la vez.
-  - En el comentario de Jira, un asterisco suelto (`2*3*4`) se volvía negrita y la `*cursiva*` de Markdown no se convertía.
+### Fixed
+- In dark mode, the orchestrator button text on hover and the DEMO badge text had low contrast.
+- Cases the API accepted when it should not have (found with edge case tests):
+  - Dates that do not exist (`2026-02-30`), which ended up on another day in the charts.
+  - Runs with a test type that does not exist, also inside an imported backup.
+  - Removing a type that has runs, or repeating a type id, through the API (the UI already prevented it).
+  - A verdict that does not apply to the run, for example PASSED on a smoke test.
+  - Two simultaneous clicks on **Post on Jira** posted the comment twice.
+  - Launching the same smoke test, regression or ticket orchestrator while it was already running started another Claude on the same thing; now it responds "There is already a run in progress". Another site or another ticket can still run at the same time.
+  - In the Jira comment, a stray asterisk (`2*3*4`) turned into bold, and Markdown `*italics*` were not converted.
 
 ## [1.10.0] - 2026-11-18
 
-### Agregado
-- **Modo demo.** `npm run demo` (o **Ayuda → Abrir demo** en la app de escritorio) abre la app con datos de ejemplo: tickets de Jira, un mes de registros y ejecuciones con Claude con su reporte QA, en español e inglés. Jira, Claude y la traducción están simulados: un smoke, una regresión o un orquestador lanzado en la demo corre unos 40 segundos con su Running, su actividad en vivo y su reporte, sin tocar los datos reales ni publicar nada. La cabecera muestra la marca **DEMO**.
-- **Guion de la demo** en `docs/DEMO.md` (en inglés, `docs/DEMO.en.md`), para presentar la herramienta en unos 10 minutos.
+### Added
+- **Demo mode.** `npm run demo` (or **Help → Open demo (sample data)** in the desktop app) opens the app with sample data: Jira tickets, a month of runs and Claude runs with their QA report, in English and Spanish. Jira, Claude and translation are simulated: a smoke, regression or orchestrator launched in the demo runs for about 40 seconds with its Running indicator, its live activity and its report, without touching real data or posting anything. The header shows the **DEMO** badge.
+- **Demo script** in `docs/DEMO.md`, to present the tool in about 10 minutes.
 
-### Corregido
-- Los errores «No se encontró Claude Code» y «No se pudo iniciar Claude Code» ahora también salen en inglés.
+### Fixed
+- The errors "Claude Code was not found" and "Could not start Claude Code" now also appear in English.
 
 ## [1.9.3] - 2026-11-18
 
-### Agregado
-- **Ya publicado / Descartar** en el comentario para Jira de un reporte: marca el borrador como descartado cuando ya se publicó otro comentario en el ticket, para no publicarlo dos veces. **Recuperar** lo deja pendiente otra vez.
+### Added
+- **Already posted / Dismiss** on a report's Jira comment: marks the draft as dismissed when another comment was already posted on the ticket, so it is not posted twice. **Restore** makes it pending again.
 
 ## [1.9.2] - 2026-11-18
 
-### Agregado
-- **Comentario de QA para Jira con un clic.** Si Claude redacta el comentario de QA pero no puede publicarlo (por ejemplo, porque la herramienta de Jira pide aprobación y en segundo plano nadie puede darla), lo deja en el reporte. Ahí se revisa, se edita y se publica con **Publicar en AVM-…**, usando el email y el API token de Jira configurados.
+### Added
+- **One-click QA comment for Jira.** If Claude writes the QA comment but cannot post it (for example, because the Jira tool asks for approval and nobody can give it in the background), it leaves it in the report. There you can review it, edit it and post it with **Post on AVM-…**, using the configured Jira email and API token.
 
-### Corregido
-- **Al pasar a inglés, todo queda en inglés.** Se traducen los títulos y notas que genera la app («Smoke STG con Claude · GO», «Veredicto GO.») y los tipos de test por defecto que no se renombraron. Los reportes que Claude escribió en el otro idioma (resumen, módulos, pasos, bugs y observaciones) se traducen en segundo plano con Claude Haiku, una vez por reporte. Lo mismo al volver a español.
+### Fixed
+- **Switching to English switches everything to English.** The titles and notes the app generates (such as "Smoke STG with Claude · GO" and "Verdict GO.") and the default test types that were not renamed are translated. Reports Claude wrote in the other language (summary, modules, steps, bugs and notes) are translated in the background with Claude Haiku, once per report. The same happens when switching back to Spanish.
 
 ## [1.9.1] - 2026-11-18
 
-### Corregido
-- Si Claude reporta los minutos con decimales (por ejemplo `4.5`), la app los redondea en vez de rechazar el reporte; antes Claude tenía que corregirlo y reenviarlo.
+### Fixed
+- If Claude reports minutes with decimals (for example `4.5`), the app rounds them instead of rejecting the report; before, Claude had to fix it and send it again.
 
 ## [1.9.0] - 2026-11-18
 
-### Agregado
-- **Reporte QA de cada ejecución con Claude.** Al pulsar una ejecución en «Ejecuciones con Claude» (o «Reporte» en Registros) se abre una ventana con el veredicto, inicio, fin y duración, los casos passed/failed/blocked, el resumen, cada módulo probado con sus pasos y su estado, los bugs encontrados (clave, severidad, módulo y link) y las observaciones. Claude envía ese detalle en el campo `details` al terminar.
-- **La app funciona en español o en inglés.** Se cambia con el selector ES / EN de la cabecera o en Tipos y ajustes → Idioma. Se traducen la interfaz, las fechas, los mensajes de error, el menú de la app de escritorio, el CSV exportado y los registros que crea la app; Claude escribe sus reportes en el idioma elegido.
-- **«Running» en el dashboard.** Mientras corre una ejecución, la cabecera muestra **Running · Smoke STG · 6 min** (o cuántas hay en curso), la tarjeta Smoke o Regression marca **Running** en el botón del sitio y la tarjeta del ticket muestra **Running · validando**. Al pulsarlos se abre la ejecución con su **actividad en vivo** y un botón **Detener**.
+### Added
+- **QA report for each Claude run.** Clicking a run in "Claude runs" (or "Report" in Runs) opens a window with the verdict, start, end and duration, the passed/failed/blocked cases, the summary, each tested module with its steps and status, the bugs found (key, severity, module and link) and the notes. Claude sends those details in the `details` field when it finishes.
+- **The app works in English or Spanish.** Switch with the EN / ES selector in the header or in Types & settings → Language. The UI, dates, error messages, the desktop app menu, the exported CSV and the runs the app creates are translated; Claude writes its reports in the chosen language.
+- **"Running" on the dashboard.** While a run is in progress, the header shows **Running · Smoke STG · 6 min** (or how many are in progress), the Smoke or Regression card shows **Running** on the site button, and the ticket card shows **Running · validating**. Clicking them opens the run with its **Live activity** and a **Stop** button.
 
-### Cambiado
-- **Las ejecuciones con Claude corren solas, en segundo plano.** Ya no se abre Terminal ni hay que confiar en la carpeta o aprobar pasos: la app lanza `claude -p --chrome --permission-mode auto` en `~/qa-dashboard-runs` y guarda el log en `~/qa-dashboard-runs/logs/`. Si Claude termina sin reportar, la ejecución se cierra como **BLOCKED** con su último mensaje; una ejecución de más de 4 horas se detiene sola. Descartar una ejecución en curso también la detiene.
+### Changed
+- **Claude runs execute on their own, in the background.** Terminal no longer opens and there is no need to trust the folder or approve steps: the app launches `claude -p --chrome --permission-mode auto` in `~/qa-dashboard-runs` and saves the log in `~/qa-dashboard-runs/logs/`. If Claude finishes without reporting, the run is closed as **BLOCKED** with its last message; a run longer than 4 hours stops on its own. Dismissing a run in progress also stops it.
 
 ## [1.8.3] - 2026-11-18
 
-### Corregido
-- Las ejecuciones con Claude se abren en `~/qa-dashboard-runs` en lugar de la carpeta personal, donde Claude Code pedía confirmar la confianza en cada ejecución y la dejaba detenida.
+### Fixed
+- Claude runs open in `~/qa-dashboard-runs` instead of the home folder, where Claude Code asked to confirm trust on every run and left it stuck.
 
 ## [1.8.2] - 2026-11-18
 
-### Corregido
-- El orquestador, el smoke y la regresión se abren con `claude --chrome`, así la sesión de Terminal usa Claude in Chrome y puede probar en el navegador. Antes arrancaba sin navegador y la ejecución terminaba en BLOCKED.
+### Fixed
+- The orchestrator, the smoke test and the regression open with `claude --chrome`, so the Terminal session uses Claude in Chrome and can test in the browser. Before, it started without a browser and the run ended in BLOCKED.
 
 ## [1.8.1] - 2026-11-18
 
-### Cambiado
-- La cabecera muestra el logo de RAVN junto a «QA Dashboard», en claro y en oscuro.
+### Changed
+- The header shows the RAVN logo next to "QA Dashboard", in light and dark mode.
 
 ## [1.8.0] - 2026-11-18
 
-### Agregado
-- Toda ejecución lanzada con Claude (orquestador QA, smoke y regresión) se registra en **Registros** desde que se lanza, como «En progreso», y ese registro se completa con el veredicto, los casos y el resumen cuando Claude lo reporta.
-- El orquestador QA también reporta su resultado (PASSED, PASSED W/F, FAILED, BLOCKED) y se registra como test Funcional del ticket.
-- Smoke y regresión pueden reportar **BLOCKED** cuando no se pudo probar (por ejemplo, sin navegador); antes solo había GO o NO-GO y una ejecución sin probar quedaba como NO-GO.
+### Added
+- Every run launched with Claude (QA orchestrator, smoke and regression) is logged in **Runs** as soon as it is launched, as "In progress", and that run is completed with the verdict, the cases and the summary when Claude reports them.
+- The QA orchestrator also reports its result (PASSED, PASSED W/F, FAILED, BLOCKED) and is logged as a Functional test of the ticket.
+- Smoke and regression can report **BLOCKED** when testing was not possible (for example, without a browser); before, there was only GO or NO-GO, and an untested run ended up as NO-GO.
 
-### Cambiado
-- La sección del dashboard pasa a llamarse **Ejecuciones con Claude** e incluye el orquestador. Descartar una ejecución sin terminar quita también su registro «En progreso».
+### Changed
+- The dashboard section is renamed **Claude runs** and includes the orchestrator. Dismissing an unfinished run also removes its "In progress" run.
 
 ## [1.7.0] - 2026-11-18
 
-### Agregado
-- Los resultados de smoke y regresión llegan solos al dashboard: Claude reporta el veredicto (GO / NO-GO), los casos, los bugs y un resumen a la API local al terminar, y la app crea el registro. Nueva sección **Smoke y regresión con Claude** con las ejecuciones en curso y terminadas, y aviso cuando llega un resultado.
+### Added
+- Smoke and regression results reach the dashboard on their own: when it finishes, Claude reports the verdict (GO / NO-GO), the cases, the bugs and a summary to the local API, and the app creates the run. New **Smoke and regression with Claude** section with the runs in progress and finished, and a notice when a result arrives.
 
-### Cambiado
-- El icono de la app es ahora el logo de RAVN.
+### Changed
+- The app icon is now the RAVN logo.
 
 ## [1.6.1] - 2026-11-18
 
-### Corregido
-- **Smoke en STG** apuntaba a stg.alpinevm.com; ahora usa el dominio correcto, staging.alpinevm.com.
+### Fixed
+- **Smoke on STG** pointed to stg.alpinevm.com; it now uses the correct domain, staging.alpinevm.com.
 
 ## [1.6.0] - 2026-11-18
 
-### Agregado
-- Botones **Smoke en QA** y **Smoke en STG** en la tarjeta de la suite Smoke: abren Terminal con Claude Code ejecutando `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o stg.alpinevm.com.
-- Los tickets de Jira se actualizan solos cada 5 minutos y al volver a la ventana, y la app avisa (también con notificación del sistema) cuando entra un ticket nuevo en On QA u On Staging.
+### Added
+- **Smoke on QA** and **Smoke on STG** buttons on the Smoke suite card: they open Terminal with Claude Code running `/avm-qa-skills:avm-smoke-tester` on qa.alpinevm.com or stg.alpinevm.com.
+- Jira tickets refresh on their own every 5 minutes and when you return to the window, and the app notifies you (also with a system notification) when a new ticket lands in On QA or On Staging.
 
 ## [1.5.0] - 2026-11-18
 
-### Agregado
-- Botón **Ejecutar regresión** en la tarjeta de la suite Regression: pide el test run de testomat.io (link o ID, opcional) y abre Terminal con Claude Code ejecutando `/avm-qa-skills:avm-regression-runner`.
+### Added
+- **Run regression** button on the Regression suite card: it asks for the testomat.io test run (link or ID, optional) and opens Terminal with Claude Code running `/avm-qa-skills:avm-regression-runner`.
 
 ## [1.4.0] - 2026-11-18
 
-### Agregado
-- Botón **Ejecutar orquestador QA** en los tickets On QA y On Staging: abre Terminal con Claude Code ejecutando `/avm-qa-orchestrator` sobre ese ticket, en modo interactivo para aprobar cada cambio en Jira.
+### Added
+- **Run QA orchestrator** button on On QA and On Staging tickets: it opens Terminal with Claude Code running `/avm-qa-orchestrator` on that ticket, in interactive mode to approve each change in Jira.
 
 ## [1.3.0] - 2026-11-18
 
-### Cambiado
-- Rediseño de la experiencia de escritorio: barra de título integrada en macOS, icono propio, menú con atajos de teclado (⌘N, ⌘1-3, ⌘F, ⌘R) y la ventana recuerda tamaño y posición.
-- El dashboard abre con un saludo y el resumen del día, y pone primero los tickets por probar: tarjetas con estado en color, contador de registros, acceso directo a Jira y buscador.
-- Formulario de registro: resultado con botones de color que se ajusta solo según los casos (failed → Failed, blocked → Blocked), contexto del ticket, ⌘↵ para guardar.
-- Avisos con tipo (éxito o error, los errores duran más), fechas relativas («actualizado hace 5 min»), fechas en formato dd/mm/aaaa, primeros pasos cuando no hay registros y modo oscuro revisado.
+### Changed
+- Redesigned desktop experience: integrated macOS title bar, custom icon, menu with keyboard shortcuts (⌘N, ⌘1-3, ⌘F, ⌘R), and the window remembers its size and position.
+- The dashboard opens with a greeting and today's summary, and puts the tickets to test first: cards with a colored status, a run counter, a direct link to Jira and a search box.
+- Run form: result with colored buttons that is set automatically from the cases (failed → Failed, blocked → Blocked), ticket context, ⌘↵ to save.
+- Typed notices (success or error; errors stay longer), relative dates ("updated 5 min ago"), dates in dd/mm/yyyy format, getting-started steps when there are no runs, and a revised dark mode.
 
 ## [1.2.0] - 2026-11-18
 
-### Agregado
-- Estado de la conexión con Jira en la tarjeta de tickets (No conectado, Sin probar, Conectando, Conectado, Error de conexión) y aviso cuando la conexión se establece; en la app de escritorio, también como notificación del sistema.
-- Tickets desde un board de Jira: se pega el link del board (con su filtro de personas) en *Tipos y ajustes → Conexión con Jira* y la app carga sus tickets abiertos con la API Agile. El JQL pasa a ser un filtro adicional.
+### Added
+- Jira connection status on the tickets card (Not connected, Not tested, Connecting, Connected, Connection error) and a notice when the connection is established; in the desktop app, also as a system notification.
+- Tickets from a Jira board: paste the board link (with its people filter) in *Types & settings → Jira connection* and the app loads its open tickets with the Agile API. The JQL becomes an extra filter.
 
 ## [1.1.0] - 2026-11-17
 
-### Agregado
-- App de escritorio con Electron: `npm run desktop` la abre en una ventana propia y `npm run desktop:pack` genera `QA Dashboard.app`.
-- Si ya hay un servidor de la app abierto en el puerto, la app de escritorio lo reutiliza.
+### Added
+- Electron desktop app: `npm run desktop` opens it in its own window and `npm run desktop:pack` generates `QA Dashboard.app`.
+- If an app server is already running on the port, the desktop app reuses it.
 
-### Cambiado
-- Los datos se guardan en la carpeta de datos de usuario del sistema (macOS: `~/Library/Application Support/QA Dashboard`) en lugar de `./data`, para que navegador y escritorio compartan el mismo archivo. `QA_DASH_DATA` sigue permitiendo otra ruta.
+### Changed
+- Data is stored in the system user data folder (macOS: `~/Library/Application Support/QA Dashboard`) instead of `./data`, so the browser and the desktop app share the same file. `QA_DASH_DATA` still allows another path.
 
 ## [1.0.0] - 2026-11-17
 
-### Agregado
-- Versión inicial: registro de tests de QA (diarios, Smoke, Regression), dashboard de métricas y tickets de Jira.
+### Added
+- Initial version: QA test logging (daily, Smoke, Regression), metrics dashboard and Jira tickets.
 
 [1.3.0]: https://github.com/pitermontesc/QADashboardTool/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pitermontesc/QADashboardTool/compare/v1.1.0...v1.2.0

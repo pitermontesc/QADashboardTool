@@ -1,10 +1,10 @@
-/** Modelo de dominio compartido entre el servidor y la interfaz. */
+/** Domain model shared by the server and the UI. */
 
-/** Idiomas de la interfaz. */
+/** UI languages. */
 export const LANGUAGES = ['es', 'en'] as const;
 export type Lang = (typeof LANGUAGES)[number];
 
-/** Tema de la interfaz: `system` sigue el modo claro u oscuro del sistema. */
+/** UI theme: `system` follows the OS light or dark mode. */
 export const THEMES = ['system', 'light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -14,13 +14,13 @@ export type Result = (typeof RESULTS)[number];
 export interface TestType {
   id: string;
   name: string;
-  /** Suite grande (Smoke, Regression…): se destaca en el dashboard. */
+  /** Major suite (Smoke, Regression…): highlighted on the dashboard. */
   major: boolean;
   color: string;
 }
 
 export interface TestRunInput {
-  /** Fecha local en formato YYYY-MM-DD. */
+  /** Local date in YYYY-MM-DD format. */
   date: string;
   typeId: string;
   title: string;
@@ -40,34 +40,34 @@ export interface TestRun extends TestRunInput {
   createdAt: number;
 }
 
-/** Sitio donde se prueba (QA, STG…): el smoke corre ahí y los tickets en su estado de Jira se validan ahí. */
+/** Site under test (QA, STG…): the smoke test runs there, and tickets in its Jira status are validated there. */
 export interface QaSite {
-  /** Identificador corto y estable (qa, stg…); lo usan la API y los botones. */
+  /** Short, stable identifier (qa, stg…); used by the API and the buttons. */
   id: string;
   name: string;
   url: string;
-  /** Ambiente de los registros de este sitio. */
+  /** Environment of the test runs recorded for this site. */
   env: string;
-  /** Estado de Jira de los tickets que se prueban en este sitio (On QA…); vacío si ninguno. */
+  /** Jira status of the tickets tested on this site (On QA…); empty if none. */
   jiraStatus: string;
 }
 
-/** Sitios, skills de Claude Code y dominios de test runs: todo configurable en los ajustes. */
+/** Sites, Claude Code skills and test run domains: all configurable in the settings. */
 export interface QaConfig {
   sites: QaSite[];
-  /** Sitio contra el que corre la regresión. */
+  /** Site the regression runs against. */
   regressionSiteId: string;
   skills: { orchestrator: string; smoke: string; regression: string };
-  /** Dominios aceptados en los links de test runs (testomat.io…). */
+  /** Domains accepted in test run links (testomat.io…). */
   testRunHosts: string[];
 }
 
 export interface Settings {
   types: TestType[];
   envs: string[];
-  /** URL a la que se añade la clave del ticket para enlazarlo. */
+  /** URL the ticket key is appended to in order to link it. */
   ticketBase: string;
-  /** Idioma de la interfaz y de los reportes de Claude. */
+  /** Language of the UI and of Claude's reports. */
   language: Lang;
   theme: Theme;
   qa: QaConfig;
@@ -80,19 +80,19 @@ export interface JiraTicket {
   type: string;
 }
 
-/** Estado de Jira visible para la interfaz: nunca incluye el token. */
+/** Jira state visible to the UI: never includes the token. */
 export interface JiraState {
   site: string;
   email: string;
-  /** Link del board de Jira; si está, los tickets salen de ese board. */
+  /** Jira board link; when set, tickets come from that board. */
   board: string;
   jql: string;
   hasToken: boolean;
   tickets: JiraTicket[];
   fetchedAt: number | null;
   /**
-   * none: falta sitio, email o token · pending: configurado pero aún sin probar ·
-   * connected: la última consulta funcionó · error: la última consulta falló (ver `error`).
+   * none: site, email or token missing · pending: configured but not tested yet ·
+   * connected: the last query worked · error: the last query failed (see `error`).
    */
   connection: JiraConnection;
   error: string | null;
@@ -105,12 +105,12 @@ export interface JiraConfigInput {
   email: string;
   board: string;
   jql: string;
-  /** Vacío u omitido = conservar el token guardado. */
+  /** Empty or omitted = keep the saved token. */
   token?: string;
 }
 
 export type AutomationKind = 'smoke' | 'regression' | 'orchestrator';
-/** GO / NO-GO para smoke y regresión; PASSED… / BLOCKED para el orquestador de un ticket. */
+/** GO / NO-GO for smoke and regression; PASSED… / BLOCKED for the ticket orchestrator. */
 export const VERDICTS = ['GO', 'NO-GO', 'PASSED', 'PASSED W/F', 'FAILED', 'BLOCKED'] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
@@ -123,7 +123,7 @@ export interface ReportStep {
   notes: string;
 }
 
-/** Área probada (Login, Work Orders…) con sus pasos. */
+/** Tested area (Login, Work Orders…) with its steps. */
 export interface ReportModule {
   name: string;
   status: StepStatus;
@@ -135,49 +135,49 @@ export interface ReportModule {
 export interface ReportBug {
   title: string;
   severity: string;
-  /** Clave del bug en Jira, si se creó. */
+  /** Jira key of the bug, if one was created. */
   key: string;
   link: string;
   module: string;
 }
 
-/** Comentario de QA para Jira que Claude deja listo; la app lo publica con un clic si Claude no pudo. */
+/** QA comment for Jira that Claude prepares; the app posts it in one click if Claude could not. */
 export interface JiraComment {
-  /** Ticket donde va el comentario (p. ej. AVM-6926). */
+  /** Ticket the comment belongs to (e.g. AVM-6926). */
   key: string;
-  /** Texto en Markdown, tal como lo redactó el skill. */
+  /** Markdown text, as written by the skill. */
   body: string;
   posted: boolean;
-  /** Link al comentario publicado desde la app. */
+  /** Link to the comment posted from the app. */
   url: string;
-  /** Descartado desde la app (por ejemplo, porque ya se publicó otro comentario a mano): no se publica. */
+  /** Dismissed from the app (for example, because another comment was already posted by hand): it is not posted. */
   dismissed: boolean;
 }
 
-/** Reporte QA detallado que Claude envía al terminar: módulos, pasos y bugs. */
+/** Detailed QA report Claude sends when it finishes: modules, steps and bugs. */
 export interface AutomationDetails {
-  /** Versión o build probado, si se ve en el sitio. */
+  /** Version or build tested, if visible on the site. */
   build: string;
   modules: ReportModule[];
   bugs: ReportBug[];
-  /** Observaciones, riesgos o lo que quedó sin probar. */
+  /** Observations, risks, or what was left untested. */
   notes: string;
   jiraComment: JiraComment | null;
 }
 
-/** Resumen y reporte traducidos a otro idioma (el comentario de Jira no se traduce). */
+/** Summary and report translated to another language (the Jira comment is not translated). */
 export interface ReportTranslation {
   summary: string;
   details: AutomationDetails | null;
 }
 
-/** Ejecución lanzada con Claude Code desde la app (smoke, regresión u orquestador); Claude reporta el resultado al terminar. */
+/** Run launched with Claude Code from the app (smoke, regression or orchestrator); Claude reports the result when it finishes. */
 export interface Automation {
   id: string;
   kind: AutomationKind;
-  /** Qué se prueba: «QA», «STG», el test run de testomat.io o la clave del ticket. */
+  /** What is tested: "QA", "STG", the testomat.io test run, or the ticket key. */
   target: string;
-  /** Título del registro, sin el veredicto. */
+  /** Test run record title, without the verdict. */
   title: string;
   env: string;
   startedAt: number;
@@ -185,27 +185,27 @@ export interface Automation {
   verdict: Verdict | null;
   summary: string;
   link: string;
-  /** Reporte detallado; null si Claude solo envió el resumen. */
+  /** Detailed report; null if Claude only sent the summary. */
   details: AutomationDetails | null;
-  /** Registro que la refleja: «En progreso» al lanzarla y con el veredicto al terminar. */
+  /** Test run record that mirrors it: "In progress" when launched, with the verdict when finished. */
   runId: string | null;
-  /** Proceso de Claude Code en segundo plano mientras corre (para detenerlo). */
+  /** Background Claude Code process while it runs (used to stop it). */
   pid: number | null;
-  /** Log de la ejecución (stream-json de Claude Code). */
+  /** Run log (Claude Code stream-json). */
   logFile: string;
-  /** Idioma en que Claude escribió el resumen y el reporte. */
+  /** Language Claude wrote the summary and report in. */
   lang: Lang;
-  /** Traducciones del resumen y el reporte, hechas al ver la app en otro idioma. */
+  /** Translations of the summary and report, made when the app is viewed in another language. */
   translations: Partial<Record<Lang, ReportTranslation>>;
 }
 
-/** Paso de lo que va haciendo Claude, leído de su log. */
+/** One step of Claude's progress, read from its log. */
 export interface ActivityItem {
   kind: 'start' | 'text' | 'tool' | 'result' | 'error';
   text: string;
 }
 
-/** Lo que el asistente propone hacer; la app lo ejecuta solo si el usuario lo confirma. */
+/** What the assistant proposes to do; the app only runs it if the user confirms. */
 export type AssistantAction =
   | { type: 'run_smoke'; site: string }
   | { type: 'run_regression'; run: string }
@@ -229,9 +229,9 @@ export interface AppState {
   runs: TestRun[];
   jira: JiraState;
   automations: Automation[];
-  /** Reportes que se están traduciendo al idioma de la app. */
+  /** Reports currently being translated to the app language. */
   translating: number;
-  /** Modo demo: datos de ejemplo y Jira/Claude simulados. */
+  /** Demo mode: sample data and simulated Jira/Claude. */
   demo: boolean;
 }
 

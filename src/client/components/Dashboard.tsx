@@ -140,9 +140,9 @@ const TEXT = {
 };
 type Text = typeof TEXT.es;
 
-/** A partir de cuántos tickets aparece el buscador de la sección. */
+/** Ticket count from which the section's search box appears. */
 const TICKET_SEARCH_FROM = 7;
-/** Cada cuántos minutos se actualizan solos los tickets de Jira. */
+/** How many minutes between automatic Jira ticket refreshes. */
 export const JIRA_AUTO_REFRESH_MIN = 5;
 
 interface DashboardProps {
@@ -151,10 +151,10 @@ interface DashboardProps {
   onRefreshJira: () => void;
   onTicket: (ticket: JiraTicket) => void;
   onOrchestrate: (ticket: JiraTicket) => void;
-  /** Ticket cuyo orquestador se está abriendo. */
+  /** Ticket whose orchestrator is being launched. */
   launching: string | null;
   onRegression: () => void;
-  /** Lanza el smoke en uno de los sitios configurados (por su id). */
+  /** Launches the smoke on one of the configured sites (by its id). */
   onSmoke: (siteId: string) => void;
   onDismissAutomation: (automation: Automation) => void;
   onOpenReport: (automation: Automation) => void;
@@ -162,7 +162,7 @@ interface DashboardProps {
   onOpenSettings: () => void;
 }
 
-/** Segmentos apilados por resultado; se usa en ambos gráficos. */
+/** Segments stacked by result; used in both charts. */
 function Segments({ counts }: { counts: ResultCounts }) {
   const lang = useLang();
   return (
@@ -222,7 +222,7 @@ interface TicketsProps {
   t: Text;
 }
 
-/** Tickets de Jira como tarjetas: el punto de partida habitual para registrar un test. */
+/** Jira tickets as cards: the usual starting point for logging a test. */
 function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, t }: TicketsProps) {
   const lang = useLang();
   const [query, setQuery] = useState('');
@@ -355,7 +355,7 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
   );
 }
 
-/** Primeros pasos: solo mientras no hay registros. */
+/** Getting started: shown only while there are no runs. */
 function Onboarding({ jiraConnected, onOpenSettings, onNewRun, t }: { jiraConnected: boolean; onOpenSettings: () => void; onNewRun: () => void; t: Text }) {
   return (
     <div className="card onboarding">
@@ -387,7 +387,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
   const lang = useLang();
   const t = useText(TEXT);
   const { settings, runs, jira } = state;
-  // Se memoriza por valor para que las estadísticas solo se recalculen al cambiar de día.
+  // Memoized by value so stats are only recomputed when the day changes.
   const todayYmd = toYmd(new Date());
   const today = useMemo(() => parseYmd(todayYmd), [todayYmd]);
 

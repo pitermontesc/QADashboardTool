@@ -1,15 +1,15 @@
 export interface JiraBoardRef {
-  /** Origen del sitio, p. ej. https://tu-sitio.atlassian.net */
+  /** Site origin, e.g. https://your-site.atlassian.net */
   site: string;
   boardId: number;
-  /** Filtro rápido que trae el link del board (parámetro `filter`), en JQL; vacío si no tiene. */
+  /** Quick filter carried by the board link (`filter` parameter), in JQL; empty if none. */
   filter: string;
 }
 
 /**
- * Interpreta el link de un board de Jira Software tal como se copia del navegador:
- * https://sitio.atlassian.net/jira/software/projects/AVM/boards/1?filter=assignee+IN+(...)
- * Devuelve null si el texto no es un link de board.
+ * Parses a Jira Software board link as copied from the browser:
+ * https://site.atlassian.net/jira/software/projects/AVM/boards/1?filter=assignee+IN+(...)
+ * Returns null if the text is not a board link.
  */
 export function parseJiraBoardUrl(text: string): JiraBoardRef | null {
   let url: URL;

@@ -1,4 +1,4 @@
-/** Error con código HTTP cuyo mensaje es seguro para mostrar al usuario. */
+/** Error with an HTTP status whose message is safe to show to the user. */
 export class HttpError extends Error {
   constructor(
     readonly status: number,

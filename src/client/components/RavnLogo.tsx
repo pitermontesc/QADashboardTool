@@ -1,4 +1,4 @@
-/** Wordmark oficial de RAVN (brand kit de Ravn). Toma el color del texto para verse bien en claro y oscuro. */
+/** Official RAVN wordmark (Ravn brand kit). Uses the text color so it looks right in light and dark modes. */
 export function RavnLogo({ height = 16 }: { height?: number }) {
   return (
     <svg

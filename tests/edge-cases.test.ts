@@ -12,40 +12,40 @@ import type { ReportTranslation } from '../src/shared/types';
 import { fakeJira, startServer } from './helpers';
 
 /**
- * Casos borde: entradas inesperadas en la API, respuestas rotas de servicios
- * externos y carreras. Cada expectativa sale del contrato (guía, README, esquemas
- * o la instrucción que recibe Claude), no de lo que hoy hace el código.
+ * Edge cases: unexpected API input, broken responses from external services and
+ * races. Every expectation comes from the contract (guide, README, schemas or the
+ * instruction Claude receives), not from what the code does today.
  */
 
 const run = (over: Record<string, unknown> = {}) => ({
-  date: '2026-11-18', typeId: 't2', title: 'Caso', ticket: '', env: 'QA', result: 'passed',
+  date: '2026-11-18', typeId: 't2', title: 'Case', ticket: '', env: 'QA', result: 'passed',
   passed: null, failed: null, blocked: null, bugs: null, minutes: null, notes: '', ...over,
 });
 
-describe('Registros y ajustes: entradas inesperadas', () => {
+describe('Test runs and settings: unexpected input', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
   beforeAll(async () => {
     srv = await startServer();
   });
   afterAll(() => srv.close());
 
-  it('rechaza fechas que no existen en el calendario', async () => {
+  it('rejects dates that do not exist in the calendar', async () => {
     for (const date of ['2026-02-30', '2026-13-01', '2026-00-10', '2026-11-31']) {
       expect((await srv.call('POST', '/api/runs', run({ date }))).status, date).toBe(400);
     }
     expect((await srv.call('POST', '/api/runs', run({ date: '2028-02-29' }))).status).toBe(201);
   });
 
-  it('rechaza casos negativos o con decimales, títulos en blanco y tipos que no existen', async () => {
+  it('rejects negative or decimal counts, blank titles and types that do not exist', async () => {
     expect((await srv.call('POST', '/api/runs', run({ passed: -1 }))).status).toBe(400);
     expect((await srv.call('POST', '/api/runs', run({ failed: 1.5 }))).status).toBe(400);
     expect((await srv.call('POST', '/api/runs', run({ title: '   ' }))).status).toBe(400);
-    expect((await srv.call('POST', '/api/runs', run({ typeId: 'no-existe' }))).status).toBe(400);
+    expect((await srv.call('POST', '/api/runs', run({ typeId: 'missing' }))).status).toBe(400);
     const { body } = await srv.call('POST', '/api/runs', run());
-    expect((await srv.call('PUT', `/api/runs/${body.id}`, run({ typeId: 'no-existe' }))).status).toBe(400);
+    expect((await srv.call('PUT', `/api/runs/${body.id}`, run({ typeId: 'missing' }))).status).toBe(400);
   });
 
-  it('no deja quitar un tipo con registros ni repetir ids de tipo', async () => {
+  it('does not allow removing a type with test runs or repeating type ids', async () => {
     const { body: state } = await srv.call('GET', '/api/state');
     const used = state.runs[0].typeId;
     const withoutUsed = { ...state.settings, types: state.settings.types.filter((t: { id: string }) => t.id !== used) };
@@ -55,21 +55,21 @@ describe('Registros y ajustes: entradas inesperadas', () => {
     expect((await srv.call('GET', '/api/state')).body.settings.types).toHaveLength(state.settings.types.length);
   });
 
-  it('no importa un respaldo con registros de tipos que no existen', async () => {
+  it('does not import a backup with test runs of types that do not exist', async () => {
     const { body: state } = await srv.call('GET', '/api/state');
-    const backup = { ...state.settings, runs: [{ ...run({ typeId: 'fantasma' }), id: 'r1', createdAt: 1 }] };
+    const backup = { ...state.settings, runs: [{ ...run({ typeId: 'ghost' }), id: 'r1', createdAt: 1 }] };
     expect((await srv.call('POST', '/api/import', backup)).status).toBe(400);
     expect((await srv.call('GET', '/api/state')).body.runs).toHaveLength(state.runs.length);
   });
 
-  it('rechaza idioma o tema desconocidos sin tocar los ajustes guardados', async () => {
+  it('rejects unknown languages or themes without touching the saved settings', async () => {
     const { body: state } = await srv.call('GET', '/api/state');
     expect((await srv.call('PUT', '/api/settings', { ...state.settings, theme: 'purple' })).status).toBe(400);
     expect((await srv.call('PUT', '/api/settings', { ...state.settings, language: 'fr' })).status).toBe(400);
     expect((await srv.call('GET', '/api/state')).body.settings).toMatchObject({ theme: 'system', language: 'es' });
   });
 
-  it('responde 404 a registros o ejecuciones que no existen', async () => {
+  it('answers 404 for test runs or Claude runs that do not exist', async () => {
     expect((await srv.call('PUT', '/api/runs/nope', run())).status).toBe(404);
     expect((await srv.call('DELETE', '/api/runs/nope')).status).toBe(404);
     expect((await srv.call('POST', '/api/automation/nope/result', { verdict: 'GO' })).status).toBe(404);
@@ -78,7 +78,7 @@ describe('Registros y ajustes: entradas inesperadas', () => {
   });
 });
 
-describe('Resultado que reporta Claude', () => {
+describe('Result reported by Claude', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
   beforeAll(async () => {
     srv = await startServer({ fetchImpl: fakeJira, launchClaude: async () => ({ pid: null, logFile: '', stop: () => undefined }) });
@@ -86,41 +86,41 @@ describe('Resultado que reporta Claude', () => {
     await srv.call('POST', '/api/jira/refresh', {});
   });
   afterAll(() => srv.close());
-  // No se puede lanzar dos veces lo mismo mientras corre: cada prueba detiene lo que dejó en curso.
+  // The same thing cannot be launched twice while running: each test stops what it left running.
   afterEach(async () => {
     for (const a of (await srv.call('GET', '/api/state')).body.automations) {
       if (a.finishedAt === null) await srv.call('POST', `/api/automation/${a.id}/stop`, {});
     }
   });
 
-  it('solo acepta los veredictos de ese tipo de ejecución', async () => {
+  it('only accepts the verdicts of that kind of run', async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
     expect((await srv.call('POST', `/api/automation/${smoke.id}/result`, { verdict: 'PASSED' })).status).toBe(400);
     const { body: orch } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
     expect((await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'GO' })).status).toBe(400);
-    // Siguen esperando un resultado válido.
+    // They are still waiting for a valid result.
     expect((await srv.call('POST', `/api/automation/${smoke.id}/result`, { verdict: 'no go' })).body.verdict).toBe('NO-GO');
     expect((await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'passed w/f' })).body.verdict).toBe('PASSED W/F');
   });
 
-  it('no lanza dos veces lo mismo mientras corre (doble clic)', async () => {
+  it('does not launch the same thing twice while it runs (double click)', async () => {
     const [a, b] = await Promise.all([srv.call('POST', '/api/smoke', { site: 'stg' }), srv.call('POST', '/api/smoke', { site: 'stg' })]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);
     const first = a.status === 200 ? a.body : b.body;
-    // Otro sitio u otro ticket sí se pueden lanzar a la vez.
+    // Another site or another ticket can be launched at the same time.
     expect((await srv.call('POST', '/api/smoke', { site: 'qa' })).status).toBe(200);
     expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(200);
     expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(409);
-    // Al terminar, se puede volver a lanzar.
+    // Once finished, it can be launched again.
     await srv.call('POST', `/api/automation/${first.id}/result`, { verdict: 'GO' });
     expect((await srv.call('POST', '/api/smoke', { site: 'stg' })).status).toBe(200);
   });
 
-  it('acepta textos largos recortándolos y números enviados como texto', async () => {
+  it('accepts long texts by clipping them, and numbers sent as text', async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
     const url = `/api/automation/${smoke.id}/result`;
     const long = (n: number) => 'a'.repeat(n);
-    const steps = Array.from({ length: 600 }, (_, i) => ({ name: `Paso ${i + 1}`, status: 'passed' }));
+    const steps = Array.from({ length: 600 }, (_, i) => ({ name: `Step ${i + 1}`, status: 'passed' }));
     const { status, body } = await srv.call('POST', url, {
       verdict: 'GO', passed: '7', failed: ' 2 ', blocked: '', bugs: 0, minutes: '12.4', summary: long(6000),
       details: { notes: long(9000), modules: [{ name: long(300), status: 'passed', minutes: '3', steps: [{ name: long(800), status: 'passed', notes: long(3000) }, ...steps] }] },
@@ -137,22 +137,22 @@ describe('Resultado que reporta Claude', () => {
     expect(module.steps[0].notes).toHaveLength(2000);
     const run = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === smoke.runId);
     expect(run).toMatchObject({ passed: 7, failed: 2, blocked: null, bugs: 0, minutes: 12 });
-    // Las notas del registro juntan veredicto y resumen: también se recortan.
+    // The test run notes combine verdict and summary: they are clipped too.
     expect(run.notes.length).toBeLessThanOrEqual(5000);
     expect(run.notes.startsWith('Veredicto GO.')).toBe(true);
   });
 
-  it('sigue rechazando números que no lo son o negativos', async () => {
+  it('still rejects non-numbers and negative numbers', async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
     const url = `/api/automation/${smoke.id}/result`;
-    for (const passed of ['siete', '-1', -1, '7.5', true]) {
+    for (const passed of ['seven', '-1', -1, '7.5', true]) {
       expect((await srv.call('POST', url, { verdict: 'GO', passed })).status, String(passed)).toBe(400);
     }
-    expect((await srv.call('POST', url, { verdict: 'GO', minutes: 'mucho' })).status).toBe(400);
+    expect((await srv.call('POST', url, { verdict: 'GO', minutes: 'a lot' })).status).toBe(400);
     expect((await srv.call('POST', url, { verdict: 'GO', passed: '8' })).status).toBe(200);
   });
 
-  it('no guarda links que no sean http(s) ni acepta el resultado dos veces', async () => {
+  it('does not save non-http(s) links or accept the result twice', async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
     const url = `/api/automation/${smoke.id}/result`;
     expect((await srv.call('POST', url, { verdict: 'GO', link: 'javascript:alert(1)' })).status).toBe(400);
@@ -165,7 +165,7 @@ describe('Resultado que reporta Claude', () => {
   });
 });
 
-describe('Comentario de Jira: fallos y doble clic', () => {
+describe('Jira comment: failures and double click', () => {
   let posts = 0;
   let mode: 'ok' | 'slow' | 'auth' | 'down' = 'ok';
   const jira: typeof fetch = async (input, init) => {
@@ -189,7 +189,7 @@ describe('Comentario de Jira: fallos y doble clic', () => {
   });
   afterAll(() => srv.close());
 
-  it('si Jira falla, el comentario sigue pendiente y se puede reintentar', async () => {
+  it('if Jira fails, the comment stays pending and can be retried', async () => {
     const url = await draft();
     mode = 'auth';
     expect((await srv.call('POST', url, {})).status).toBe(502);
@@ -202,7 +202,7 @@ describe('Comentario de Jira: fallos y doble clic', () => {
     expect(posts).toBe(1);
   });
 
-  it('dos clics a la vez publican una sola vez', async () => {
+  it('two simultaneous clicks post only once', async () => {
     const url = await draft();
     mode = 'slow';
     const before = posts;
@@ -212,7 +212,7 @@ describe('Comentario de Jira: fallos y doble clic', () => {
     mode = 'ok';
   });
 
-  it('sin Jira configurado no publica nada y lo deja pendiente', async () => {
+  it('without Jira configured, posts nothing and leaves it pending', async () => {
     const url = await draft();
     await srv.call('PUT', '/api/jira/config', { site: '', email: '', board: '', jql: '', token: '' });
     const before = posts;
@@ -224,13 +224,13 @@ describe('Comentario de Jira: fallos y doble clic', () => {
   });
 });
 
-describe('Traducción con respuestas rotas', () => {
+describe('Translation with broken responses', () => {
   let answer: () => unknown = () => ({});
   let calls = 0;
   let srv: Awaited<ReturnType<typeof startServer>>;
   const original = {
-    notes: 'Notas', modules: [{ name: 'Login', status: 'failed', steps: [{ name: 'Entrar', status: 'failed', notes: 'Error 500' }] }],
-    bugs: [{ title: 'Login da 500', severity: 'High', key: 'AVM-1' }],
+    notes: 'Notes', modules: [{ name: 'Login', status: 'failed', steps: [{ name: 'Sign in', status: 'failed', notes: 'Error 500' }] }],
+    bugs: [{ title: 'Login returns 500', severity: 'High', key: 'AVM-1' }],
   };
   beforeAll(async () => {
     srv = await startServer({
@@ -244,26 +244,26 @@ describe('Traducción con respuestas rotas', () => {
   afterAll(() => srv.close());
   const finished = async () => {
     const { body: a } = await srv.call('POST', '/api/smoke', { site: 'qa' });
-    await srv.call('POST', `/api/automation/${a.id}/result`, { verdict: 'NO-GO', summary: 'Falla login', details: original });
+    await srv.call('POST', `/api/automation/${a.id}/result`, { verdict: 'NO-GO', summary: 'Login fails', details: original });
     return a.id as string;
   };
 
-  it('una respuesta que no es un reporte deja el original y no se reintenta sola', async () => {
+  it('a response that is not a report keeps the original and is not retried automatically', async () => {
     const id = await finished();
-    answer = () => 'no soy JSON';
+    answer = () => 'not JSON';
     expect((await srv.call('POST', `/api/automation/${id}/translate`, { lang: 'en' })).status).toBe(502);
     const before = calls;
     const settings = (await srv.call('GET', '/api/state')).body.settings;
     await srv.call('PUT', '/api/settings', { ...settings, language: 'en' });
     await srv.call('PUT', '/api/settings', { ...settings, language: 'es' });
-    // El cambio de idioma no vuelve a intentar la que falló.
+    // Changing the language does not retry the failed one.
     expect(calls).toBe(before);
     const a = (await srv.call('GET', '/api/state')).body.automations.find((x: { id: string }) => x.id === id);
     expect(a.translations).toEqual({});
-    expect(a.summary).toBe('Falla login');
+    expect(a.summary).toBe('Login fails');
   });
 
-  it('una traducción que cambia estados, claves o links no los cambia en el reporte', async () => {
+  it('a translation that changes statuses, keys or links does not change them in the report', async () => {
     const id = await finished();
     answer = () => ({
       summary: 'Login fails',
@@ -280,13 +280,13 @@ describe('Traducción con respuestas rotas', () => {
     expect(body.translations.en.details.bugs).toEqual([{ title: 'Login returns 500', severity: 'High', key: 'AVM-1', link: '', module: '' }]);
   });
 
-  it('borrar la ejecución mientras se traduce no rompe nada', async () => {
+  it('deleting the run while it is being translated breaks nothing', async () => {
     const id = await finished();
     let release: (v: unknown) => void = () => undefined;
     answer = () => new Promise((r) => (release = r));
     const before = calls;
     const pending = srv.call('POST', `/api/automation/${id}/translate`, { lang: 'en' });
-    // Espera a que la traducción esté en curso (el traductor ya recibió el reporte).
+    // Wait until the translation is in progress (the translator already received the report).
     while (calls === before) await new Promise((r) => setTimeout(r, 1));
     expect((await srv.call('DELETE', `/api/automation/${id}`)).status).toBe(204);
     release({ summary: 'Login fails', details: null });
@@ -295,34 +295,34 @@ describe('Traducción con respuestas rotas', () => {
   });
 });
 
-describe('Log de Claude: archivos ausentes o dañados', () => {
+describe('Claude log: missing or corrupted files', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'qa-log-'));
 
-  it('un log que no existe no da actividad ni mensaje', () => {
-    expect(readActivity(path.join(dir, 'no-existe.jsonl'))).toEqual([]);
-    expect(lastMessage(path.join(dir, 'no-existe.jsonl'))).toBe('');
+  it('a log that does not exist gives no activity or message', () => {
+    expect(readActivity(path.join(dir, 'missing.jsonl'))).toEqual([]);
+    expect(lastMessage(path.join(dir, 'missing.jsonl'))).toBe('');
   });
 
-  it('las líneas dañadas aparecen como error y no ocultan el resto', () => {
-    const file = path.join(dir, 'roto.jsonl');
-    writeFileSync(file, ['{"type":"system","subtype":"init"}', '{roto', '', '{"type":"assistant","message":{"content":"texto suelto"}}',
-      '{"type":"assistant","message":{"content":[{"type":"text","text":"Listo"}]}}'].join('\n'));
-    expect(readActivity(file)).toEqual([{ kind: 'start', text: '' }, { kind: 'error', text: '{roto' }, { kind: 'text', text: 'Listo' }]);
-    expect(lastMessage(file)).toBe('Listo');
+  it('corrupted lines show up as errors and do not hide the rest', () => {
+    const file = path.join(dir, 'broken.jsonl');
+    writeFileSync(file, ['{"type":"system","subtype":"init"}', '{broken', '', '{"type":"assistant","message":{"content":"plain text"}}',
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"Done"}]}}'].join('\n'));
+    expect(readActivity(file)).toEqual([{ kind: 'start', text: '' }, { kind: 'error', text: '{broken' }, { kind: 'text', text: 'Done' }]);
+    expect(lastMessage(file)).toBe('Done');
   });
 
-  it('en un log enorme solo lee el final y no muestra la primera línea cortada', () => {
-    const file = path.join(dir, 'grande.jsonl');
+  it('in a huge log, reads only the end and does not show the cut first line', () => {
+    const file = path.join(dir, 'large.jsonl');
     const filler = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'x'.repeat(1000) }] } });
-    writeFileSync(file, `${Array.from({ length: 700 }, () => filler).join('\n')}\n${JSON.stringify({ type: 'result', result: 'Fin' })}\n`);
+    writeFileSync(file, `${Array.from({ length: 700 }, () => filler).join('\n')}\n${JSON.stringify({ type: 'result', result: 'End' })}\n`);
     const items = readActivity(file, 1000);
     expect(items.every((i) => i.kind !== 'error')).toBe(true);
-    expect(items.at(-1)).toEqual({ kind: 'result', text: 'Fin' });
+    expect(items.at(-1)).toEqual({ kind: 'result', text: 'End' });
   });
 });
 
-describe('Demo: casos borde', () => {
-  it('detener una ejecución simulada la deja BLOCKED y la simulación no reporta después', async () => {
+describe('Demo: edge cases', () => {
+  it('stopping a simulated run leaves it BLOCKED and the simulation does not report afterwards', async () => {
     const dir = path.join(mkdtempSync(path.join(tmpdir(), 'qa-demo-')), 'data');
     seedDemoData(dir, 'es');
     const server = createApp(new Store(path.join(dir, 'qa-tests.json')), demoAppOptions(dir, 5)).listen(0, '127.0.0.1');
@@ -341,7 +341,7 @@ describe('Demo: casos borde', () => {
     }
   });
 
-  it('los datos de ejemplo nunca tienen fechas futuras, aunque se abra de madrugada', () => {
+  it('sample data never has future dates, even when opened just after midnight', () => {
     const dir = path.join(mkdtempSync(path.join(tmpdir(), 'qa-demo-')), 'data');
     const now = new Date(2026, 10, 19, 0, 40).getTime();
     seedDemoData(dir, 'es', now);
@@ -351,21 +351,21 @@ describe('Demo: casos borde', () => {
   });
 });
 
-describe('markdownToJira: entradas raras', () => {
-  it('acepta finales de línea de Windows', () => {
-    expect(markdownToJira('### Hola\r\n- uno\r\n')).toBe('h3. Hola\n* uno\n');
+describe('markdownToJira: unusual input', () => {
+  it('accepts Windows line endings', () => {
+    expect(markdownToJira('### Hello\r\n- one\r\n')).toBe('h3. Hello\n* one\n');
   });
 
-  it('un bloque de código sin cerrar conserva su texto', () => {
-    expect(markdownToJira('Antes\n```\nlinea 1\nlinea 2')).toBe('Antes\n{code}\nlinea 1\nlinea 2\n{code}');
+  it('an unclosed code block keeps its text', () => {
+    expect(markdownToJira('Before\n```\nline 1\nline 2')).toBe('Before\n{code}\nline 1\nline 2\n{code}');
   });
 
-  it('la cursiva de Markdown pasa a la de Jira', () => {
-    expect(markdownToJira('Ver *nota* y **negrita**')).toBe('Ver _nota_ y *negrita*');
+  it('Markdown italics become Jira italics', () => {
+    expect(markdownToJira('See *note* and **bold**')).toBe('See _note_ and *bold*');
   });
 
-  it('un asterisco suelto no se vuelve negrita en Jira', () => {
-    // En wiki markup *a* es negrita: «2*3*4» de Markdown tiene que seguir leyéndose igual.
+  it('a stray asterisk does not become bold in Jira', () => {
+    // In wiki markup *a* is bold: Markdown "2*3*4" must still read the same.
     expect(markdownToJira('Total 2*3*4 = 24')).toBe('Total 2\\*3\\*4 = 24');
   });
 });

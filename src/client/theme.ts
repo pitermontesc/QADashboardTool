@@ -1,9 +1,9 @@
 import type { Theme } from '../shared/types';
 
-/** Copia local del tema, para pintarlo antes de que respondan los ajustes (sin destello claro al abrir). */
+/** Local copy of the theme, so it paints before settings respond (no light flash on open). */
 const THEME_KEY = 'qa-dashboard-theme';
 
-/** Aplica el tema: `system` deja que mande el modo del sistema; claro u oscuro lo fuerzan. */
+/** Applies the theme: `system` follows the OS mode; light or dark force it. */
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   if (theme === 'system') delete root.dataset.theme;
@@ -11,7 +11,7 @@ export function applyTheme(theme: Theme): void {
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {
-    // Sin almacenamiento local el tema igual se aplica.
+    // Without local storage the theme still applies.
   }
 }
 
@@ -20,10 +20,10 @@ export function savedTheme(): Theme {
     const value = localStorage.getItem(THEME_KEY);
     if (value === 'light' || value === 'dark' || value === 'system') return value;
   } catch {
-    // Sin almacenamiento local: automático.
+    // No local storage: automatic.
   }
   return 'system';
 }
 
-/** Orden del botón de la cabecera: Automático → Claro → Oscuro. */
+/** Header button cycle: Automatic → Light → Dark. */
 export const nextTheme = (theme: Theme): Theme => (theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system');

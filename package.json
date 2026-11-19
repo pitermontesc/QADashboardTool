@@ -1,8 +1,8 @@
 {
   "name": "qa-dashboard-tool",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "private": true,
-  "description": "Dashboard local para registrar tests de QA (diarios, Smoke, Regression) con tickets de Jira",
+  "description": "Local dashboard to log QA tests (daily, Smoke, Regression) with Jira tickets",
   "type": "module",
   "engines": {
     "node": ">=20"

@@ -33,17 +33,17 @@ const TEXT = {
   },
 };
 
-/** Id libre para un sitio nuevo (site-1, site-2…). */
+/** Free id for a new site (site-1, site-2…). */
 const nextId = (sites: QaSite[]): string => {
   for (let i = 1; ; i++) if (!sites.some((s) => s.id === `site-${i}`)) return `site-${i}`;
 };
 
-/** Editor de sitios, skills y dominios de test runs: se guarda todo junto con un botón. */
+/** Editor for sites, skills and test run domains: everything is saved together with one button. */
 export function QaSitesCard({ settings, onSave }: QaSitesCardProps) {
   const t = useText(TEXT);
   const [draft, setDraft] = useState<QaConfig>(settings.qa);
   const [hosts, setHosts] = useState(settings.qa.testRunHosts.join(', '));
-  // Si los ajustes cambian desde fuera (otro guardado), el borrador los sigue.
+  // If settings change from elsewhere (another save), the draft follows them.
   useEffect(() => {
     setDraft(settings.qa);
     setHosts(settings.qa.testRunHosts.join(', '));

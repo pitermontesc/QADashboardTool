@@ -1,4 +1,4 @@
-/** Utilidades de fecha sobre días locales en formato YYYY-MM-DD (sin zonas horarias). */
+/** Date helpers for local days in YYYY-MM-DD format (no time zones). */
 import type { Lang } from './types.js';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -22,7 +22,7 @@ export function addDays(d: Date, days: number): Date {
   return copy;
 }
 
-/** 2026-11-17 → 17/11/2026 (es) o 11/17/2026 (en). */
+/** 2026-11-17 → 17/11/2026 (es) or 11/17/2026 (en). */
 export function formatDmy(s: string, lang: Lang = 'es'): string {
   const d = parseYmd(s);
   const [day, month] = [pad(d.getDate()), pad(d.getMonth() + 1)];
@@ -43,7 +43,7 @@ export function relativeDay(s: string, today: Date, lang: Lang = 'es'): string {
   return days === 1 ? 'ayer' : `hace ${days} días`;
 }
 
-/** Marca de tiempo → "hace un momento", "hace 5 min", "hace 2 h", "ayer a las 9:54"… */
+/** Timestamp → "just now", "5 min ago", "2 h ago", "yesterday at 9:54"… (localized). */
 export function relativeTime(timestamp: number, now: number = Date.now(), lang: Lang = 'es'): string {
   const en = lang === 'en';
   const minutes = Math.floor((now - timestamp) / 60_000);
@@ -57,7 +57,7 @@ export function relativeTime(timestamp: number, now: number = Date.now(), lang: 
   return `${formatDmy(toYmd(d), lang)} ${time}`;
 }
 
-/** Fecha y hora completas: "18/11/2026, 15:26" (es) o "11/18/2026, 3:26 PM" (en). */
+/** Full date and time: "18/11/2026, 15:26" (es) or "11/18/2026, 3:26 PM" (en). */
 export function dateTime(timestamp: number, lang: Lang = 'es'): string {
   return new Date(timestamp).toLocaleString(lang === 'en' ? 'en-US' : 'es-ES', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -73,7 +73,7 @@ const MONTHS = {
   en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
 };
 
-/** "martes 18 de noviembre" / "Tuesday, November 18" */
+/** "martes 18 de noviembre" (es) / "Tuesday, November 18" (en) */
 export function longDate(d: Date, lang: Lang = 'es'): string {
   const [weekday, month] = [WEEKDAYS[lang][d.getDay()], MONTHS[lang][d.getMonth()]];
   return lang === 'en' ? `${weekday}, ${month} ${d.getDate()}` : `${weekday} ${d.getDate()} de ${month}`;

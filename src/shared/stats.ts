@@ -1,14 +1,14 @@
 import { addDays, shortLabel, startOfDay, toYmd } from './dates.js';
 import { type Lang, RESULTS, type Result, type TestRun } from './types.js';
 
-/** Días hacia atrás que cubre el dashboard; 0 = todo el historial. */
+/** Days back the dashboard covers; 0 = full history. */
 export type Period = 7 | 30 | 90 | 0;
 
 export type ResultCounts = Record<Result, number>;
 
 const emptyCounts = (): ResultCounts => ({ passed: 0, failed: 0, blocked: 0, progress: 0 });
 
-/** Más recientes primero; a igual fecha, el último creado primero. */
+/** Most recent first; on the same date, the last created first. */
 export function sortRuns(runs: readonly TestRun[]): TestRun[] {
   return [...runs].sort((a, b) =>
     a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1,
@@ -29,17 +29,17 @@ export interface Summary {
   blocked: number;
   bugs: number;
   minutes: number;
-  /** Porcentaje 0–100, o null si no hay datos. */
+  /** Percentage 0–100, or null if there is no data. */
   passRate: number | null;
-  /** Sobre qué se calculó el pass rate. */
+  /** What the pass rate was computed on. */
   passRateBasis: 'cases' | 'runs' | 'none';
   passNumerator: number;
   passDenominator: number;
 }
 
 /**
- * El pass rate se calcula sobre casos cuando hay conteos de casos; si no,
- * sobre ejecuciones terminadas (las que siguen en progreso no cuentan).
+ * The pass rate is computed over cases when case counts exist; otherwise over
+ * finished runs (runs still in progress do not count).
  */
 export function summarize(runs: readonly TestRun[]): Summary {
   let passed = 0, failed = 0, blocked = 0, bugs = 0, minutes = 0, runsPassed = 0, runsDone = 0;
@@ -73,7 +73,7 @@ export interface Bucket {
   counts: ResultCounts;
 }
 
-/** Un bucket por día para 7 y 30 días; por semana (lunes a domingo) para 90 días y "todo". */
+/** One bucket per day for 7 and 30 days; per week (Monday to Sunday) for 90 days and "all". */
 export function buildBuckets(runs: readonly TestRun[], period: Period, today: Date, lang: Lang = 'es'): Bucket[] {
   const t0 = startOfDay(today);
   const buckets: Bucket[] = [];

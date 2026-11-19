@@ -3,31 +3,31 @@ import type { QaConfig } from '../shared/types.js';
 import { HttpError } from './errors.js';
 
 /*
- * Prompts de Claude Code para cada skill, con los skills y sitios de los ajustes. Van
- * como un argumento del proceso (nunca por una shell); las entradas se validan igual.
+ * Claude Code prompts for each skill, using the skills and sites from the settings. They go
+ * as a process argument (never through a shell); inputs are validated anyway.
  */
 
-/** «QA o STG», «QA, STG o PROD»… */
+/** "QA or STG", "QA, STG or PROD"… (translated to Spanish with the error message). */
 export const orList = (items: string[]): string =>
-  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} o ${items.at(-1)}`;
+  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
 
-/** Orquestador QA sobre un ticket. */
+/** QA orchestrator on a ticket. */
 export function orchestratorPrompt(key: string, qa: QaConfig, extra = ''): string {
-  if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
+  if (!isTicketKey(key)) throw new HttpError(400, `Invalid ticket: ${key}`);
   return `${qa.skills.orchestrator} ${key}${extra}`;
 }
 
-/** Runner de regresión; sin test run, el skill usa el que corresponda o lo reporta como BLOCKED. */
+/** Regression runner; without a test run, the skill picks the right one or reports BLOCKED. */
 export function regressionPrompt(run: string, qa: QaConfig, extra = ''): string {
   if (!isTestRunRef(run, qa.testRunHosts)) {
-    throw new HttpError(400, `Test run inválido: pega el link (${qa.testRunHosts.join(', ') || 'sin dominios configurados'}) o su ID (p. ej. #b333fb92)`);
+    throw new HttpError(400, `Invalid test run: paste its link (${qa.testRunHosts.join(', ') || 'no domains configured'}) or its ID (e.g. #b333fb92)`);
   }
   return `${run ? `${qa.skills.regression} ${run}` : qa.skills.regression}${extra}`;
 }
 
-/** Smoke tester sobre uno de los sitios configurados. */
+/** Smoke tester on one of the configured sites. */
 export function smokePrompt(siteId: unknown, qa: QaConfig, extra = ''): string {
   const site = findSite(siteId, qa);
-  if (!site) throw new HttpError(400, `Ese sitio no existe: elige ${orList(qa.sites.map((s) => s.name))}`);
+  if (!site) throw new HttpError(400, `That site does not exist: choose ${orList(qa.sites.map((s) => s.name))}`);
   return `${qa.skills.smoke} run smoke on ${site.name} (${site.url})${extra}`;
 }

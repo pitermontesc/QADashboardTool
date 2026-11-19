@@ -6,24 +6,24 @@ import { HttpError } from './errors.js';
 import type { ActivityItem, Lang, ReportTranslation } from '../shared/types.js';
 import type { AssistantRunner } from './assistant.js';
 
-/** Carpeta de trabajo de las ejecuciones con Claude; ahí quedan sus reportes y, en `logs/`, su registro. */
+/** Working folder for Claude runs; their reports end up there and their logs in `logs/`. */
 export const RUNS_DIR = path.join(os.homedir(), 'qa-dashboard-runs');
 export const LOGS_DIR = path.join(RUNS_DIR, 'logs');
 
 /**
- * Claude Code sin ventana ni preguntas: `-p` no espera a nadie (ni el aviso de
- * confianza de la carpeta), el modo `auto` aprueba lo seguro sin preguntar, `--chrome`
- * da el navegador a los skills y `stream-json` deja en el log cada paso.
+ * Claude Code with no window and no questions: `-p` waits for nobody (not even the folder
+ * trust prompt), `auto` mode approves safe actions without asking, `--chrome` gives the
+ * skills the browser and `stream-json` writes every step to the log.
  */
 export const CLAUDE_ARGS = ['-p', '--chrome', '--permission-mode', 'auto', '--output-format', 'stream-json', '--verbose'];
 
-/** Si Claude sigue corriendo pasado este tiempo, se detiene. */
+/** If Claude is still running after this long, it is stopped. */
 const MAX_RUN_MS = 4 * 60 * 60_000;
 
 export interface ClaudeJob {
   id: string;
   prompt: string;
-  /** Al terminar el proceso, con su código y el último mensaje de Claude (o del sistema). */
+  /** Called when the process exits, with its code and Claude's (or the system's) last message. */
   onExit: (exit: { code: number | null; lastMessage: string }) => void;
 }
 
@@ -33,10 +33,10 @@ export interface ClaudeHandle {
   stop: () => void;
 }
 
-/** Lanza Claude Code en segundo plano; inyectable para probar sin ejecutar nada. */
+/** Launches Claude Code in the background; injectable to test without running anything. */
 export type ClaudeLauncher = (job: ClaudeJob) => Promise<ClaudeHandle>;
 
-/** La app de escritorio no hereda el PATH de la terminal: se busca `claude` donde lo deja el instalador. */
+/** The desktop app does not inherit the terminal PATH: look for `claude` where the installer puts it. */
 function findClaude(): string {
   const home = os.homedir();
   const candidates = [
@@ -48,17 +48,17 @@ function findClaude(): string {
   const found = candidates.find((file) => existsSync(file));
   if (found) return found;
   try {
-    // Último recurso: el PATH de una shell de login interactiva del usuario.
+    // Last resort: the PATH of the user's interactive login shell.
     const shell = process.env.SHELL && /\/(zsh|bash)$/.test(process.env.SHELL) ? process.env.SHELL : '/bin/zsh';
     const resolved = execFileSync(shell, ['-ilc', 'command -v claude'], { encoding: 'utf8', timeout: 10_000 }).trim().split('\n').at(-1);
     if (resolved && existsSync(resolved)) return resolved;
   } catch {
-    // Sigue abajo con el error claro.
+    // Fall through to the clear error below.
   }
-  throw new HttpError(500, 'No se encontró Claude Code (claude) en esta Mac');
+  throw new HttpError(500, 'Claude Code (claude) was not found on this Mac');
 }
 
-/** Entorno limpio: sin las marcas de una sesión de Claude o de Electron que haya arrancado la app. */
+/** Clean environment: without the markers of a Claude or Electron session that started the app. */
 function cleanEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -74,7 +74,7 @@ export const launchClaude: ClaudeLauncher = (job) => {
   const bin = findClaude();
   mkdirSync(LOGS_DIR, { recursive: true });
   const logFile = path.join(LOGS_DIR, `${job.id}.jsonl`);
-  // El log lo escribe el propio proceso: sigue completo aunque la app se cierre a mitad.
+  // The process writes its own log: it stays complete even if the app closes midway.
   const fd = openSync(logFile, 'a', 0o600);
   return new Promise((resolve, reject) => {
     const child = spawn(bin, [...CLAUDE_ARGS, job.prompt], {
@@ -88,12 +88,12 @@ export const launchClaude: ClaudeLauncher = (job) => {
       try {
         if (child.pid) process.kill(-child.pid, 'SIGTERM');
       } catch {
-        // Ya había terminado.
+        // It had already exited.
       }
     };
     const limit = setTimeout(stop, MAX_RUN_MS);
     limit.unref();
-    child.once('error', (err) => reject(new HttpError(500, `No se pudo iniciar Claude Code: ${err.message}`)));
+    child.once('error', (err) => reject(new HttpError(500, `Could not start Claude Code: ${err.message}`)));
     child.once('spawn', () => {
       child.unref();
       resolve({ pid: child.pid ?? null, logFile, stop });
@@ -105,16 +105,16 @@ export const launchClaude: ClaudeLauncher = (job) => {
   });
 };
 
-/** Traduce el resumen y el reporte de una ejecución; devuelve el JSON tal cual (se valida al guardarlo). */
+/** Translates a run's summary and report; returns the JSON as is (it is validated when saved). */
 export type ReportTranslator = (report: ReportTranslation, lang: Lang) => Promise<unknown>;
 
 const TRANSLATE_MS = 4 * 60_000;
 const LANG_NAME: Record<Lang, string> = { es: 'Spanish', en: 'English' };
 
 /**
- * Claude Haiku sin herramientas ni MCP: recibe el reporte por stdin y responde solo
- * con el JSON traducido. Se mantienen claves, estados, números, links, claves de
- * tickets y los nombres de pantallas del producto.
+ * Claude Haiku with no tools or MCP: receives the report on stdin and replies with only
+ * the translated JSON. Keys, statuses, numbers, links, ticket keys and the product's
+ * screen names are kept.
  */
 export const translateReport: ReportTranslator = (report, lang) => {
   const bin = findClaude();
@@ -137,7 +137,7 @@ export const translateReport: ReportTranslator = (report, lang) => {
     child.stderr.on('data', (chunk: Buffer) => (err += chunk.toString('utf8')));
     child.once('error', (e) => {
       clearTimeout(limit);
-      reject(new HttpError(500, `No se pudo traducir el reporte: ${e.message}`));
+      reject(new HttpError(500, `Could not translate the report: ${e.message}`));
     });
     child.once('close', (code) => {
       clearTimeout(limit);
@@ -146,7 +146,7 @@ export const translateReport: ReportTranslator = (report, lang) => {
         if (code !== 0 || !json) throw new Error(err.trim() || out.trim() || `exit ${code}`);
         resolve(JSON.parse(json));
       } catch (e) {
-        reject(new HttpError(502, `No se pudo traducir el reporte: ${short(e instanceof Error ? e.message : String(e), 300)}`));
+        reject(new HttpError(502, `Could not translate the report: ${short(e instanceof Error ? e.message : String(e), 300)}`));
       }
     });
     child.stdin.end(JSON.stringify(report));
@@ -156,15 +156,15 @@ export const translateReport: ReportTranslator = (report, lang) => {
 const ASSISTANT_MS = 3 * 60_000;
 
 /**
- * Asistente con Claude Code y la sesión del usuario: sin herramientas ni MCP (solo responde),
- * con sus propias instrucciones y la respuesta validada contra un esquema JSON.
+ * Assistant with Claude Code and the user's session: no tools or MCP (it only answers),
+ * with its own instructions and the reply validated against a JSON schema.
  */
 export const runAssistant: AssistantRunner = ({ system, prompt, schema }) => {
   const bin = findClaude();
   mkdirSync(RUNS_DIR, { recursive: true });
   const args = [
     '-p', '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'json',
-    '--system-prompt', system, '--json-schema', JSON.stringify(schema), 'Responde al último mensaje del usuario.',
+    '--system-prompt', system, '--json-schema', JSON.stringify(schema), 'Reply to the last user message.',
   ];
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd: RUNS_DIR, env: cleanEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
@@ -175,7 +175,7 @@ export const runAssistant: AssistantRunner = ({ system, prompt, schema }) => {
     child.stderr.on('data', (chunk: Buffer) => (err += chunk.toString('utf8')));
     child.once('error', (e) => {
       clearTimeout(limit);
-      reject(new HttpError(500, `No se pudo iniciar Claude Code: ${e.message}`));
+      reject(new HttpError(500, `Could not start Claude Code: ${e.message}`));
     });
     child.once('close', (code) => {
       clearTimeout(limit);
@@ -185,14 +185,14 @@ export const runAssistant: AssistantRunner = ({ system, prompt, schema }) => {
         resolve(result.structured_output ?? result.result ?? '');
       } catch (e) {
         const why = e instanceof SyntaxError ? err.trim() || out.trim() || `exit ${code}` : e instanceof Error ? e.message : String(e);
-        reject(new HttpError(502, `El asistente no pudo responder: ${short(why, 300)}`));
+        reject(new HttpError(502, `The assistant could not answer: ${short(why, 300)}`));
       }
     });
     child.stdin.end(prompt);
   });
 };
 
-/** Detiene un proceso por su pid (por ejemplo, de una ejecución lanzada antes de reiniciar la app). */
+/** Stops a process by its pid (for example, from a run launched before the app restarted). */
 export function stopPid(pid: number): void {
   try {
     process.kill(-pid, 'SIGTERM');
@@ -200,12 +200,12 @@ export function stopPid(pid: number): void {
     try {
       process.kill(pid, 'SIGTERM');
     } catch {
-      // Ya no existe.
+      // It no longer exists.
     }
   }
 }
 
-/** Solo el final del log: con `--verbose` puede pesar varios MB. */
+/** Only the end of the log: with `--verbose` it can weigh several MB. */
 function tail(file: string, bytes = 512 * 1024): string {
   try {
     const fd = openSync(file, 'r');
@@ -227,7 +227,7 @@ function tail(file: string, bytes = 512 * 1024): string {
 
 const short = (text: string, max = 400): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
-/** Resumen legible de una llamada a herramienta: el navegador muestra la URL o la acción, Bash el comando. */
+/** Readable summary of a tool call: the browser shows the URL or action, Bash the command. */
 function describeTool(name: string, input: Record<string, unknown> | undefined): string {
   const [prefix, server, ...rest] = name.split('__');
   const tool = prefix === 'mcp' && server ? `${server === 'claude-in-chrome' ? 'Chrome' : server.replace(/^claude_ai_/, '')} · ${rest.join('__')}` : name;
@@ -236,7 +236,7 @@ function describeTool(name: string, input: Record<string, unknown> | undefined):
   return detail ? `${tool}: ${short(detail, 160)}` : tool;
 }
 
-/** Lo que va haciendo Claude, a partir del log `stream-json`. */
+/** What Claude is doing, from the `stream-json` log. */
 export function readActivity(file: string, max = 40): ActivityItem[] {
   const items: ActivityItem[] = [];
   for (const line of tail(file).split('\n')) {
@@ -260,7 +260,7 @@ export function readActivity(file: string, max = 40): ActivityItem[] {
   return items.slice(-max);
 }
 
-/** Último mensaje de Claude (su respuesta final o un error del sistema), para cerrar una ejecución sin reporte. */
+/** Claude's last message (its final answer or a system error), to close a run that did not report. */
 export function lastMessage(file: string): string {
   const items = readActivity(file, 200).filter((i) => i.kind !== 'tool' && i.kind !== 'start');
   return items.at(-1)?.text ?? '';

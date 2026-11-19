@@ -37,7 +37,7 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }:
   const t = useText(TEXT);
   const automationByRun = new Map(state.automations.filter((a) => a.runId).map((a) => [a.runId!, a]));
   const [filters, setFilters] = useState<RunFilters>(EMPTY_FILTERS);
-  /** Registro cuyo borrado espera un segundo clic de confirmación. */
+  /** Run whose deletion awaits a second confirming click. */
   const [armedId, setArmedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,7 +98,7 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }:
             settings={settings}
             actions={(run) => (
               <>
-                {/* Iconos con su nombre accesible y en el tooltip: caben en una línea a cualquier ancho. */}
+                {/* Icons with their accessible name also in the tooltip: they fit on one line at any width. */}
                 {automationByRun.has(run.id) && (
                   <button className="icon-btn" title={t.report} aria-label={t.report} onClick={() => onOpenReport(automationByRun.get(run.id)!)}>
                     <Icon name="eye" size={15} />

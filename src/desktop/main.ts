@@ -5,8 +5,8 @@ import { APP_NAME, DEFAULT_PORT, HOST, defaultDataDir, startServer } from '../se
 import { DEMO_PORT, demoAppOptions, demoDataDir, seedDemoData } from '../server/demo.js';
 
 /**
- * App de escritorio: arranca el mismo servidor local dentro del proceso de
- * Electron y muestra la interfaz en una ventana propia (sin terminal ni navegador).
+ * Desktop app: starts the same local server inside the Electron process and
+ * shows the UI in its own window (no terminal or browser needed).
  */
 const PORT = Number(process.env.QA_DASH_PORT ?? DEFAULT_PORT);
 const URL_ = `http://${HOST}:${PORT}`;
@@ -15,7 +15,7 @@ const WINDOW_FILE = path.join(defaultDataDir(), 'window.json');
 type Lang = 'es' | 'en';
 type Theme = 'system' | 'light' | 'dark';
 
-/** Ajustes guardados de la app (el archivo se lee antes de arrancar el servidor). */
+/** Saved app settings (the file is read before the server starts). */
 function savedSettings(): { language?: string; theme?: string } {
   try {
     const data = JSON.parse(readFileSync(path.join(defaultDataDir(), 'qa-tests.json'), 'utf8')) as { settings?: { language?: string; theme?: string } };
@@ -28,9 +28,10 @@ function savedSettings(): { language?: string; theme?: string } {
 const saved = savedSettings();
 let lang: Lang = saved.language === 'en' ? 'en' : 'es';
 let theme: Theme = saved.theme === 'light' || saved.theme === 'dark' ? saved.theme : 'system';
-// La ventana, el menú y los controles nativos siguen el tema elegido en la app.
+// The window, menu and native controls follow the theme chosen in the app.
 nativeTheme.themeSource = theme;
 
+/** Native menu and dialog texts in each UI language. */
 const TEXT = {
   es: {
     file: 'Archivo', newRun: 'Nuevo registro', refreshJira: 'Actualizar tickets de Jira', view: 'Ver',
@@ -55,12 +56,12 @@ const TEXT = {
 };
 
 app.setName(APP_NAME);
-// Fechas de los selectores y textos del sistema en el idioma de la app.
+// Date pickers and system texts in the app language.
 app.commandLine.appendSwitch('lang', lang === 'en' ? 'en-US' : 'es-ES');
-// La caché de Chromium va en una subcarpeta para no mezclarse con qa-tests.json.
+// The Chromium cache goes in a subfolder so it does not mix with qa-tests.json.
 app.setPath('sessionData', path.join(defaultDataDir(), 'electron'));
 
-/** ¿Ya hay una instancia de la app (p. ej. `npm start`) sirviendo la interfaz en ese puerto? */
+/** Is another app instance (e.g. `npm start`) already serving the UI on that port? */
 async function existingAppServes(): Promise<boolean> {
   try {
     const [page, api] = await Promise.all([fetch(URL_), fetch(`${URL_}/api/state`)]);
@@ -70,7 +71,7 @@ async function existingAppServes(): Promise<boolean> {
   }
 }
 
-/** Arranca el servidor o reutiliza uno que ya esté abierto (dos servidores sobre el mismo archivo se pisarían). */
+/** Starts the server or reuses one already running (two servers on the same file would overwrite each other). */
 async function ensureServer(): Promise<void> {
   try {
     await startServer({ port: PORT, dataDir: defaultDataDir(), clientDir: path.join(app.getAppPath(), 'dist/client') });
@@ -80,7 +81,7 @@ async function ensureServer(): Promise<void> {
   }
 }
 
-/** Demo en su propio servidor (puerto 8790, datos de ejemplo en una carpeta temporal); se crea una sola vez por sesión. */
+/** Demo on its own server (port 8790, sample data in a temp folder); created only once per session. */
 let demoUrl: string | null = null;
 async function openDemo(): Promise<void> {
   try {
@@ -91,7 +92,7 @@ async function openDemo(): Promise<void> {
         seedDemoData(dataDir, lang);
         await startServer({ port: DEMO_PORT, dataDir, clientDir: path.join(app.getAppPath(), 'dist/client'), appOptions: demoAppOptions(dataDir) });
       } catch (err) {
-        // `npm run demo` ya la está sirviendo: se reutiliza.
+        // `npm run demo` is already serving it: reuse it.
         const serving = await fetch(`${url}/api/state`).then((r) => r.ok, () => false);
         if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE' || !serving) throw err;
       }
@@ -105,13 +106,13 @@ async function openDemo(): Promise<void> {
 
 interface WindowState { x?: number; y?: number; width: number; height: number; maximized?: boolean }
 
-/** Tamaño y posición de la última sesión, para que la ventana abra donde la dejaste. */
+/** Size and position from the last session, so the window opens where you left it. */
 function loadWindowState(): WindowState {
   try {
     const saved = JSON.parse(readFileSync(WINDOW_FILE, 'utf8')) as WindowState;
     if (saved.width >= 900 && saved.height >= 600) return saved;
   } catch {
-    // Primera vez o archivo dañado: tamaño por defecto.
+    // First launch or corrupted file: use the default size.
   }
   return { width: 1320, height: 880 };
 }
@@ -122,11 +123,11 @@ function saveWindowState(win: BrowserWindow): void {
     mkdirSync(path.dirname(WINDOW_FILE), { recursive: true });
     writeFileSync(WINDOW_FILE, JSON.stringify(state));
   } catch {
-    // No guardar la posición no debe impedir cerrar la app.
+    // Failing to save the position must not prevent the app from closing.
   }
 }
 
-/** Envía un comando del menú a la interfaz (nuevo registro, cambiar de vista, recargar Jira…). */
+/** Sends a menu command to the UI (new run, switch view, refresh Jira…). */
 function sendCommand(command: string): void {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   void win?.webContents.executeJavaScript(
@@ -184,7 +185,7 @@ function buildMenu(): void {
 }
 
 function createWindow(url = URL_, demo = false): void {
-  // La demo abre en una ventana aparte y no toca la posición guardada de la principal.
+  // The demo opens in a separate window and does not touch the main window's saved position.
   const saved = demo ? { width: 1320, height: 880 } : loadWindowState();
   const isMac = process.platform === 'darwin';
   const win = new BrowserWindow({
@@ -193,10 +194,10 @@ function createWindow(url = URL_, demo = false): void {
     minHeight: 600,
     title: demo ? TEXT[lang].demoTitle : APP_NAME,
     show: false,
-    // Barra de título integrada: los semáforos de macOS quedan sobre la cabecera de la app.
+    // Integrated title bar: the macOS traffic lights sit over the app header.
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 18, y: 20 },
-    // Mismo fondo que la app para que no haya destello blanco al abrir en modo oscuro.
+    // Same background as the app so there is no white flash when opening in dark mode.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#12151b' : '#f4f5f7',
     icon: path.join(app.getAppPath(), 'build/icon.png'),
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
@@ -205,7 +206,7 @@ function createWindow(url = URL_, demo = false): void {
   win.once('ready-to-show', () => win.show());
   if (!demo) win.on('close', () => saveWindowState(win));
 
-  // Los enlaces externos (tickets de Jira) se abren en el navegador, no dentro de la app.
+  // External links (Jira tickets) open in the browser, not inside the app.
   const isInternal = (target: string) => target.startsWith(url);
   win.webContents.setWindowOpenHandler(({ url: target }) => {
     if (!isInternal(target)) void shell.openExternal(target);
@@ -220,8 +221,8 @@ function createWindow(url = URL_, demo = false): void {
 
   void win.loadURL(url);
 
-  // Al cambiar el idioma o el tema en la interfaz (atributos lang y data-theme de la página) se rehace el menú.
-  // Solo manda la ventana principal: la demo tiene sus propios ajustes.
+  // When the UI language or theme changes (the page's lang and data-theme attributes), rebuild the menu.
+  // Only the main window drives this: the demo has its own settings.
   if (demo) return;
   const timer = setInterval(() => {
     if (win.isDestroyed()) return;
@@ -266,7 +267,7 @@ if (!app.requestSingleInstanceLock()) {
     .whenReady()
     .then(() => {
       buildMenu();
-      // En desarrollo el Dock mostraría el icono de Electron.
+      // In development the Dock would otherwise show the Electron icon.
       if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(path.join(app.getAppPath(), 'build/icon.png'));
     })
     .then(ensureServer)

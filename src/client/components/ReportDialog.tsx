@@ -11,12 +11,12 @@ interface ReportDialogProps {
   run: TestRun | undefined;
   onClose: () => void;
   onStop: (automation: Automation) => Promise<void>;
-  /** La ejecución cambió (traducción o comentario publicado). */
+  /** The automation changed (translation or posted comment). */
   onUpdate: (automation: Automation) => void;
   onError: (error: unknown) => void;
 }
 
-/** Cada cuánto se refresca la actividad de una ejecución en curso. */
+/** How often the activity of a running automation is refreshed. */
 const ACTIVITY_POLL_MS = 4000;
 
 const STATUS_TONE: Record<StepStatus, string> = { passed: 'ok', failed: 'bad', blocked: 'warn', skipped: 'muted' };
@@ -113,8 +113,7 @@ function ModuleBlock({ module, t }: { module: ReportModule; t: Text }) {
   );
 }
 
-/** Reporte QA de una ejecución con Claude: veredicto, tiempos, módulos con sus pasos y bugs encontrados. */
-/** Lo que va haciendo Claude: se consulta mientras corre y una última vez al terminar. */
+/** What Claude is doing: polled while it runs and once more when it finishes. */
 function useActivity(a: Automation): { items: ActivityItem[]; logFile: string } {
   const [activity, setActivity] = useState<{ items: ActivityItem[]; logFile: string }>({ items: [], logFile: a.logFile });
   const running = a.finishedAt === null;
@@ -133,7 +132,7 @@ function useActivity(a: Automation): { items: ActivityItem[]; logFile: string } 
   return activity;
 }
 
-/** Comentario de QA para Jira: se puede revisar, editar, copiar y publicar con un clic. */
+/** QA comment for Jira: can be reviewed, edited, copied and posted with one click. */
 function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
   automation: Automation; comment: JiraComment; t: Text; onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
 }) {
@@ -212,7 +211,7 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
   );
 }
 
-/** Pide la traducción del reporte si Claude lo escribió en otro idioma. */
+/** Requests the report's translation if Claude wrote it in another language. */
 function useTranslation(a: Automation, onUpdate: (a: Automation) => void): { failed: boolean; retry: () => void } {
   const lang = useLang();
   const [failed, setFailed] = useState(false);
@@ -254,6 +253,7 @@ function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: bo
   );
 }
 
+/** QA report of a Claude automation: verdict, timings, modules with their steps, and bugs found. */
 export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, onError }: ReportDialogProps) {
   const lang = useLang();
   const t = useText(TEXT);

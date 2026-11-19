@@ -32,6 +32,6 @@ export function exportCsv({ settings, runs }: AppState): void {
       r.passed, r.failed, r.blocked, r.bugs, r.minutes, r.notes,
     ]),
   ];
-  // BOM para que Excel abra el archivo como UTF-8.
+  // BOM so Excel opens the file as UTF-8.
   download(`qa-tests-${toYmd(new Date())}.csv`, `﻿${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`, 'text/csv');
 }

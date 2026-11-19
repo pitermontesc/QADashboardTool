@@ -6,11 +6,11 @@ import { defaultQaConfig } from '../shared/orchestrator.js';
 const count = z.number().int().min(0).nullable().default(null);
 
 /*
- * Lo que reporta Claude se acepta con más margen que el formulario: un reporte rechazado
- * obliga a Claude a corregirlo y reenviarlo, o se pierde. Los números pueden venir como
- * texto («7»), los textos largos se recortan y las listas largas se acortan.
+ * What Claude reports is accepted more leniently than the form: a rejected report forces
+ * Claude to fix and resend it, or it is lost. Numbers may come as text ("7"), long texts
+ * are clipped and long lists are shortened.
  */
-/** «7», « 2 », «12.4» → número; «» → sin dato; cualquier otro texto se deja para que falle. */
+/** "7", " 2 ", "12.4" → number; "" → no value; any other text is kept so it fails. */
 const numberFromText = (value: unknown): unknown => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
@@ -18,7 +18,7 @@ const numberFromText = (value: unknown): unknown => {
   return /^-?\d+(\.\d+)?$/.test(trimmed) ? Number(trimmed) : value;
 };
 const reportedCount = z.preprocess(numberFromText, z.number().int().min(0).nullable()).default(null);
-/** Minutos que reporta Claude: acepta decimales y los redondea (lo que dure algo cuenta como 1 min). */
+/** Minutes reported by Claude: decimals are accepted and rounded (anything that took time counts as 1 min). */
 const reportedMinutes = z
   .preprocess(
     numberFromText,
@@ -29,11 +29,11 @@ const reportedMinutes = z
       .nullable(),
   )
   .default(null);
-/** Texto de Claude: lo que pasa del límite se recorta con «…» en vez de rechazar el reporte. */
+/** Text from Claude: anything over the limit is clipped with "…" instead of rejecting the report. */
 const clip = (max: number) => (value: string): string => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
 const clipped = (max: number) => z.string().trim().transform(clip(max)).default('');
 const clippedName = (max: number) => z.string().trim().min(1).transform(clip(max));
-/** Lista de Claude: lo que pasa del límite se descarta en vez de rechazar el reporte. */
+/** List from Claude: items over the limit are dropped instead of rejecting the report. */
 const capped = <T extends z.ZodType>(item: T, max: number) =>
   z
     .array(item)
@@ -43,9 +43,9 @@ const httpUrlOrEmpty = z
   .string()
   .trim()
   .max(300)
-  .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Debe empezar con http:// o https://');
+  .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Must start with http:// or https://');
 
-/** YYYY-MM-DD que exista en el calendario (2026-02-30 no: Date lo pasaría al 2 de marzo). */
+/** A YYYY-MM-DD that exists in the calendar (not 2026-02-30: Date would roll it over to March 2). */
 const isRealDate = (value: string): boolean => {
   const [y, m, d] = value.split('-').map(Number) as [number, number, number];
   const date = new Date(Date.UTC(y, m - 1, d));
@@ -53,9 +53,9 @@ const isRealDate = (value: string): boolean => {
 };
 
 export const runInputSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida').refine(isRealDate, 'Fecha inválida'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date').refine(isRealDate, 'Invalid date'),
   typeId: z.string().min(1),
-  title: z.string().trim().min(1, 'El título es obligatorio').max(300),
+  title: z.string().trim().min(1, 'Title is required').max(300),
   ticket: z.string().trim().max(60).default(''),
   env: z.string().trim().max(60).default(''),
   result: z.enum(RESULTS),
@@ -73,33 +73,33 @@ export const runSchema = runInputSchema.extend({
 });
 
 /**
- * Sitios y skills: llegan al prompt de Claude Code como un argumento (sin shell), pero
- * se validan igual para que solo haya nombres, URLs y comandos de skill bien formados.
+ * Sites and skills: they reach the Claude Code prompt as an argument (no shell), but
+ * are validated anyway so only well-formed names, URLs and skill commands get through.
  */
 const qaSiteSchema = z.object({
-  id: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,19}$/, 'El id del sitio solo admite minúsculas, números y guiones (p. ej. stg)'),
-  name: z.string().trim().min(1, 'El sitio necesita un nombre').max(20).regex(/^[\p{L}\p{N} ._-]+$/u, 'El nombre del sitio solo admite letras, números, espacios, puntos y guiones'),
-  url: z.string().trim().max(200).regex(/^https?:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9\-._~/]*)?$/, 'La URL del sitio tiene que ser http(s)://dominio'),
-  env: z.string().trim().min(1, 'El sitio necesita un ambiente').max(40),
+  id: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,19}$/, 'The site id only allows lowercase letters, numbers and hyphens (e.g. stg)'),
+  name: z.string().trim().min(1, 'The site needs a name').max(20).regex(/^[\p{L}\p{N} ._-]+$/u, 'The site name only allows letters, numbers, spaces, dots and hyphens'),
+  url: z.string().trim().max(200).regex(/^https?:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9\-._~/]*)?$/, 'The site URL must be http(s)://domain'),
+  env: z.string().trim().min(1, 'The site needs an environment').max(40),
   jiraStatus: z.string().trim().max(40).default(''),
 });
-const skillSchema = z.string().trim().regex(/^\/[A-Za-z0-9][A-Za-z0-9:._-]{0,99}$/, 'Un skill empieza con / y solo admite letras, números, «:», «.», «_» y «-»');
+const skillSchema = z.string().trim().regex(/^\/[A-Za-z0-9][A-Za-z0-9:._-]{0,99}$/, 'A skill starts with / and only allows letters, numbers, “:”, “.”, “_” and “-”');
 const qaConfigSchema = z
   .object({
-    sites: z.array(qaSiteSchema).min(1, 'Tiene que haber al menos un sitio').max(10),
+    sites: z.array(qaSiteSchema).min(1, 'There must be at least one site').max(10),
     regressionSiteId: z.string(),
     skills: z.object({ orchestrator: skillSchema, smoke: skillSchema, regression: skillSchema }),
     testRunHosts: z
-      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'Dominio de test runs inválido (p. ej. testomat.io)'))
+      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'Invalid test run domain (e.g. testomat.io)'))
       .max(10)
       .default([]),
   })
-  .refine((qa) => new Set(qa.sites.map((s) => s.id)).size === qa.sites.length, 'Hay sitios con el mismo id')
+  .refine((qa) => new Set(qa.sites.map((s) => s.id)).size === qa.sites.length, 'Several sites have the same id')
   .refine((qa) => {
     const statuses = qa.sites.map((s) => s.jiraStatus.toLowerCase()).filter(Boolean);
     return new Set(statuses).size === statuses.length;
-  }, 'Dos sitios no pueden usar el mismo estado de Jira')
-  .refine((qa) => qa.sites.some((s) => s.id === qa.regressionSiteId), 'El sitio de la regresión tiene que ser uno de los sitios');
+  }, 'Two sites cannot use the same Jira status')
+  .refine((qa) => qa.sites.some((s) => s.id === qa.regressionSiteId), 'The regression site must be one of the sites');
 
 export const settingsSchema = z.object({
   types: z
@@ -108,11 +108,11 @@ export const settingsSchema = z.object({
         id: z.string().min(1),
         name: z.string().trim().min(1).max(80),
         major: z.boolean().default(false),
-        color: z.string().regex(/^#[0-9a-f]{3,8}$/i, 'Color inválido'),
+        color: z.string().regex(/^#[0-9a-f]{3,8}$/i, 'Invalid color'),
       }),
     )
-    .min(1, 'Debe quedar al menos un tipo de test')
-    .refine((types) => new Set(types.map((t) => t.id)).size === types.length, 'Hay tipos de test repetidos'),
+    .min(1, 'At least one test type must remain')
+    .refine((types) => new Set(types.map((t) => t.id)).size === types.length, 'There are repeated test types'),
   envs: z.array(z.string().trim().min(1).max(40)).default([]),
   ticketBase: httpUrlOrEmpty.default(''),
   language: z.enum(LANGUAGES).default('es'),
@@ -122,7 +122,7 @@ export const settingsSchema = z.object({
 
 export const backupSchema = settingsSchema
   .extend({ runs: z.array(runSchema) })
-  .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'El respaldo tiene registros de tipos de test que no existen');
+  .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'The backup has runs of test types that do not exist');
 
 export const jiraConfigSchema = z.object({
   site: httpUrlOrEmpty,
@@ -131,13 +131,13 @@ export const jiraConfigSchema = z.object({
     .string()
     .trim()
     .max(4000)
-    .refine((v) => v === '' || parseJiraBoardUrl(v) !== null, 'No es un link de board de Jira (…/boards/<número>)')
+    .refine((v) => v === '' || parseJiraBoardUrl(v) !== null, 'Not a Jira board link (…/boards/<number>)')
     .default(''),
   jql: z.string().trim().max(2000),
   token: z.string().trim().max(500).optional(),
 });
 
-/** «no go» → «NO-GO», «passed with findings» → «PASSED W/F», «incomplete» → «BLOCKED». */
+/** "no go" → "NO-GO", "passed with findings" → "PASSED W/F", "incomplete" → "BLOCKED". */
 function normalizeVerdict(raw: string): string {
   const v = raw.toUpperCase().replace(/[\s_]+/g, ' ').trim();
   if (/^NO[ -]?GO$/.test(v)) return 'NO-GO';
@@ -146,7 +146,7 @@ function normalizeVerdict(raw: string): string {
   return v;
 }
 
-/** «PASS», «OK», «FAIL», «not tested»… → passed / failed / blocked / skipped. */
+/** "PASS", "OK", "FAIL", "not tested"… → passed / failed / blocked / skipped. */
 function normalizeStepStatus(raw: string): string {
   const v = raw.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
   if (/^(pass|passed|ok|go|success)$/.test(v)) return 'passed';
@@ -160,8 +160,8 @@ const stepStatus = z
   .string()
   .trim()
   .transform(normalizeStepStatus)
-  .pipe(z.enum(STEP_STATUSES, `El status debe ser uno de: ${STEP_STATUSES.join(', ')}`));
-/** Reporte QA detallado: un módulo por área probada con sus pasos, y los bugs encontrados. */
+  .pipe(z.enum(STEP_STATUSES, `The status must be one of: ${STEP_STATUSES.join(', ')}`));
+/** Detailed QA report: one module per tested area with its steps, and the bugs found. */
 export const automationDetailsSchema = z.object({
   build: clipped(200),
   modules: capped(
@@ -185,10 +185,10 @@ export const automationDetailsSchema = z.object({
     200,
   ),
   notes: clipped(5000),
-  /** Comentario de QA para Jira; si Claude no pudo publicarlo, la app lo publica con un clic. */
+  /** QA comment for Jira; if Claude could not post it, the app posts it with one click. */
   jiraComment: z
     .object({
-      key: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]+-\d+$/, 'La clave del ticket de Jira no es válida (p. ej. AVM-123)'),
+      key: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]+-\d+$/, 'The Jira ticket key is not valid (e.g. AVM-123)'),
       body: clippedName(30000),
       posted: z.boolean().default(false),
       url: httpUrlOrEmpty.default(''),
@@ -198,19 +198,19 @@ export const automationDetailsSchema = z.object({
     .default(null),
 });
 
-/** Traducción que devuelve Claude: el resumen y el reporte, con la misma forma. */
+/** Translation returned by Claude: the summary and the report, with the same shape. */
 export const reportTranslationSchema = z.object({
   summary: clipped(5000),
   details: automationDetailsSchema.omit({ jiraComment: true }).nullable().default(null),
 });
 
-/** Resultado que Claude reporta al terminar un smoke o una regresión. */
+/** Result Claude reports when it finishes a smoke, a regression or an orchestrator run. */
 export const automationResultSchema = z.object({
   verdict: z
     .string()
     .trim()
     .transform(normalizeVerdict)
-    .pipe(z.enum(VERDICTS, `El veredicto debe ser uno de: ${VERDICTS.join(', ')}`)),
+    .pipe(z.enum(VERDICTS, `The verdict must be one of: ${VERDICTS.join(', ')}`)),
   passed: reportedCount,
   failed: reportedCount,
   blocked: reportedCount,

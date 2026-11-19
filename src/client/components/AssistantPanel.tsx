@@ -6,7 +6,7 @@ import { Icon } from './icons';
 import { useText } from '../i18n';
 import { MOD } from './ui';
 
-/** Estado de cada acción propuesta: espera confirmación, se está haciendo o ya se resolvió. */
+/** State of each proposed action: awaiting confirmation, in progress, or resolved. */
 type ActionState = 'pending' | 'running' | 'done' | 'failed' | 'dismissed';
 
 export interface ChatMessage extends AssistantTurn {
@@ -19,7 +19,7 @@ interface AssistantPanelProps {
   messages: ChatMessage[];
   setMessages: (update: (messages: ChatMessage[]) => ChatMessage[]) => void;
   onClose: () => void;
-  /** Hace la acción con la misma lógica que los botones de la app; true si salió bien. */
+  /** Performs the action with the same logic as the app's buttons; true on success. */
   onAction: (action: AssistantAction) => Promise<boolean>;
 }
 
@@ -71,7 +71,7 @@ const what = (id: string, state: AppState): string => {
   return a ? `${a.kind === 'orchestrator' ? '' : `${a.kind} `}${a.target}`.trim() : '—';
 };
 
-/** Markdown mínimo del asistente: párrafos, listas con guiones y **negrita**, sin HTML. */
+/** The assistant's minimal Markdown: paragraphs, dash lists and **bold**, no HTML. */
 function RichText({ text }: { text: string }) {
   const inline = (line: string): ReactNode[] =>
     line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>

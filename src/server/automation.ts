@@ -12,8 +12,9 @@ const DETAILS_SHAPE =
   '{build, notes, modules: [{name, status, minutes, notes, steps: [{name, status, notes}]}], bugs: [{title, severity, key, link, module}], jiraComment: {key, body, posted}}';
 
 /**
- * Instrucción que se añade al prompt de Claude para que, al terminar, reporte el
- * resultado a la API local. Sin comillas simples: va dentro de la línea de comandos.
+ * Instruction appended to Claude's prompt so that, when it finishes, it reports the
+ * result to the local API. No single quotes: it goes inside the command line.
+ * Written in the app language, since Claude writes the report in the language it is addressed in.
  */
 export function reportInstruction(kind: AutomationKind, port: number, id: string, lang: Lang = 'es'): string {
   const url = `http://127.0.0.1:${port}/api/automation/${id}/result`;
@@ -49,7 +50,7 @@ const RESULT_BY_VERDICT: Record<Verdict, Result> = {
   BLOCKED: 'blocked',
 };
 
-/** Tipo de test del registro: Smoke, Regression o Funcional (orquestador), según los ajustes. */
+/** Test type of the test run: Smoke, Regression or Functional (orchestrator), per the settings. */
 function typeFor(kind: AutomationKind, settings: Settings): string {
   const match =
     kind === 'smoke' ? isSmokeType : kind === 'regression' ? isRegressionType : (name: string) => /funcional|functional/i.test(name);
@@ -63,24 +64,24 @@ const TITLE_TEXT = {
     launched: 'Launched with Claude Code from QA Dashboard; the result is filled in when Claude reports it.' },
 } as const;
 
-/** Título de una ejecución en el idioma pedido; `subject` es el resumen del ticket (orquestador). */
+/** A run's title in the requested language; `subject` is the ticket summary (orchestrator). */
 export function automationTitle(kind: AutomationKind, target: string, lang: Lang, subject = ''): string {
   const t = TITLE_TEXT[lang];
   if (kind === 'orchestrator') return `${t.orchestrator}: ${subject}`.slice(0, 250);
   return kind === 'smoke' ? `Smoke ${target} ${t.withClaude}` : `Regression ${target || 'testomat.io'} ${t.withClaude}`;
 }
 
-/** Resumen del ticket dentro del título de un orquestador, sea cual sea su idioma. */
+/** The ticket summary inside an orchestrator title, whatever its language. */
 export function titleSubject(title: string): string {
   for (const t of Object.values(TITLE_TEXT)) if (title.startsWith(`${t.orchestrator}: `)) return title.slice(t.orchestrator.length + 2);
   return title;
 }
 
-/** Las notas de un registro admiten 5000 caracteres; veredicto + resumen largo + link pueden pasarse. */
+/** A test run's notes allow 5000 characters; verdict + long summary + link can exceed that. */
 const NOTES_MAX = 5000;
 const clipNotes = (notes: string): string => (notes.length > NOTES_MAX ? `${notes.slice(0, NOTES_MAX - 1)}…` : notes);
 
-/** Título y notas del registro que refleja la ejecución, en el idioma pedido. */
+/** Title and notes of the test run that reflects the run, in the requested language. */
 export function runText(
   automation: Pick<Automation, 'title' | 'verdict' | 'link'>,
   lang: Lang,
@@ -96,8 +97,8 @@ export function runText(
 }
 
 /**
- * Registro de Registros que refleja la ejecución: «En progreso» mientras Claude
- * trabaja y con el veredicto, los casos y el resumen cuando lo reporta.
+ * Test run (in Runs) that reflects the run: "In progress" while Claude works, and
+ * with the verdict, case counts and summary once it reports.
  */
 export function runForAutomation(automation: Automation, settings: Settings, result?: AutomationResult): TestRunInput {
   const base = {

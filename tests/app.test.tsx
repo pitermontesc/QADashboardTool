@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { App } from '../src/client/App';
 import { extraIssues, fakeJira, startServer } from './helpers';
 
-/** Prueba de la interfaz contra la API real (solo Jira está simulado). */
+/** UI tests against the real API (only Jira is faked). */
 describe('App', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
 
@@ -12,15 +12,15 @@ describe('App', () => {
     srv = await startServer({
       fetchImpl: fakeJira,
       launchClaude: async () => ({ pid: null, logFile: '', stop: () => undefined }),
-      assistant: async () => ({ reply: 'Hay **1** smoke pendiente.\n- Lo lanzo en STG', actions: [{ type: 'run_smoke', site: 'stg' }] }),
+      assistant: async () => ({ reply: 'There is **1** pending smoke.\n- Launching it on STG', actions: [{ type: 'run_smoke', site: 'stg' }] }),
     });
     await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
     await srv.call('POST', '/api/jira/refresh', {});
 
     const realFetch = globalThis.fetch;
-    // La interfaz usa rutas relativas; en la prueba se resuelven contra el servidor temporal.
+    // The UI uses relative paths; in tests they resolve against the temporary server.
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => realFetch(new URL(url, srv.base), init));
-    // jsdom no implementa <dialog>.showModal().
+    // jsdom does not implement <dialog>.showModal().
     HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
       this.setAttribute('open', '');
     };
@@ -31,7 +31,7 @@ describe('App', () => {
     await srv.close();
   });
 
-  it('registra un test desde el botón de un ticket de Jira', async () => {
+  it('logs a test from a Jira ticket button', async () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: /AVM-102/ }));
@@ -49,7 +49,7 @@ describe('App', () => {
     expect(body.runs).toMatchObject([{ ticket: 'AVM-102', title: 'Vendor <import> & export', typeId: 't2', passed: 4, result: 'passed' }]);
   });
 
-  it('sugiere el resultado según los casos hasta que se elige a mano', async () => {
+  it('suggests the result from the case counts until one is picked by hand', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /AVM-101/ }));
     const checked = () => screen.getByRole('radio', { checked: true }).textContent;
@@ -64,7 +64,7 @@ describe('App', () => {
     expect(checked()).toBe('Blocked');
   });
 
-  it('muestra el registro en la lista y lo borra con doble confirmación', async () => {
+  it('shows the run in the list and deletes it with a double confirmation', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Registros' }));
     expect(screen.getByText('1 de 1 registros')).toBeTruthy();
@@ -76,28 +76,28 @@ describe('App', () => {
     expect((await srv.call('GET', '/api/state')).body.runs).toEqual([]);
   });
 
-  it('agrega un tipo de test propio desde los ajustes', async () => {
+  it('adds a custom test type from the settings', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Tipos y ajustes' }));
-    fireEvent.change(screen.getByPlaceholderText(/Nuevo tipo de test/), { target: { value: 'Migración de datos' } });
+    fireEvent.change(screen.getByPlaceholderText(/Nuevo tipo de test/), { target: { value: 'Data migration' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Agregar' })[0]!);
 
     await waitFor(async () => {
       const { body } = await srv.call('GET', '/api/state');
-      expect(body.settings.types.at(-1)).toMatchObject({ name: 'Migración de datos', major: false });
+      expect(body.settings.types.at(-1)).toMatchObject({ name: 'Data migration', major: false });
     });
   });
 
-  it('abre el reporte QA de una ejecución con sus módulos, pasos y bugs', async () => {
+  it('opens the QA report of an automation with its modules, steps and bugs', async () => {
     const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     await srv.call('POST', `/api/automation/${automation.id}/result`, {
-      verdict: 'NO-GO', passed: 3, failed: 1, bugs: 1, minutes: 12, summary: 'Reports no carga',
+      verdict: 'NO-GO', passed: 3, failed: 1, bugs: 1, minutes: 12, summary: 'Reports does not load',
       details: {
         modules: [
-          { name: 'Login', status: 'passed', steps: [{ name: 'Entrar con usuario QA', status: 'passed' }] },
-          { name: 'Reports', status: 'failed', minutes: 5, steps: [{ name: 'Abrir Fleet report', status: 'failed', notes: 'Error 500' }] },
+          { name: 'Login', status: 'passed', steps: [{ name: 'Log in as the QA user', status: 'passed' }] },
+          { name: 'Reports', status: 'failed', minutes: 5, steps: [{ name: 'Open Fleet report', status: 'failed', notes: 'Error 500' }] },
         ],
-        bugs: [{ title: 'Fleet report da 500', severity: 'High', key: 'AVM-9001' }],
+        bugs: [{ title: 'Fleet report returns 500', severity: 'High', key: 'AVM-9001' }],
       },
     });
     render(<App />);
@@ -106,12 +106,12 @@ describe('App', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Reporte QA · Smoke STG' });
     expect(dialog.textContent).toContain('NO-GO');
     expect(dialog.textContent).toContain('12 min');
-    expect(dialog.textContent).toContain('Reports no carga');
-    expect(dialog.textContent).toContain('Abrir Fleet report');
+    expect(dialog.textContent).toContain('Reports does not load');
+    expect(dialog.textContent).toContain('Open Fleet report');
     expect(dialog.textContent).toContain('Error 500');
-    expect(dialog.textContent).toContain('AVM-9001 · Fleet report da 500');
+    expect(dialog.textContent).toContain('AVM-9001 · Fleet report returns 500');
 
-    // También se abre desde su registro en Registros.
+    // It also opens from its run in Runs ("Registros").
     fireEvent.click(screen.getAllByRole('button', { name: 'Cerrar' }).at(-1)!);
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Registros' }));
@@ -121,7 +121,7 @@ describe('App', () => {
     await srv.call('DELETE', `/api/runs/${automation.runId}`);
   });
 
-  it('cambia toda la interfaz a inglés desde la cabecera', async () => {
+  it('switches the whole UI to English from the header', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'EN' }));
     await screen.findByRole('button', { name: 'Runs' });
@@ -130,7 +130,7 @@ describe('App', () => {
       [...document.body.querySelectorAll('h1,h2,h3,button,label,th,p,span,option,legend,a')]
         .filter((el) => el.children.length === 0)
         .map((el) => (el.textContent ?? '').trim())
-        // Datos de prueba (tickets, tipos de test) no son textos de la app.
+        // Test data (tickets, test types) is not app text.
         .filter((text) => text && spanish.test(text) && !/Vendor|Work order|Funcional|Exploratorio|Verificación|Integración|Seguridad|Accesibilidad|Migración|^Español$/.test(text));
 
     expect(screen.getByText('Tickets to test')).toBeTruthy();
@@ -143,14 +143,14 @@ describe('App', () => {
     expect(await screen.findByLabelText('Title / what was tested')).toBeTruthy();
     expect(leftovers()).toEqual([]);
 
-    // Los errores del servidor también llegan en inglés.
+    // Server errors also arrive in English.
     expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).body.error).toBe('That site does not exist: choose QA or STG');
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'ES' }));
     await screen.findByRole('button', { name: 'Registros' });
   });
 
-  it('cambia entre tema automático, claro y oscuro y lo guarda en los ajustes', async () => {
+  it('cycles between automatic, light and dark themes and saves it in the settings', async () => {
     render(<App />);
     const button = await screen.findByRole('button', { name: /^Tema: Automático/ });
     expect(document.documentElement.dataset.theme).toBeUndefined();
@@ -160,24 +160,24 @@ describe('App', () => {
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
     expect((await srv.call('GET', '/api/state')).body.settings.theme).toBe('dark');
 
-    // También desde Tipos y ajustes → Apariencia.
+    // Also from Types & settings ("Tipos y ajustes") → Appearance ("Apariencia").
     fireEvent.click(screen.getByRole('button', { name: 'Tipos y ajustes' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Apariencia' })).getByRole('button', { name: 'Automático' }));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBeUndefined());
     expect((await srv.call('GET', '/api/state')).body.settings.theme).toBe('system');
   });
 
-  it('el asistente responde y solo lanza la acción cuando se confirma', async () => {
+  it('the assistant replies and only launches the action once confirmed', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /Asistente/ }));
     const panel = screen.getByRole('complementary', { name: 'Asistente' });
-    fireEvent.change(within(panel).getByLabelText('Pregunta o pide algo…'), { target: { value: '¿Qué hay pendiente?' } });
+    fireEvent.change(within(panel).getByLabelText('Pregunta o pide algo…'), { target: { value: 'What is pending?' } });
     fireEvent.keyDown(within(panel).getByLabelText('Pregunta o pide algo…'), { key: 'Enter' });
 
-    expect(await within(panel).findByText('Lo lanzo en STG')).toBeTruthy();
+    expect(await within(panel).findByText('Launching it on STG')).toBeTruthy();
     expect(within(panel).getByText('1').tagName).toBe('B');
     const before = (await srv.call('GET', '/api/state')).body.automations.length;
-    // Sin confirmar no se lanza nada.
+    // Nothing launches without confirmation.
     expect((await srv.call('GET', '/api/state')).body.automations).toHaveLength(before);
     fireEvent.click(within(panel).getByRole('button', { name: 'Confirmar' }));
     expect(await within(panel).findByText('Hecho')).toBeTruthy();
@@ -187,11 +187,11 @@ describe('App', () => {
     await srv.call('POST', `/api/automation/${body.automations[0].id}/stop`, {});
   });
 
-  it('actualiza los tickets solo al volver a la ventana y avisa de los nuevos en On QA', async () => {
+  it('refreshes tickets on its own when the window regains focus and announces new ones in On QA', async () => {
     render(<App />);
     await screen.findByRole('button', { name: /AVM-101/ });
-    extraIssues.push({ key: 'AVM-103', summary: 'Nuevo para QA', status: 'On Staging' });
-    // La última carga tiene que tener más de un minuto para que se repita.
+    extraIssues.push({ key: 'AVM-103', summary: 'New for QA', status: 'On Staging' });
+    // The last load must be over a minute old for it to repeat.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.now() + 2 * 60_000);
     try {

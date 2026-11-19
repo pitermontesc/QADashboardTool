@@ -27,7 +27,7 @@ interface RegressionDialogProps {
   onClose: () => void;
 }
 
-/** Pide el test run (link de los dominios configurados o ID) y lanza el runner de regresión. */
+/** Asks for the test run (a link on the configured domains, or an ID) and launches the regression runner. */
 export function RegressionDialog({ qa, onLaunch, onClose }: RegressionDialogProps) {
   const t = useText(TEXT);
   const dialog = useRef<HTMLDialogElement>(null);

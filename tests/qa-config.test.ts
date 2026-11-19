@@ -7,8 +7,8 @@ import { defaultQaConfig } from '../src/shared/orchestrator';
 import type { QaConfig } from '../src/shared/types';
 import { extraIssues, fakeJira, startServer } from './helpers';
 
-/** Sitios, skills y dominios salen de los ajustes, no del código. */
-describe('Sitios y skills configurables', () => {
+/** Sites, skills and domains come from the settings, not from the code. */
+describe('Configurable sites and skills', () => {
   const prompts: string[] = [];
   let srv: Awaited<ReturnType<typeof startServer>>;
   const custom: QaConfig = {
@@ -48,32 +48,32 @@ describe('Sitios y skills configurables', () => {
     }
   });
 
-  it('sin configurar usa los sitios y skills de siempre', async () => {
+  it('when not configured, uses the usual sites and skills', async () => {
     expect((await srv.call('GET', '/api/state')).body.settings.qa).toEqual(defaultQaConfig());
     const { body } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     expect(body).toMatchObject({ target: 'STG', env: 'STG' });
     expect(prompts[0]).toMatch(/^\/avm-qa-skills:avm-smoke-tester run smoke on STG \(https:\/\/staging\.alpinevm\.com\)/);
   });
 
-  it('lanza el smoke en un sitio propio con su URL, ambiente y skill', async () => {
+  it('launches the smoke on a custom site with its URL, environment and skill', async () => {
     expect((await saveQa(custom)).status).toBe(200);
     const { status, body } = await srv.call('POST', '/api/smoke', { site: 'uat' });
     expect(status).toBe(200);
     expect(body).toMatchObject({ kind: 'smoke', target: 'UAT', env: 'UAT' });
     expect(prompts[0]).toMatch(/^\/team:smoke run smoke on UAT \(https:\/\/uat\.example\.com\/app\)/);
-    // El sitio que ya no existe se rechaza, nombrando los que hay.
+    // A site that no longer exists is rejected, naming the existing ones (in Spanish, the default language).
     const gone = await srv.call('POST', '/api/smoke', { site: 'stg' });
     expect(gone.status).toBe(400);
     expect(gone.body.error).toBe('Ese sitio no existe: elige QA o UAT');
   });
 
-  it('el estado de Jira decide si un ticket se orquesta y en qué ambiente', async () => {
+  it('the Jira status decides whether a ticket is orchestrated and in which environment', async () => {
     await saveQa(custom);
     const { status, body } = await srv.call('POST', '/api/orchestrator/AVM-300', {});
     expect(status).toBe(200);
     expect(body).toMatchObject({ target: 'AVM-300', env: 'UAT' });
     expect(prompts[0]).toMatch(/^\/team:validate AVM-300/);
-    // «On Staging» ya no es un estado listo: ningún sitio lo usa.
+    // "On Staging" is no longer a ready status: no site uses it.
     const refused = await srv.call('POST', '/api/orchestrator/AVM-102', {});
     expect(refused.status).toBe(409);
     const { body: tickets } = await srv.call('GET', '/api/state');
@@ -81,7 +81,7 @@ describe('Sitios y skills configurables', () => {
     expect(refused.body.error).toBe(`AVM-102 está en "${avm102.status}"; el orquestador es para tickets en On QA o Ready for UAT`);
   });
 
-  it('la regresión usa el skill, el sitio y los dominios configurados', async () => {
+  it('the regression uses the configured skill, site and domains', async () => {
     await saveQa(custom);
     const ok = await srv.call('POST', '/api/regression', { run: 'https://app.tests.example.com/projects/x/runs/1' });
     expect(ok.status).toBe(200);
@@ -90,26 +90,26 @@ describe('Sitios y skills configurables', () => {
     expect((await srv.call('POST', '/api/regression', { run: 'https://app.testomat.io/projects/x/runs/1' })).status).toBe(400);
   });
 
-  it('rechaza configuraciones inválidas sin tocar la guardada', async () => {
+  it('rejects invalid configurations without touching the saved one', async () => {
     await saveQa(custom);
     const site = custom.sites[0]!;
     const bad: Array<[string, unknown]> = [
-      ['skill con espacios', { ...custom, skills: { ...custom.skills, smoke: '/team:smoke; rm -rf ~' } }],
-      ['skill sin barra', { ...custom, skills: { ...custom.skills, orchestrator: 'team:validate' } }],
-      ['URL no http', { ...custom, sites: [{ ...site, url: 'javascript:alert(1)' }, custom.sites[1]] }],
-      ['nombre con comillas', { ...custom, sites: [{ ...site, name: "QA'" }, custom.sites[1]] }],
-      ['id con mayúsculas', { ...custom, sites: [{ ...site, id: 'QA' }, custom.sites[1]] }],
-      ['ids repetidos', { ...custom, sites: [site, { ...custom.sites[1], id: 'qa' }] }],
-      ['estado de Jira repetido', { ...custom, sites: [site, { ...custom.sites[1], jiraStatus: 'on qa' }] }],
-      ['sin sitios', { ...custom, sites: [] }],
-      ['regresión en un sitio que no existe', { ...custom, regressionSiteId: 'prod' }],
-      ['dominio inválido', { ...custom, testRunHosts: ['https://x'] }],
+      ['skill with spaces', { ...custom, skills: { ...custom.skills, smoke: '/team:smoke; rm -rf ~' } }],
+      ['skill without slash', { ...custom, skills: { ...custom.skills, orchestrator: 'team:validate' } }],
+      ['non-http URL', { ...custom, sites: [{ ...site, url: 'javascript:alert(1)' }, custom.sites[1]] }],
+      ['name with quotes', { ...custom, sites: [{ ...site, name: "QA'" }, custom.sites[1]] }],
+      ['id with uppercase', { ...custom, sites: [{ ...site, id: 'QA' }, custom.sites[1]] }],
+      ['repeated ids', { ...custom, sites: [site, { ...custom.sites[1], id: 'qa' }] }],
+      ['repeated Jira status', { ...custom, sites: [site, { ...custom.sites[1], jiraStatus: 'on qa' }] }],
+      ['no sites', { ...custom, sites: [] }],
+      ['regression on a site that does not exist', { ...custom, regressionSiteId: 'prod' }],
+      ['invalid domain', { ...custom, testRunHosts: ['https://x'] }],
     ];
     for (const [why, qa] of bad) expect((await saveQa(qa)).status, why).toBe(400);
     expect((await srv.call('GET', '/api/state')).body.settings.qa).toEqual(custom);
   });
 
-  it('el asistente solo propone el smoke en sitios que existen', async () => {
+  it('the assistant only proposes the smoke on sites that exist', async () => {
     await saveQa(custom);
     const answers = [{ type: 'run_smoke', site: 'uat' }, { type: 'run_smoke', site: 'stg' }];
     const srv2 = await startServer({ fetchImpl: fakeJira, assistant: async () => ({ reply: 'Ok', actions: answers }) });
@@ -124,8 +124,8 @@ describe('Sitios y skills configurables', () => {
   });
 });
 
-describe('Datos guardados antes de esta versión', () => {
-  it('sin configuración de sitios, toman los valores por defecto', () => {
+describe('Data saved before this version', () => {
+  it('without a site configuration, the defaults are used', () => {
     const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
     writeFileSync(file, JSON.stringify({ version: 1, settings: { types: [{ id: 't0', name: 'Smoke', major: true, color: '#000000' }], envs: ['QA'], ticketBase: '', language: 'es' }, runs: [] }));
     expect(new Store(file).getState().settings.qa).toEqual(defaultQaConfig());

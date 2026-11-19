@@ -1,4 +1,4 @@
-/** Iconos de trazo (24×24) usados en la interfaz; decorativos salvo que se indique `label`. */
+/** Stroke icons (24×24) used in the UI; decorative unless a `label` is given. */
 const PATHS = {
   dashboard: 'M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z',
   list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',

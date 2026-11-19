@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Icono de la app: wordmark RAVN oficial (brand kit de Ravn) en blanco sobre el negro de marca. -->
+  <!-- App icon: official RAVN wordmark (Ravn brand kit) in white on the brand black. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#1C1C1C"/>
@@ -9,10 +9,10 @@
       <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity=".35"/>
     </filter>
   </defs>
-  <!-- Rejilla de iconos de macOS: 824 px de lado con margen transparente. -->
+  <!-- macOS icon grid: 824 px square with a transparent margin. -->
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
   <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#292929" stroke-width="2"/>
-  <!-- Wordmark 148×33 escalado a 592 px de ancho y centrado. -->
+  <!-- 148×33 wordmark scaled to 592 px wide and centered. -->
   <g transform="translate(216 446) scale(4)" fill="#FFFFFF">
     <path d="M147.001 0.000976562H139.097V21.1196L120.763 0.00198534H112.859V32.9979H120.763V11.8853L139.095 33.001L139.098 32.9979H147.001V0.000976562Z"/>
     <path d="M94.3156 33H85.8811L73.0273 0H81.4608L90.0978 22.1056L98.7348 0H107.169L94.3156 33Z"/>
