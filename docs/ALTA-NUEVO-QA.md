@@ -4,7 +4,7 @@ Para que otra persona del equipo use QA Dashboard y los skills de QA de AVM con 
 
 ## 1. Quien invita
 
-- [ ] **Skills publicados en la organización.** El plugin `avm-qa-skills` 2.0.0 (incluye el orquestador) ya no tiene a nadie fijo: cada QA usa su perfil. Si todavía no está en la biblioteca de la organización en claude.ai, publícalo primero.
+- [ ] **Skills publicados en la organización.** El plugin `avm-qa-skills` 2.0.0 (incluye el orquestador) ya está en la biblioteca de la organización y no tiene a nadie fijo: cada QA usa su perfil. Pásale el link: <https://claude.ai/customize/plugins/plugin_01W7CGiL5o3doWhowWcddeqT>.
 - [ ] **App.** Pásale `QA Dashboard.app` (solo Mac con Apple Silicon por ahora) o el acceso al repositorio.
 - [ ] **Guía de uso.** Comparte la guía publicada desde su menú **Share** (en español o en inglés).
 - [ ] **Datos que va a necesitar:**
@@ -19,9 +19,9 @@ Para que otra persona del equipo use QA Dashboard y los skills de QA de AVM con 
 - [ ] **App.** Arrastra `QA Dashboard.app` a **Aplicaciones** y ábrela la primera vez con **clic derecho → Abrir** (no está firmada).
 - [ ] **Claude Code.** Instálalo, ejecuta `claude` una vez en Terminal e inicia sesión con tu cuenta. Las ejecuciones consumen de **tu** plan.
 - [ ] **Chrome y Claude in Chrome.** Instala la extensión, conéctala a tu cuenta de Claude e inicia sesión con **tu usuario** en `qa.alpinevm.com`, `staging.alpinevm.com` y `app.testomat.io`. Sin esto, las ejecuciones terminan en BLOCKED.
-- [ ] **Skills.** Elige una de las dos formas de instalarlos:
-  - desde la biblioteca de la organización en claude.ai (plugin `avm-qa-skills`);
-  - o con `bash install.sh` desde la carpeta del plugin.
+- [ ] **Skills.** Instala el plugin `avm-qa-skills` de la biblioteca de la organización de una de estas formas:
+  - en claude.ai: <https://claude.ai/customize/plugins/plugin_01W7CGiL5o3doWhowWcddeqT>;
+  - en Claude Code: agrega la biblioteca de la organización en `/plugin` → **Marketplaces** y ejecuta `/plugin install avm-qa-skills@claudeai-organization-library`.
 
   Comprueba con `/skills` en Claude Code que aparecen `avm-qa-orchestrator`, `avm-smoke-tester`, `avm-regression-runner`, `avm-qa-validator` y el resto.
 - [ ] **Conector de Atlassian en Claude.** Conéctalo en claude.ai → Connectors. Si la organización exige aprobación para publicar en Jira, Claude no podrá comentar desde una ejecución en segundo plano; la app lo deja listo para publicar con un clic.
