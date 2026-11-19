@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
-import { LANGUAGES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings } from '../../shared/types';
+import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
 import { Icon } from './icons';
@@ -27,6 +27,8 @@ const TEXT = {
     newType: 'Nuevo tipo de test, p. ej. Migración de datos', add: 'Agregar',
     envs: 'Ambientes', noEnvs: 'Sin ambientes', newEnv: 'Nuevo ambiente',
     language: 'Idioma', languageHint: 'Idioma de la app y de los reportes que escribe Claude.',
+    theme: 'Apariencia', themeHint: 'Automático sigue el modo claro u oscuro de macOS.',
+    themeNames: { system: 'Automático', light: 'Claro', dark: 'Oscuro' } as Record<Theme, string>,
     jira: 'Conexión con Jira', jiraHint: 'Tus tickets aparecen como tarjetas en el dashboard. El API token se guarda solo en esta máquina.',
     board: 'Board (opcional: pega el link del board, con o sin filtro)',
     boardPh: 'https://tu-sitio.atlassian.net/jira/software/projects/ABC/boards/1?filter=…',
@@ -50,6 +52,8 @@ const TEXT = {
     newType: 'New test type, e.g. Data migration', add: 'Add',
     envs: 'Environments', noEnvs: 'No environments', newEnv: 'New environment',
     language: 'Language', languageHint: 'Language of the app and of the reports Claude writes.',
+    theme: 'Appearance', themeHint: 'Automatic follows the macOS light or dark mode.',
+    themeNames: { system: 'Automatic', light: 'Light', dark: 'Dark' } as Record<Theme, string>,
     jira: 'Jira connection', jiraHint: 'Your tickets show up as cards on the dashboard. The API token is stored only on this machine.',
     board: 'Board (optional: paste the board link, with or without a filter)',
     boardPh: 'https://your-site.atlassian.net/jira/software/projects/ABC/boards/1?filter=…',
@@ -215,6 +219,18 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
               {LANGUAGES.map((l) => (
                 <button key={l} className={l === lang ? 'on' : ''} aria-pressed={l === lang} onClick={() => onSaveSettings({ ...settings, language: l })}>
                   {LANGUAGE_NAMES[l]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3>{t.theme}</h3>
+            <p className="hint">{t.themeHint}</p>
+            <div className="seg" role="group" aria-label={t.theme}>
+              {THEMES.map((th) => (
+                <button key={th} className={th === settings.theme ? 'on' : ''} aria-pressed={th === settings.theme} onClick={() => onSaveSettings({ ...settings, theme: th })}>
+                  {t.themeNames[th]}
                 </button>
               ))}
             </div>

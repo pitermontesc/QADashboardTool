@@ -3,7 +3,7 @@ import { toYmd } from '../shared/dates.js';
 import type { Automation, AutomationKind, Lang, Result, Settings, TestRunInput, Verdict } from '../shared/types.js';
 import type { AutomationResult } from './schemas.js';
 
-const VERDICTS_BY_KIND: Record<AutomationKind, string[]> = {
+export const VERDICTS_BY_KIND: Record<AutomationKind, Verdict[]> = {
   smoke: ['GO', 'NO-GO', 'BLOCKED'],
   regression: ['GO', 'NO-GO', 'BLOCKED'],
   orchestrator: ['PASSED', 'PASSED W/F', 'FAILED', 'BLOCKED'],

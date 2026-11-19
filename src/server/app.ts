@@ -7,7 +7,7 @@ import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import { launchClaude, readActivity, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
 import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
-import { automationTitle, envFor, reportInstruction, runForAutomation } from './automation.js';
+import { VERDICTS_BY_KIND, automationTitle, envFor, reportInstruction, runForAutomation } from './automation.js';
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportTranslationSchema, runInputSchema, settingsSchema,
 } from './schemas.js';
@@ -111,12 +111,19 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     res.json({ ...store.getState(), translating: translating.size, demo: options.demo === true });
   });
 
+  /** Un registro siempre apunta a un tipo de test que existe en los ajustes. */
+  const parseRun = (body: unknown) => {
+    const input = runInputSchema.parse(body);
+    if (!store.getState().settings.types.some((t) => t.id === input.typeId)) throw new HttpError(400, 'Ese tipo de test no existe');
+    return input;
+  };
+
   api.post('/runs', (req, res) => {
-    res.status(201).json(store.createRun(runInputSchema.parse(req.body)));
+    res.status(201).json(store.createRun(parseRun(req.body)));
   });
 
   api.put('/runs/:id', (req, res) => {
-    const run = store.updateRun(String(req.params.id), runInputSchema.parse(req.body));
+    const run = store.updateRun(String(req.params.id), parseRun(req.body));
     if (!run) throw new HttpError(404, 'El registro ya no existe');
     res.json(run);
   });
@@ -128,7 +135,15 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   api.put('/settings', (req, res) => {
     const before = lang();
-    const settings = store.saveSettings(settingsSchema.parse(req.body));
+    const next = settingsSchema.parse(req.body);
+    // Como en la interfaz: un tipo con registros no se puede quitar (quedarían registros sin tipo).
+    const kept = new Set(next.types.map((t) => t.id));
+    const orphan = store.getState().runs.find((r) => !kept.has(r.typeId));
+    if (orphan) {
+      const name = store.getState().settings.types.find((t) => t.id === orphan.typeId)?.name ?? orphan.typeId;
+      throw new HttpError(409, `El tipo «${name}» tiene registros y no se puede quitar`);
+    }
+    const settings = store.saveSettings(next);
     if (settings.language !== before) translateAll(settings.language);
     res.json(settings);
   });
@@ -215,6 +230,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const automation = store.getAutomation(id);
     if (!automation) throw new HttpError(404, 'Esa ejecución no existe o se descartó');
     if (automation.finishedAt !== null) throw new HttpError(409, 'Esa ejecución ya tiene resultado');
+    const valid = VERDICTS_BY_KIND[automation.kind];
+    if (!valid.includes(result.verdict)) {
+      throw new HttpError(400, `Veredicto ${result.verdict} no válido para esta ejecución: usa ${valid.join(', ')}`);
+    }
     const { verdict, summary, link, details } = result;
     const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
     return store.finishAutomation(id, { verdict, summary, link, details }, runInput);
@@ -247,6 +266,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     prompt: (extra: string) => string,
   ) => {
     prompt(''); // Valida antes de registrar nada.
+    // Un doble clic no lanza dos Claude sobre lo mismo; otro sitio u otro ticket sí pueden correr a la vez.
+    const busy = store.getState().automations.find((a) => a.finishedAt === null && a.kind === input.kind && a.target === input.target);
+    if (busy) throw new HttpError(409, `Ya hay una ejecución en curso de ${input.kind === 'orchestrator' ? input.target : `${input.kind} ${input.target}`.trim()}`);
     const settings = store.getState().settings;
     const automation = store.startAutomation(input, (a) => runInputSchema.parse(runForAutomation(a, settings)));
     const en = settings.language === 'en';
@@ -320,17 +342,25 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     res.json(await translateOne(id, target));
   });
 
+  /** Comentarios que se están publicando: un segundo clic mientras Jira responde no publica otro. */
+  const posting = new Set<string>();
+
   /** Publica en Jira el comentario de QA que Claude dejó listo (con el texto editado, si se envía). */
   api.post('/automation/:id/jira-comment', async (req, res) => {
     const id = String(req.params.id);
     const comment = store.getAutomation(id)?.details?.jiraComment;
     if (!comment) throw new HttpError(404, 'Esta ejecución no tiene comentario para Jira');
-    if (comment.posted) throw new HttpError(409, 'Ese comentario ya está publicado en Jira');
+    if (comment.posted || posting.has(id)) throw new HttpError(409, 'Ese comentario ya está publicado en Jira');
     if (comment.dismissed) throw new HttpError(409, 'Ese comentario está descartado; recupéralo para publicarlo');
     const { body } = (req.body ?? {}) as { body?: unknown };
     const text = typeof body === 'string' && body.trim() ? body.trim().slice(0, 30000) : comment.body;
-    const url = await postJiraComment(store.getJiraCredentials(), comment.key, text, options.fetchImpl);
-    res.json(store.saveJiraCommentPosted(id, text, url));
+    posting.add(id);
+    try {
+      const url = await postJiraComment(store.getJiraCredentials(), comment.key, text, options.fetchImpl);
+      res.json(store.saveJiraCommentPosted(id, text, url));
+    } finally {
+      posting.delete(id);
+    }
   });
 
   /** Descarta el comentario de Jira (p. ej. ya se publicó otro a mano) o lo recupera con `{dismissed: false}`. */

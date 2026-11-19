@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from 'node:fs';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { orchestratorPrompt, regressionPrompt } from '../src/server/orchestrator';
 import type { ClaudeJob } from '../src/server/claudeRunner';
 import { Store } from '../src/server/store';
@@ -138,6 +138,12 @@ describe('Orquestador QA', () => {
     await srv.call('POST', '/api/jira/refresh', {});
   });
   afterAll(() => srv.close());
+  // No se puede lanzar dos veces lo mismo mientras corre: cada prueba detiene lo que dejó en curso.
+  afterEach(async () => {
+    for (const a of (await srv.call('GET', '/api/state')).body.automations) {
+      if (a.finishedAt === null) await srv.call('POST', `/api/automation/${a.id}/stop`, {});
+    }
+  });
 
   it('solo se lanza para tickets cargados en On QA u On Staging', async () => {
     expect(await srv.call('POST', '/api/orchestrator/AVM-101', {})).toMatchObject({ status: 200, body: { kind: 'orchestrator', target: 'AVM-101', env: 'QA' } });

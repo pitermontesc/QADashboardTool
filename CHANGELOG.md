@@ -2,6 +2,22 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.11.0] - 2026-11-19
+
+### Agregado
+- **Modo oscuro a elección.** Tema **Automático** (sigue a macOS), **Claro** u **Oscuro**, desde el botón de la cabecera, **Tipos y ajustes → Apariencia** o el menú **Ver → Apariencia** de la app de escritorio. Se guarda con los ajustes, se aplica al abrir sin destello claro y la ventana de la app lo sigue. Antes el modo oscuro solo se activaba con el de macOS.
+
+### Corregido
+- En modo oscuro, el texto del botón del orquestador al pasar el ratón y el de la marca DEMO tenían poco contraste.
+- Casos que la API aceptaba sin deber (encontrados con pruebas de casos borde):
+  - Fechas que no existen (`2026-02-30`), que acababan en otro día en los gráficos.
+  - Registros con un tipo de test que no existe, también dentro de un respaldo importado.
+  - Quitar un tipo con registros o repetir el id de un tipo desde la API (la interfaz ya lo impedía).
+  - Un veredicto que no corresponde a la ejecución, por ejemplo PASSED en un smoke.
+  - Dos clics a la vez en **Publicar en Jira** publicaban el comentario dos veces.
+  - Lanzar el mismo smoke, regresión u orquestador de un ticket mientras ya corre arrancaba otro Claude sobre lo mismo; ahora responde «Ya hay una ejecución en curso». Otro sitio u otro ticket sí pueden correr a la vez.
+  - En el comentario de Jira, un asterisco suelto (`2*3*4`) se volvía negrita y la `*cursiva*` de Markdown no se convertía.
+
 ## [1.10.0] - 2026-11-18
 
 ### Agregado

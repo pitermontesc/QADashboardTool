@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput,
+  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput, Theme,
 } from '../shared/types';
+import { applyTheme, nextTheme } from './theme';
 import { LANGUAGES } from '../shared/types';
 import { LangProvider, systemLang } from './i18n';
 import { api } from './api';
@@ -55,6 +56,8 @@ const TEXT = {
     editRun: 'Editar registro',
     closeToast: 'Cerrar aviso',
     language: 'Idioma',
+    themeNames: { system: 'Automático', light: 'Claro', dark: 'Oscuro' } as Record<Theme, string>,
+    themeTitle: (current: string, next: string) => `Tema: ${current}. Pulsa para cambiar a ${next}.`,
   },
   en: {
     tabs: { dash: 'Dashboard', runs: 'Runs', config: 'Types & settings' } as Record<Tab, string>,
@@ -81,6 +84,8 @@ const TEXT = {
     editRun: 'Edit run',
     closeToast: 'Close notice',
     language: 'Language',
+    themeNames: { system: 'Automatic', light: 'Light', dark: 'Dark' } as Record<Theme, string>,
+    themeTitle: (current: string, next: string) => `Theme: ${current}. Click to switch to ${next}.`,
   },
 } satisfies Record<Lang, unknown>;
 
@@ -140,6 +145,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+  const theme: Theme | undefined = state?.settings.theme;
+  useEffect(() => {
+    if (theme) applyTheme(theme);
+  }, [theme]);
 
   const notify = useCallback((text: string, kind: ToastKind = 'ok') => setToast({ text, kind, id: Date.now() }), []);
   const fail = useCallback((error: unknown) => notify(errorMessage(error), 'error'), [notify]);
@@ -432,6 +441,9 @@ export function App() {
     } else if (command === 'search') {
       setTab('runs');
       setTimeout(() => document.getElementById('runs-search')?.focus(), 0);
+    } else if (command.startsWith('theme:')) {
+      const next = command.slice(6);
+      if (next === 'system' || next === 'light' || next === 'dark') void saveSettings({ ...state.settings, theme: next });
     } else if (command.startsWith('tab:')) {
       setTab(command.slice(4) as Tab);
     }
@@ -485,6 +497,16 @@ export function App() {
               : t.running(active.length)}
           </button>
         )}
+        {(() => {
+          const next = nextTheme(state.settings.theme);
+          const icon = state.settings.theme === 'dark' ? 'moon' : state.settings.theme === 'light' ? 'sun' : 'auto';
+          const title = t.themeTitle(t.themeNames[state.settings.theme], t.themeNames[next]);
+          return (
+            <button className="icon-btn theme-btn" onClick={() => void saveSettings({ ...state.settings, theme: next })} title={title} aria-label={title}>
+              <Icon name={icon} />
+            </button>
+          );
+        })()}
         <div className="lang-switch" role="group" aria-label={t.language}>
           {LANGUAGES.map((l) => (
             <button key={l} className={l === lang ? 'on' : ''} aria-pressed={l === lang} onClick={() => setLanguage(l)}>

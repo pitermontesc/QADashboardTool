@@ -13,6 +13,10 @@ function inline(text: string): string {
   });
   out = out
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '[$1|$2]')
+    // Cursiva de Markdown (*texto*) a la de Jira (_texto_); cualquier otro asterisco suelto se escapa,
+    // porque en Jira *texto* es negrita (2*3*4 tiene que seguir leyéndose igual).
+    .replace(/(?<![*\w])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![*\w])/g, '_$1_')
+    .replace(/(?<!\*)\*(?!\*)/g, '\\*')
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
     .replace(/__(.+?)__/g, '*$1*')
     .replace(/~~(.+?)~~/g, '-$1-');

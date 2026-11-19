@@ -17,6 +17,9 @@ const PATHS = {
   jira: 'M11.5 2.5 3 11a1.4 1.4 0 0 0 0 2l8.5 8.5 3-3-5.5-5.5 5.5-5.5zM12.5 9.5 15.5 12.5 12.5 15.5 21 7z',
   play: 'M7 4.5v15l12.5-7.5z',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  auto: 'M3 4h18v12H3zM8 20h8M12 16v4',
 } as const;
 
 export type IconName = keyof typeof PATHS;

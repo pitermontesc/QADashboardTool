@@ -381,6 +381,8 @@ Agrega los ambientes en los que pruebas y quita los que no uses con la ×. Quita
 
 **Enlace de tickets.** La URL a la que se añade la clave del ticket para abrirlo (por ejemplo `https://tu-sitio.atlassian.net/browse/`). Se configura sola al conectar Jira.
 
+**Apariencia.** **Automático** (sigue el modo claro u oscuro de macOS), **Claro** u **Oscuro**. También se cambia con el botón del sol, la luna o la pantalla en la cabecera (cada clic pasa al siguiente) y en la app de escritorio desde **Ver → Apariencia**. La ventana y los menús de la app siguen el tema elegido.
+
 ## 9. Respaldo y exportación
 
 ![Tarjeta «Respaldo de datos» con los botones de exportar e importar](img/16-respaldo.png)

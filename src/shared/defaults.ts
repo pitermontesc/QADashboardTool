@@ -47,6 +47,7 @@ export function defaultSettings(language: Lang = 'es'): Settings {
     envs: ['QA', 'STG', 'PROD', 'Local'],
     ticketBase: '',
     language,
+    theme: 'system',
   };
 }
 

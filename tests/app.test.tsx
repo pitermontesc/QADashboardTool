@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/client/App';
 import { extraIssues, fakeJira, startServer } from './helpers';
@@ -144,6 +144,23 @@ describe('App', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'ES' }));
     await screen.findByRole('button', { name: 'Registros' });
+  });
+
+  it('cambia entre tema automático, claro y oscuro y lo guarda en los ajustes', async () => {
+    render(<App />);
+    const button = await screen.findByRole('button', { name: /^Tema: Automático/ });
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+    fireEvent.click(button);
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'));
+    fireEvent.click(await screen.findByRole('button', { name: /^Tema: Claro/ }));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+    expect((await srv.call('GET', '/api/state')).body.settings.theme).toBe('dark');
+
+    // También desde Tipos y ajustes → Apariencia.
+    fireEvent.click(screen.getByRole('button', { name: 'Tipos y ajustes' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Apariencia' })).getByRole('button', { name: 'Automático' }));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBeUndefined());
+    expect((await srv.call('GET', '/api/state')).body.settings.theme).toBe('system');
   });
 
   it('actualiza los tickets solo al volver a la ventana y avisa de los nuevos en On QA', async () => {

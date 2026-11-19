@@ -4,6 +4,10 @@
 export const LANGUAGES = ['es', 'en'] as const;
 export type Lang = (typeof LANGUAGES)[number];
 
+/** Tema de la interfaz: `system` sigue el modo claro u oscuro del sistema. */
+export const THEMES = ['system', 'light', 'dark'] as const;
+export type Theme = (typeof THEMES)[number];
+
 export const RESULTS = ['passed', 'failed', 'blocked', 'progress'] as const;
 export type Result = (typeof RESULTS)[number];
 
@@ -43,6 +47,7 @@ export interface Settings {
   ticketBase: string;
   /** Idioma de la interfaz y de los reportes de Claude. */
   language: Lang;
+  theme: Theme;
 }
 
 export interface JiraTicket {

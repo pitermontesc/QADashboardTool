@@ -13,24 +13,30 @@ const URL_ = `http://${HOST}:${PORT}`;
 const WINDOW_FILE = path.join(defaultDataDir(), 'window.json');
 
 type Lang = 'es' | 'en';
+type Theme = 'system' | 'light' | 'dark';
 
-/** Idioma guardado en los ajustes de la app (el archivo se lee antes de arrancar el servidor). */
-function savedLanguage(): Lang {
+/** Ajustes guardados de la app (el archivo se lee antes de arrancar el servidor). */
+function savedSettings(): { language?: string; theme?: string } {
   try {
-    const data = JSON.parse(readFileSync(path.join(defaultDataDir(), 'qa-tests.json'), 'utf8')) as { settings?: { language?: string } };
-    return data.settings?.language === 'en' ? 'en' : 'es';
+    const data = JSON.parse(readFileSync(path.join(defaultDataDir(), 'qa-tests.json'), 'utf8')) as { settings?: { language?: string; theme?: string } };
+    return data.settings ?? {};
   } catch {
-    return 'es';
+    return {};
   }
 }
 
-let lang: Lang = savedLanguage();
+const saved = savedSettings();
+let lang: Lang = saved.language === 'en' ? 'en' : 'es';
+let theme: Theme = saved.theme === 'light' || saved.theme === 'dark' ? saved.theme : 'system';
+// La ventana, el menú y los controles nativos siguen el tema elegido en la app.
+nativeTheme.themeSource = theme;
 
 const TEXT = {
   es: {
     file: 'Archivo', newRun: 'Nuevo registro', refreshJira: 'Actualizar tickets de Jira', view: 'Ver',
     dashboard: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes', search: 'Buscar registros',
     resetZoom: 'Tamaño real', zoomIn: 'Acercar', zoomOut: 'Alejar', fullscreen: 'Pantalla completa',
+    appearance: 'Apariencia', themeNames: { system: 'Automática', light: 'Clara', dark: 'Oscura' } as Record<Theme, string>,
     portBusy: (port: number) => `El puerto ${port} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`,
     startFailed: 'No se pudo iniciar la app:',
     help: 'Ayuda', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
@@ -39,6 +45,7 @@ const TEXT = {
     file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
     dashboard: 'Dashboard', runs: 'Runs', config: 'Types & settings', search: 'Search runs',
     resetZoom: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen',
+    appearance: 'Appearance', themeNames: { system: 'Automatic', light: 'Light', dark: 'Dark' } as Record<Theme, string>,
     portBusy: (port: number) => `Port ${port} is used by another program. Close it or open the app with QA_DASH_PORT=8770.`,
     startFailed: 'The app could not start:',
     help: 'Help', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
@@ -153,6 +160,16 @@ function buildMenu(): void {
         { role: 'zoomIn', label: t.zoomIn },
         { role: 'zoomOut', label: t.zoomOut },
         { type: 'separator' },
+        {
+          label: t.appearance,
+          submenu: (['system', 'light', 'dark'] as const).map((value) => ({
+            label: t.themeNames[value],
+            type: 'radio' as const,
+            checked: theme === value,
+            click: () => sendCommand(`theme:${value}`),
+          })),
+        },
+        { type: 'separator' },
         { role: 'togglefullscreen', label: t.fullscreen },
         ...(app.isPackaged ? [] : [{ role: 'toggleDevTools' as const }]),
       ],
@@ -200,16 +217,26 @@ function createWindow(url = URL_, demo = false): void {
 
   void win.loadURL(url);
 
-  // Al cambiar el idioma en la interfaz (atributo lang de la página) se rehace el menú.
+  // Al cambiar el idioma o el tema en la interfaz (atributos lang y data-theme de la página) se rehace el menú.
+  // Solo manda la ventana principal: la demo tiene sus propios ajustes.
+  if (demo) return;
   const timer = setInterval(() => {
     if (win.isDestroyed()) return;
     win.webContents
-      .executeJavaScript('document.documentElement.lang')
+      .executeJavaScript('[document.documentElement.lang, document.documentElement.dataset.theme || "system"]')
       .then((value: unknown) => {
-        if ((value === 'es' || value === 'en') && value !== lang) {
-          lang = value;
-          buildMenu();
+        const [pageLang, pageTheme] = Array.isArray(value) ? value : [];
+        let changed = false;
+        if ((pageLang === 'es' || pageLang === 'en') && pageLang !== lang) {
+          lang = pageLang;
+          changed = true;
         }
+        if ((pageTheme === 'system' || pageTheme === 'light' || pageTheme === 'dark') && pageTheme !== theme) {
+          theme = pageTheme;
+          nativeTheme.themeSource = theme;
+          changed = true;
+        }
+        if (changed) buildMenu();
       })
       .catch(() => undefined);
   }, 1500);

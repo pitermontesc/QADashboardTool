@@ -1,6 +1,6 @@
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import { z } from 'zod';
-import { LANGUAGES, RESULTS, STEP_STATUSES, VERDICTS } from '../shared/types.js';
+import { LANGUAGES, RESULTS, STEP_STATUSES, THEMES, VERDICTS } from '../shared/types.js';
 
 const count = z.number().int().min(0).nullable().default(null);
 /** Minutos que reporta Claude: acepta decimales y los redondea (lo que dure algo cuenta como 1 min). */
@@ -16,8 +16,15 @@ const httpUrlOrEmpty = z
   .max(300)
   .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Debe empezar con http:// o https://');
 
+/** YYYY-MM-DD que exista en el calendario (2026-02-30 no: Date lo pasaría al 2 de marzo). */
+const isRealDate = (value: string): boolean => {
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+};
+
 export const runInputSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida').refine(isRealDate, 'Fecha inválida'),
   typeId: z.string().min(1),
   title: z.string().trim().min(1, 'El título es obligatorio').max(300),
   ticket: z.string().trim().max(60).default(''),
@@ -46,13 +53,17 @@ export const settingsSchema = z.object({
         color: z.string().regex(/^#[0-9a-f]{3,8}$/i, 'Color inválido'),
       }),
     )
-    .min(1, 'Debe quedar al menos un tipo de test'),
+    .min(1, 'Debe quedar al menos un tipo de test')
+    .refine((types) => new Set(types.map((t) => t.id)).size === types.length, 'Hay tipos de test repetidos'),
   envs: z.array(z.string().trim().min(1).max(40)).default([]),
   ticketBase: httpUrlOrEmpty.default(''),
   language: z.enum(LANGUAGES).default('es'),
+  theme: z.enum(THEMES).default('system'),
 });
 
-export const backupSchema = settingsSchema.extend({ runs: z.array(runSchema) });
+export const backupSchema = settingsSchema
+  .extend({ runs: z.array(runSchema) })
+  .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'El respaldo tiene registros de tipos de test que no existen');
 
 export const jiraConfigSchema = z.object({
   site: httpUrlOrEmpty,
