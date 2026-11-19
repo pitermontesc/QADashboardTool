@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.11.1] - 2026-11-19
+
+### Cambiado
+- **El reporte de Claude ya no se rechaza por detalles de formato.** Los textos que pasan del límite (resumen, notas, módulos, pasos, bugs, comentario de Jira) se recortan con «…»; los números enviados como texto (`"7"`, `"12.4"`) se aceptan, y un texto vacío cuenta como sin dato; las listas muy largas se acortan (hasta 100 módulos, 500 pasos por módulo y 200 bugs). Siguen rechazándose los valores que no son números, los negativos, los links que no son http(s) y los veredictos que no corresponden. El formulario de registros mantiene sus validaciones.
+
+### Corregido
+- Un resumen largo hacía que las notas del registro (veredicto + resumen + link) pasaran del límite y el resultado se rechazara.
+
 ## [1.11.0] - 2026-11-19
 
 ### Agregado

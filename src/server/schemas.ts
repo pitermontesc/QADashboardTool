@@ -3,13 +3,41 @@ import { z } from 'zod';
 import { LANGUAGES, RESULTS, STEP_STATUSES, THEMES, VERDICTS } from '../shared/types.js';
 
 const count = z.number().int().min(0).nullable().default(null);
+
+/*
+ * Lo que reporta Claude se acepta con más margen que el formulario: un reporte rechazado
+ * obliga a Claude a corregirlo y reenviarlo, o se pierde. Los números pueden venir como
+ * texto («7»), los textos largos se recortan y las listas largas se acortan.
+ */
+/** «7», « 2 », «12.4» → número; «» → sin dato; cualquier otro texto se deja para que falle. */
+const numberFromText = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  return /^-?\d+(\.\d+)?$/.test(trimmed) ? Number(trimmed) : value;
+};
+const reportedCount = z.preprocess(numberFromText, z.number().int().min(0).nullable()).default(null);
 /** Minutos que reporta Claude: acepta decimales y los redondea (lo que dure algo cuenta como 1 min). */
 const reportedMinutes = z
-  .number()
-  .min(0)
-  .transform((v) => (v === 0 ? 0 : Math.max(1, Math.round(v))))
-  .nullable()
+  .preprocess(
+    numberFromText,
+    z
+      .number()
+      .min(0)
+      .transform((v) => (v === 0 ? 0 : Math.max(1, Math.round(v))))
+      .nullable(),
+  )
   .default(null);
+/** Texto de Claude: lo que pasa del límite se recorta con «…» en vez de rechazar el reporte. */
+const clip = (max: number) => (value: string): string => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
+const clipped = (max: number) => z.string().trim().transform(clip(max)).default('');
+const clippedName = (max: number) => z.string().trim().min(1).transform(clip(max));
+/** Lista de Claude: lo que pasa del límite se descarta en vez de rechazar el reporte. */
+const capped = <T extends z.ZodType>(item: T, max: number) =>
+  z
+    .array(item)
+    .transform((items) => items.slice(0, max))
+    .default([]);
 const httpUrlOrEmpty = z
   .string()
   .trim()
@@ -102,44 +130,35 @@ const stepStatus = z
   .trim()
   .transform(normalizeStepStatus)
   .pipe(z.enum(STEP_STATUSES, `El status debe ser uno de: ${STEP_STATUSES.join(', ')}`));
-const text = (max: number) => z.string().trim().max(max).default('');
-
 /** Reporte QA detallado: un módulo por área probada con sus pasos, y los bugs encontrados. */
 export const automationDetailsSchema = z.object({
-  build: text(200),
-  modules: z
-    .array(
-      z.object({
-        name: z.string().trim().min(1).max(200),
-        status: stepStatus,
-        minutes: reportedMinutes,
-        notes: text(2000),
-        steps: z
-          .array(z.object({ name: z.string().trim().min(1).max(500), status: stepStatus, notes: text(2000) }))
-          .max(200)
-          .default([]),
-      }),
-    )
-    .max(60)
-    .default([]),
-  bugs: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1).max(300),
-        severity: text(40),
-        key: text(60),
-        link: httpUrlOrEmpty.default(''),
-        module: text(200),
-      }),
-    )
-    .max(100)
-    .default([]),
-  notes: text(5000),
+  build: clipped(200),
+  modules: capped(
+    z.object({
+      name: clippedName(200),
+      status: stepStatus,
+      minutes: reportedMinutes,
+      notes: clipped(2000),
+      steps: capped(z.object({ name: clippedName(500), status: stepStatus, notes: clipped(2000) }), 500),
+    }),
+    100,
+  ),
+  bugs: capped(
+    z.object({
+      title: clippedName(300),
+      severity: clipped(40),
+      key: clipped(60),
+      link: httpUrlOrEmpty.default(''),
+      module: clipped(200),
+    }),
+    200,
+  ),
+  notes: clipped(5000),
   /** Comentario de QA para Jira; si Claude no pudo publicarlo, la app lo publica con un clic. */
   jiraComment: z
     .object({
       key: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]+-\d+$/, 'La clave del ticket de Jira no es válida (p. ej. AVM-123)'),
-      body: z.string().trim().min(1).max(30000),
+      body: clippedName(30000),
       posted: z.boolean().default(false),
       url: httpUrlOrEmpty.default(''),
       dismissed: z.boolean().default(false),
@@ -150,7 +169,7 @@ export const automationDetailsSchema = z.object({
 
 /** Traducción que devuelve Claude: el resumen y el reporte, con la misma forma. */
 export const reportTranslationSchema = z.object({
-  summary: z.string().trim().max(5000).default(''),
+  summary: clipped(5000),
   details: automationDetailsSchema.omit({ jiraComment: true }).nullable().default(null),
 });
 
@@ -161,12 +180,12 @@ export const automationResultSchema = z.object({
     .trim()
     .transform(normalizeVerdict)
     .pipe(z.enum(VERDICTS, `El veredicto debe ser uno de: ${VERDICTS.join(', ')}`)),
-  passed: count,
-  failed: count,
-  blocked: count,
-  bugs: count,
+  passed: reportedCount,
+  failed: reportedCount,
+  blocked: reportedCount,
+  bugs: reportedCount,
   minutes: reportedMinutes,
-  summary: z.string().trim().max(5000).default(''),
+  summary: clipped(5000),
   link: httpUrlOrEmpty.default(''),
   details: automationDetailsSchema.nullable().default(null),
 });

@@ -82,6 +82,10 @@ export function titleSubject(title: string): string {
   return title;
 }
 
+/** Las notas de un registro admiten 5000 caracteres; veredicto + resumen largo + link pueden pasarse. */
+const NOTES_MAX = 5000;
+const clipNotes = (notes: string): string => (notes.length > NOTES_MAX ? `${notes.slice(0, NOTES_MAX - 1)}…` : notes);
+
 /** Título y notas del registro que refleja la ejecución, en el idioma pedido. */
 export function runText(
   automation: Pick<Automation, 'title' | 'verdict' | 'link'>,
@@ -93,7 +97,7 @@ export function runText(
   if (!finished) return { title: `${automation.title} · ${t.running}`, notes: t.launched };
   return {
     title: `${automation.title} · ${automation.verdict}`,
-    notes: [`${t.verdict} ${automation.verdict}.`, summary, automation.link].filter(Boolean).join('\n'),
+    notes: clipNotes([`${t.verdict} ${automation.verdict}.`, summary, automation.link].filter(Boolean).join('\n')),
   };
 }
 

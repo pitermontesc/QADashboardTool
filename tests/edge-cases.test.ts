@@ -116,6 +116,42 @@ describe('Resultado que reporta Claude', () => {
     expect((await srv.call('POST', '/api/smoke', { site: 'stg' })).status).toBe(200);
   });
 
+  it('acepta textos largos recortándolos y números enviados como texto', async () => {
+    const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
+    const url = `/api/automation/${smoke.id}/result`;
+    const long = (n: number) => 'a'.repeat(n);
+    const steps = Array.from({ length: 600 }, (_, i) => ({ name: `Paso ${i + 1}`, status: 'passed' }));
+    const { status, body } = await srv.call('POST', url, {
+      verdict: 'GO', passed: '7', failed: ' 2 ', blocked: '', bugs: 0, minutes: '12.4', summary: long(6000),
+      details: { notes: long(9000), modules: [{ name: long(300), status: 'passed', minutes: '3', steps: [{ name: long(800), status: 'passed', notes: long(3000) }, ...steps] }] },
+    });
+    expect(status).toBe(200);
+    expect(body.summary).toHaveLength(5000);
+    expect(body.summary.endsWith('…')).toBe(true);
+    expect(body.details.notes).toHaveLength(5000);
+    const [module] = body.details.modules;
+    expect(module.name).toHaveLength(200);
+    expect(module.minutes).toBe(3);
+    expect(module.steps).toHaveLength(500);
+    expect(module.steps[0].name).toHaveLength(500);
+    expect(module.steps[0].notes).toHaveLength(2000);
+    const run = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === smoke.runId);
+    expect(run).toMatchObject({ passed: 7, failed: 2, blocked: null, bugs: 0, minutes: 12 });
+    // Las notas del registro juntan veredicto y resumen: también se recortan.
+    expect(run.notes.length).toBeLessThanOrEqual(5000);
+    expect(run.notes.startsWith('Veredicto GO.')).toBe(true);
+  });
+
+  it('sigue rechazando números que no lo son o negativos', async () => {
+    const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
+    const url = `/api/automation/${smoke.id}/result`;
+    for (const passed of ['siete', '-1', -1, '7.5', true]) {
+      expect((await srv.call('POST', url, { verdict: 'GO', passed })).status, String(passed)).toBe(400);
+    }
+    expect((await srv.call('POST', url, { verdict: 'GO', minutes: 'mucho' })).status).toBe(400);
+    expect((await srv.call('POST', url, { verdict: 'GO', passed: '8' })).status).toBe(200);
+  });
+
   it('no guarda links que no sean http(s) ni acepta el resultado dos veces', async () => {
     const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
     const url = `/api/automation/${smoke.id}/result`;
