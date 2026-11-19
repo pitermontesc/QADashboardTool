@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { createApp } from './app.js';
+import { createApp, type AppOptions } from './app.js';
 import { Store } from './store.js';
 
 export const HOST = '127.0.0.1';
@@ -26,6 +26,8 @@ export interface StartOptions {
   dataDir: string;
   /** Carpeta con la interfaz compilada; si no existe solo se sirve la API. */
   clientDir: string;
+  /** Opciones de la API (por ejemplo, las del modo demo). */
+  appOptions?: Omit<AppOptions, 'clientDir'>;
 }
 
 export interface RunningServer {
@@ -36,10 +38,10 @@ export interface RunningServer {
 }
 
 /** Arranca el servidor; rechaza con el error de `listen` (p. ej. EADDRINUSE). */
-export function startServer({ port, dataDir, clientDir }: StartOptions): Promise<RunningServer> {
+export function startServer({ port, dataDir, clientDir, appOptions = {} }: StartOptions): Promise<RunningServer> {
   const dataFile = path.join(dataDir, 'qa-tests.json');
   const hasClient = existsSync(clientDir);
-  const app = createApp(new Store(dataFile), hasClient ? { clientDir } : {});
+  const app = createApp(new Store(dataFile), hasClient ? { ...appOptions, clientDir } : appOptions);
   return new Promise((resolve, reject) => {
     const server = app.listen(port, HOST);
     server.once('error', reject);

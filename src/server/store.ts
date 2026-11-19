@@ -101,7 +101,7 @@ export class Store {
   }
 
   getState(): AppState {
-    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, translating: 0 };
+    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, translating: 0, demo: false };
   }
 
   getJiraState(): JiraState {

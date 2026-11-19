@@ -2,6 +2,15 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.10.0] - 2026-11-18
+
+### Agregado
+- **Modo demo.** `npm run demo` (o **Ayuda → Abrir demo** en la app de escritorio) abre la app con datos de ejemplo: tickets de Jira, un mes de registros y ejecuciones con Claude con su reporte QA, en español e inglés. Jira, Claude y la traducción están simulados: un smoke, una regresión o un orquestador lanzado en la demo corre unos 40 segundos con su Running, su actividad en vivo y su reporte, sin tocar los datos reales ni publicar nada. La cabecera muestra la marca **DEMO**.
+- **Guion de la demo** en `docs/DEMO.md` (en inglés, `docs/DEMO.en.md`), para presentar la herramienta en unos 10 minutos.
+
+### Corregido
+- Los errores «No se encontró Claude Code» y «No se pudo iniciar Claude Code» ahora también salen en inglés.
+
 ## [1.9.3] - 2026-11-18
 
 ### Agregado

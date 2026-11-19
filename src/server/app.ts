@@ -22,6 +22,8 @@ export interface AppOptions {
   launchClaude?: ClaudeLauncher;
   /** Inyectable para probar la traducción de reportes sin ejecutar Claude Code. */
   translateReport?: ReportTranslator;
+  /** Modo demo: la interfaz lo indica en la cabecera. */
+  demo?: boolean;
 }
 
 /**
@@ -106,7 +108,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.get('/state', (_req, res) => {
-    res.json({ ...store.getState(), translating: translating.size });
+    res.json({ ...store.getState(), translating: translating.size, demo: options.demo === true });
   });
 
   api.post('/runs', (req, res) => {

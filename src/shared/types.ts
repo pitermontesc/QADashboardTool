@@ -184,6 +184,8 @@ export interface AppState {
   automations: Automation[];
   /** Reportes que se están traduciendo al idioma de la app. */
   translating: number;
+  /** Modo demo: datos de ejemplo y Jira/Claude simulados. */
+  demo: boolean;
 }
 
 export interface Backup extends Settings {

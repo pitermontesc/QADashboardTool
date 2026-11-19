@@ -9,6 +9,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 ## Contenido
 
 1. [Abrir la app](#1-abrir-la-app)
+   - [Probar la demo](#probar-la-demo)
 2. [Primer inicio](#2-primer-inicio)
 3. [Conectar Jira](#3-conectar-jira)
 4. [Registrar un test desde un ticket](#4-registrar-un-test-desde-un-ticket)
@@ -43,6 +44,15 @@ npm run desktop:pack   # genera release/mac-*/QA Dashboard.app
 ```
 
 La ventana recuerda su tamaño y posición, así que se abre donde la dejaste.
+
+### Probar la demo
+
+La demo abre la app con datos de ejemplo (5 tickets, unas 30 ejecuciones del último mes y 4 ejecuciones con Claude con su reporte) para conocerla o presentarla sin tocar tus datos:
+
+- En la app: menú **Ayuda → Abrir demo (datos de ejemplo)**. Se abre en una ventana aparte.
+- Con el código: `npm run demo` (o `npm run demo:en` para empezar en inglés), en `http://127.0.0.1:8790`.
+
+La cabecera muestra la marca **DEMO**. Jira, Claude y la traducción están simulados: un smoke, una regresión o un orquestador lanzado en la demo corre unos 40 segundos con su **Running**, su actividad en vivo y su reporte, y **Publicar en Jira** no publica nada. Cada vez que se abre, la demo empieza con los mismos datos. Para presentarla al equipo, sigue el [guion de la demo](DEMO.md).
 
 ## 2. Primer inicio
 

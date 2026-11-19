@@ -33,6 +33,7 @@ const TEXT = {
   es: {
     tabs: { dash: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes' } as Record<Tab, string>,
     unexpected: 'Error inesperado',
+    demoBadge: 'Demo: datos de ejemplo. Jira y Claude están simulados; nada se publica ni se guarda en tus datos.',
     openFailed: 'No se pudo abrir la app:',
     retry: 'Reintentar',
     loading: 'Cargando…',
@@ -58,6 +59,7 @@ const TEXT = {
   en: {
     tabs: { dash: 'Dashboard', runs: 'Runs', config: 'Types & settings' } as Record<Tab, string>,
     unexpected: 'Unexpected error',
+    demoBadge: 'Demo: sample data. Jira and Claude are simulated; nothing is posted or saved to your data.',
     openFailed: 'The app could not open:',
     retry: 'Retry',
     loading: 'Loading…',
@@ -458,6 +460,7 @@ export function App() {
           <RavnLogo />
           <span className="brand-sep" aria-hidden="true" />
           <h1>QA <span>Dashboard</span></h1>
+          {state.demo && <span className="demo-badge" title={t.demoBadge}>DEMO</span>}
         </div>
         <nav>
           {TABS.map((item) => (

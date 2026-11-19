@@ -2,6 +2,7 @@ import { BrowserWindow, Menu, app, dialog, nativeTheme, shell, type MenuItemCons
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { APP_NAME, DEFAULT_PORT, HOST, defaultDataDir, startServer } from '../server/start.js';
+import { DEMO_PORT, demoAppOptions, demoDataDir, seedDemoData } from '../server/demo.js';
 
 /**
  * App de escritorio: arranca el mismo servidor local dentro del proceso de
@@ -32,6 +33,7 @@ const TEXT = {
     resetZoom: 'Tamaño real', zoomIn: 'Acercar', zoomOut: 'Alejar', fullscreen: 'Pantalla completa',
     portBusy: (port: number) => `El puerto ${port} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`,
     startFailed: 'No se pudo iniciar la app:',
+    help: 'Ayuda', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
   },
   en: {
     file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
@@ -39,6 +41,7 @@ const TEXT = {
     resetZoom: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen',
     portBusy: (port: number) => `Port ${port} is used by another program. Close it or open the app with QA_DASH_PORT=8770.`,
     startFailed: 'The app could not start:',
+    help: 'Help', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
   },
 };
 
@@ -65,6 +68,29 @@ async function ensureServer(): Promise<void> {
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE' && (await existingAppServes())) return;
     throw err;
+  }
+}
+
+/** Demo en su propio servidor (puerto 8790, datos de ejemplo en una carpeta temporal); se crea una sola vez por sesión. */
+let demoUrl: string | null = null;
+async function openDemo(): Promise<void> {
+  try {
+    if (!demoUrl) {
+      const url = `http://${HOST}:${DEMO_PORT}`;
+      const dataDir = demoDataDir(DEMO_PORT);
+      try {
+        seedDemoData(dataDir, lang);
+        await startServer({ port: DEMO_PORT, dataDir, clientDir: path.join(app.getAppPath(), 'dist/client'), appOptions: demoAppOptions(dataDir) });
+      } catch (err) {
+        // `npm run demo` ya la está sirviendo: se reutiliza.
+        const serving = await fetch(`${url}/api/state`).then((r) => r.ok, () => false);
+        if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE' || !serving) throw err;
+      }
+      demoUrl = url;
+    }
+    createWindow(demoUrl, true);
+  } catch (err) {
+    dialog.showErrorBox(APP_NAME, `${TEXT[lang].demoFailed}\n${String(err)}`);
   }
 }
 
@@ -132,18 +158,20 @@ function buildMenu(): void {
       ],
     },
     { role: 'windowMenu' },
+    { role: 'help', label: t.help, submenu: [{ label: t.openDemo, click: () => void openDemo() }] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function createWindow(): void {
-  const saved = loadWindowState();
+function createWindow(url = URL_, demo = false): void {
+  // La demo abre en una ventana aparte y no toca la posición guardada de la principal.
+  const saved = demo ? { width: 1320, height: 880 } : loadWindowState();
   const isMac = process.platform === 'darwin';
   const win = new BrowserWindow({
     ...saved,
     minWidth: 900,
     minHeight: 600,
-    title: APP_NAME,
+    title: demo ? TEXT[lang].demoTitle : APP_NAME,
     show: false,
     // Barra de título integrada: los semáforos de macOS quedan sobre la cabecera de la app.
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
@@ -155,22 +183,22 @@ function createWindow(): void {
   });
   if (saved.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
-  win.on('close', () => saveWindowState(win));
+  if (!demo) win.on('close', () => saveWindowState(win));
 
   // Los enlaces externos (tickets de Jira) se abren en el navegador, no dentro de la app.
-  const isInternal = (url: string) => url.startsWith(URL_);
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (!isInternal(url)) void shell.openExternal(url);
+  const isInternal = (target: string) => target.startsWith(url);
+  win.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (!isInternal(target)) void shell.openExternal(target);
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (event, url) => {
-    if (!isInternal(url)) {
+  win.webContents.on('will-navigate', (event, target) => {
+    if (!isInternal(target)) {
       event.preventDefault();
-      void shell.openExternal(url);
+      void shell.openExternal(target);
     }
   });
 
-  void win.loadURL(URL_);
+  void win.loadURL(url);
 
   // Al cambiar el idioma en la interfaz (atributo lang de la página) se rehace el menú.
   const timer = setInterval(() => {
@@ -212,7 +240,7 @@ if (!app.requestSingleInstanceLock()) {
       if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(path.join(app.getAppPath(), 'build/icon.png'));
     })
     .then(ensureServer)
-    .then(createWindow)
+    .then(() => (process.argv.includes('--demo') ? openDemo() : createWindow()))
     .catch((err: unknown) => {
       const busy = (err as NodeJS.ErrnoException).code === 'EADDRINUSE';
       dialog.showErrorBox(

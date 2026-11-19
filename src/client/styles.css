@@ -329,3 +329,4 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 .rep-jira p{margin:0 0 8px}
 .rep-jira textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;min-height:140px}
 .rep-jira-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.demo-badge{margin-left:10px;padding:3px 8px;border-radius:999px;background:var(--warn);color:#fff;font:700 11px/1 inherit;letter-spacing:.08em;cursor:help}

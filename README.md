@@ -45,6 +45,10 @@ La ventana recuerda su tamaño y posición. Arrastra `QA Dashboard.app` a `/Appl
 | `QA_DASH_PORT` | Puerto del servidor | `8765` |
 | `QA_DASH_DATA` | Carpeta de datos | macOS: `~/Library/Application Support/QA Dashboard` |
 
+## Demo
+
+`npm run demo` (o `npm run demo:en`) abre la app en `http://127.0.0.1:8790` con datos de ejemplo en una carpeta temporal, que se reinicia en cada arranque. Jira, Claude Code y la traducción están simulados (`src/server/demo.ts`): las ejecuciones con Claude escriben su actividad paso a paso y reportan un resultado de ejemplo, y nada sale de la máquina. En la app de escritorio está en **Ayuda → Abrir demo**. El guion para presentarla está en [docs/DEMO.md](docs/DEMO.md) (en inglés: [docs/DEMO.en.md](docs/DEMO.en.md)).
+
 ## Tickets de Jira
 
 En **Tipos y ajustes → Conexión con Jira** indica el sitio (`https://tu-sitio.atlassian.net`), tu email y un API token (id.atlassian.com → Seguridad → API tokens). El JQL por defecto trae los tickets que tuviste asignados en los últimos 14 días:
