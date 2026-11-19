@@ -1,4 +1,3 @@
-import type { SmokeSite } from '../shared/orchestrator';
 import type {
   ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, JiraConfigInput, JiraState, Lang, Settings, TestRun, TestRunInput,
 } from '../shared/types';
@@ -34,7 +33,7 @@ export const api = {
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
   runOrchestrator: (key: string) => request<Automation>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
   runRegression: (run: string) => request<Automation>('POST', '/api/regression', { run }),
-  runSmoke: (site: SmokeSite) => request<Automation>('POST', '/api/smoke', { site }),
+  runSmoke: (site: string) => request<Automation>('POST', '/api/smoke', { site }),
   getActivity: (id: string) => request<{ items: ActivityItem[]; logFile: string }>('GET', `/api/automation/${encodeURIComponent(id)}/activity`),
   translateAutomation: (id: string, lang: Lang) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/translate`, { lang }),
   postJiraComment: (id: string, body: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/jira-comment`, { body }),

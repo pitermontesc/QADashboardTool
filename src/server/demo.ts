@@ -412,6 +412,8 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
     const kind: AutomationKind = /smoke/i.test(job.prompt) ? 'smoke' : /regression/i.test(job.prompt) ? 'regression' : 'orchestrator';
     const target = kind === 'smoke' ? (/run smoke on (\w+)/.exec(job.prompt)?.[1] ?? 'STG') : (/[A-Z][A-Z0-9]+-\d+/.exec(job.prompt)?.[0] ?? '');
     const reportUrl = /http:\/\/127\.0\.0\.1:\d+\/api\/automation\/[\w-]+\/result/.exec(job.prompt)?.[0];
+    // El smoke lleva la URL del sitio configurado en el prompt; para el resto, un sitio de ejemplo.
+    const siteUrl = (/\((https?:\/\/[^)\s]+)\)/.exec(job.prompt)?.[1] ?? 'https://staging.alpinevm.com').replace(/\/+$/, '');
     const steps = SCRIPT[kind];
     let i = 0;
     let timer: NodeJS.Timeout | undefined;
@@ -430,7 +432,7 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
         write({
           type: 'assistant',
           message: { content: [tool
-            ? { type: 'tool_use', name: 'mcp__claude-in-chrome__navigate', input: { url: `https://${kind === 'smoke' && target === 'QA' ? 'qa' : 'staging'}.alpinevm.com${text.en.replace('navigate: ', '')}` } }
+            ? { type: 'tool_use', name: 'mcp__claude-in-chrome__navigate', input: { url: `${siteUrl}${text.en.replace('navigate: ', '')}` } }
             : { type: 'text', text: text[lang] }] },
         });
         timer = setTimeout(next, stepMs);
@@ -465,10 +467,13 @@ export const demoAssistant: AssistantRunner = async ({ context, messages, lang }
   const latest = context.claudeRuns.find((a) => a.status === 'finished');
 
   if (wants && /smoke/.test(ask)) {
-    const site = /\bqa\b/.test(ask) && !/stg|staging/.test(ask) ? 'qa' : 'stg';
+    // El sitio que se nombre (por nombre o id); si no se nombra ninguno, el de la regresión.
+    const named = context.sites.find((s) => new RegExp(`\\b(${s.id}|${s.name.toLowerCase()})\\b`).test(ask));
+    const site = named ?? context.sites.find((s) => s.id === context.regressionSite) ?? context.sites[0];
+    if (!site) return { reply: en ? 'There are no sites configured.' : 'No hay sitios configurados.', actions: [] };
     return {
-      reply: en ? `I'll launch the smoke test on ${site.toUpperCase()}. Confirm it below.` : `Lanzo el smoke en ${site.toUpperCase()}. Confírmalo abajo.`,
-      actions: [{ type: 'run_smoke', site }],
+      reply: en ? `I'll launch the smoke test on ${site.name}. Confirm it below.` : `Lanzo el smoke en ${site.name}. Confírmalo abajo.`,
+      actions: [{ type: 'run_smoke', site: site.id }],
     };
   }
   if (wants && /regres/.test(ask)) {

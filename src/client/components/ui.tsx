@@ -101,7 +101,7 @@ export function RunsTable({ runs, settings, actions }: RunsTableProps) {
             <td className="num"><Cases run={run} /></td>
             <td className="num">{run.bugs || ''}</td>
             <td className="num">{run.minutes || ''}</td>
-            {actions && <td className="num">{actions(run)}</td>}
+            {actions && <td className="num acts">{actions(run)}</td>}
           </tr>
         ))}
       </tbody>

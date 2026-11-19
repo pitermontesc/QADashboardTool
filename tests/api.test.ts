@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { orchestratorPrompt, regressionPrompt } from '../src/server/orchestrator';
+import { defaultQaConfig } from '../src/shared/orchestrator';
 import type { ClaudeJob } from '../src/server/claudeRunner';
 import { Store } from '../src/server/store';
 import { fakeJira, lastBoardJql, startServer } from './helpers';
@@ -183,10 +184,10 @@ describe('Orquestador QA', () => {
   it('refleja en el dashboard el resultado que Claude reporta al terminar', async () => {
     launched.length = 0;
     const { body: automation } = await srv.call('POST', '/api/smoke', { site: 'stg' });
-    expect(automation).toMatchObject({ kind: 'smoke', target: 'STG', env: 'Staging', finishedAt: null, verdict: null });
+    expect(automation).toMatchObject({ kind: 'smoke', target: 'STG', env: 'STG', finishedAt: null, verdict: null });
     // Desde que se lanza ya está en Registros, «En progreso».
     const started = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === automation.runId);
-    expect(started).toMatchObject({ typeId: 't0', env: 'Staging', result: 'progress', title: 'Smoke STG con Claude · en curso' });
+    expect(started).toMatchObject({ typeId: 't0', env: 'STG', result: 'progress', title: 'Smoke STG con Claude · en curso' });
     // El prompt le dice a Claude adónde reportar; se usa esa misma URL.
     const reportUrl = new URL(launched[0]!.match(/POST JSON a (\S+)/)![1]!);
     expect(reportUrl.pathname).toBe(`/api/automation/${automation.id}/result`);
@@ -203,7 +204,7 @@ describe('Orquestador QA', () => {
     expect(state.automations[0].runId).toBe(automation.runId); // se actualiza el mismo registro
     expect(state.runs).toHaveLength(runsBefore); // no se duplica el registro
     const run = state.runs.find((r: { id: string }) => r.id === state.automations[0].runId);
-    expect(run).toMatchObject({ typeId: 't0', env: 'Staging', result: 'failed', passed: 18, failed: 2, bugs: 1, title: 'Smoke STG con Claude · NO-GO' });
+    expect(run).toMatchObject({ typeId: 't0', env: 'STG', result: 'failed', passed: 18, failed: 2, bugs: 1, title: 'Smoke STG con Claude · NO-GO' });
     expect(run.notes).toContain('AVM-900');
 
     expect((await srv.call('DELETE', `/api/automation/${automation.id}`)).status).toBe(204);
@@ -292,9 +293,10 @@ describe('Orquestador QA', () => {
   });
 
   it('arma el prompt de Claude Code con el skill', () => {
-    expect(orchestratorPrompt('AVM-7057')).toBe('/avm-qa-orchestrator AVM-7057');
-    expect(() => orchestratorPrompt("x'y")).toThrow();
-    expect(regressionPrompt('')).toBe('/avm-qa-skills:avm-regression-runner');
-    expect(() => regressionPrompt("#a b'c")).toThrow();
+    const qa = defaultQaConfig();
+    expect(orchestratorPrompt('AVM-7057', qa)).toBe('/avm-qa-orchestrator AVM-7057');
+    expect(() => orchestratorPrompt("x'y", qa)).toThrow();
+    expect(regressionPrompt('', qa)).toBe('/avm-qa-skills:avm-regression-runner');
+    expect(() => regressionPrompt("#a b'c", qa)).toThrow();
   });
 });

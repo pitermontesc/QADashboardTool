@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../api';
 import type { AppState, AssistantAction, AssistantTurn } from '../../shared/types';
-import { SMOKE_SITES } from '../../shared/orchestrator';
+import { findSite } from '../../shared/orchestrator';
 import { Icon } from './icons';
 import { useText } from '../i18n';
 import { MOD } from './ui';
@@ -34,7 +34,7 @@ const TEXT = {
     retry: 'Reintentar', demo: 'En la demo el asistente está simulado: responde a unas pocas peticiones con los datos de ejemplo.',
     action: (a: AssistantAction, state: AppState): string => {
       switch (a.type) {
-        case 'run_smoke': return `Lanzar el smoke en ${SMOKE_SITES[a.site].label}`;
+        case 'run_smoke': return `Lanzar el smoke en ${findSite(a.site, state.settings.qa)?.name ?? a.site}`;
         case 'run_regression': return `Lanzar la regresión${a.run ? ` ${a.run}` : ''}`;
         case 'run_orchestrator': return `Ejecutar el orquestador QA en ${a.key}`;
         case 'create_run': return `Crear el registro «${a.run.title}» (${a.run.result}${a.run.ticket ? `, ${a.run.ticket}` : ''})`;
@@ -53,7 +53,7 @@ const TEXT = {
     retry: 'Retry', demo: 'In the demo the assistant is simulated: it answers a few requests with the sample data.',
     action: (a: AssistantAction, state: AppState): string => {
       switch (a.type) {
-        case 'run_smoke': return `Launch the smoke test on ${SMOKE_SITES[a.site].label}`;
+        case 'run_smoke': return `Launch the smoke test on ${findSite(a.site, state.settings.qa)?.name ?? a.site}`;
         case 'run_regression': return `Launch the regression${a.run ? ` ${a.run}` : ''}`;
         case 'run_orchestrator': return `Run the QA orchestrator on ${a.key}`;
         case 'create_run': return `Create the run “${a.run.title}” (${a.run.result}${a.run.ticket ? `, ${a.run.ticket}` : ''})`;

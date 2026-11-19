@@ -1,6 +1,7 @@
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import { z } from 'zod';
 import { LANGUAGES, RESULTS, STEP_STATUSES, THEMES, VERDICTS } from '../shared/types.js';
+import { defaultQaConfig } from '../shared/orchestrator.js';
 
 const count = z.number().int().min(0).nullable().default(null);
 
@@ -71,6 +72,35 @@ export const runSchema = runInputSchema.extend({
   createdAt: z.number().default(0),
 });
 
+/**
+ * Sitios y skills: llegan al prompt de Claude Code como un argumento (sin shell), pero
+ * se validan igual para que solo haya nombres, URLs y comandos de skill bien formados.
+ */
+const qaSiteSchema = z.object({
+  id: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,19}$/, 'El id del sitio solo admite minúsculas, números y guiones (p. ej. stg)'),
+  name: z.string().trim().min(1, 'El sitio necesita un nombre').max(20).regex(/^[\p{L}\p{N} ._-]+$/u, 'El nombre del sitio solo admite letras, números, espacios, puntos y guiones'),
+  url: z.string().trim().max(200).regex(/^https?:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9\-._~/]*)?$/, 'La URL del sitio tiene que ser http(s)://dominio'),
+  env: z.string().trim().min(1, 'El sitio necesita un ambiente').max(40),
+  jiraStatus: z.string().trim().max(40).default(''),
+});
+const skillSchema = z.string().trim().regex(/^\/[A-Za-z0-9][A-Za-z0-9:._-]{0,99}$/, 'Un skill empieza con / y solo admite letras, números, «:», «.», «_» y «-»');
+const qaConfigSchema = z
+  .object({
+    sites: z.array(qaSiteSchema).min(1, 'Tiene que haber al menos un sitio').max(10),
+    regressionSiteId: z.string(),
+    skills: z.object({ orchestrator: skillSchema, smoke: skillSchema, regression: skillSchema }),
+    testRunHosts: z
+      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'Dominio de test runs inválido (p. ej. testomat.io)'))
+      .max(10)
+      .default([]),
+  })
+  .refine((qa) => new Set(qa.sites.map((s) => s.id)).size === qa.sites.length, 'Hay sitios con el mismo id')
+  .refine((qa) => {
+    const statuses = qa.sites.map((s) => s.jiraStatus.toLowerCase()).filter(Boolean);
+    return new Set(statuses).size === statuses.length;
+  }, 'Dos sitios no pueden usar el mismo estado de Jira')
+  .refine((qa) => qa.sites.some((s) => s.id === qa.regressionSiteId), 'El sitio de la regresión tiene que ser uno de los sitios');
+
 export const settingsSchema = z.object({
   types: z
     .array(
@@ -87,6 +117,7 @@ export const settingsSchema = z.object({
   ticketBase: httpUrlOrEmpty.default(''),
   language: z.enum(LANGUAGES).default('es'),
   theme: z.enum(THEMES).default('system'),
+  qa: qaConfigSchema.default(defaultQaConfig),
 });
 
 export const backupSchema = settingsSchema

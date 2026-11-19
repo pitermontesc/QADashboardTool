@@ -391,6 +391,15 @@ Agrega los ambientes en los que pruebas y quita los que no uses con la ×. Quita
 
 **Enlace de tickets.** La URL a la que se añade la clave del ticket para abrirlo (por ejemplo `https://tu-sitio.atlassian.net/browse/`). Se configura sola al conectar Jira.
 
+**Sitios y skills.** Dónde se prueba y con qué skills de Claude Code; nada de esto está fijo en el código:
+
+- **Sitios**: cada uno con un id corto (`qa`, `stg`…), nombre, URL, ambiente y el **estado de Jira** cuyos tickets se prueban ahí. La tarjeta Smoke muestra un botón por sitio, y el orquestador solo se ofrece en los tickets cuyo estado coincide con el de algún sitio (por defecto, On QA → QA y On Staging → STG); el registro toma el ambiente de ese sitio. Para dejar un sitio sin orquestador, deja su estado de Jira vacío.
+- **La regresión corre en**: el sitio de la regresión (por defecto, STG).
+- **Dominios de los test runs**: de dónde pueden venir los links de la regresión (por defecto, `testomat.io`).
+- **Skills de Claude Code**: los comandos del orquestador, el smoke y la regresión.
+
+Los cambios se guardan juntos con **Guardar sitios y skills**; **Volver a los valores por defecto** recupera los de AVM. La app rechaza valores inválidos (URLs que no son http(s), skills con espacios o comillas, ids o estados de Jira repetidos) y explica el motivo.
+
 **Apariencia.** **Automático** (sigue el modo claro u oscuro de macOS), **Claro** u **Oscuro**. También se cambia con el botón del sol, la luna o la pantalla en la cabecera (cada clic pasa al siguiente) y en la app de escritorio desde **Ver → Apariencia**. La ventana y los menús de la app siguen el tema elegido.
 
 ## 9. Respaldo y exportación

@@ -40,6 +40,28 @@ export interface TestRun extends TestRunInput {
   createdAt: number;
 }
 
+/** Sitio donde se prueba (QA, STG…): el smoke corre ahí y los tickets en su estado de Jira se validan ahí. */
+export interface QaSite {
+  /** Identificador corto y estable (qa, stg…); lo usan la API y los botones. */
+  id: string;
+  name: string;
+  url: string;
+  /** Ambiente de los registros de este sitio. */
+  env: string;
+  /** Estado de Jira de los tickets que se prueban en este sitio (On QA…); vacío si ninguno. */
+  jiraStatus: string;
+}
+
+/** Sitios, skills de Claude Code y dominios de test runs: todo configurable en los ajustes. */
+export interface QaConfig {
+  sites: QaSite[];
+  /** Sitio contra el que corre la regresión. */
+  regressionSiteId: string;
+  skills: { orchestrator: string; smoke: string; regression: string };
+  /** Dominios aceptados en los links de test runs (testomat.io…). */
+  testRunHosts: string[];
+}
+
 export interface Settings {
   types: TestType[];
   envs: string[];
@@ -48,6 +70,7 @@ export interface Settings {
   /** Idioma de la interfaz y de los reportes de Claude. */
   language: Lang;
   theme: Theme;
+  qa: QaConfig;
 }
 
 export interface JiraTicket {
@@ -184,7 +207,7 @@ export interface ActivityItem {
 
 /** Lo que el asistente propone hacer; la app lo ejecuta solo si el usuario lo confirma. */
 export type AssistantAction =
-  | { type: 'run_smoke'; site: 'qa' | 'stg' }
+  | { type: 'run_smoke'; site: string }
   | { type: 'run_regression'; run: string }
   | { type: 'run_orchestrator'; key: string }
   | { type: 'create_run'; run: TestRunInput }

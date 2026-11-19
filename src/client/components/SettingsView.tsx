@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
+import { QaSitesCard } from './QaSitesCard';
 import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
@@ -145,6 +146,7 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
   return (
     <section>
       <div className="grid2">
+        <div>
         <div className="card">
           <h3>{t.types}</h3>
           <p className="hint">{t.typesHint}</p>
@@ -209,6 +211,8 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
             />
             <button className="btn" onClick={addType}>{t.add}</button>
           </div>
+        </div>
+        <QaSitesCard settings={settings} onSave={onSaveSettings} />
         </div>
 
         <div>

@@ -8,7 +8,7 @@ import { LANGUAGES } from '../shared/types';
 import { LangProvider, systemLang } from './i18n';
 import { api } from './api';
 import { Dashboard } from './components/Dashboard';
-import { SMOKE_SITES, canOrchestrate, type SmokeSite } from '../shared/orchestrator';
+import { canOrchestrate, findSite } from '../shared/orchestrator';
 import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
 import { AssistantPanel, type ChatMessage } from './components/AssistantPanel';
@@ -346,7 +346,7 @@ export function App() {
       .refreshJira()
       .then((next) => {
         patch({ jira: next });
-        const fresh = next.tickets.filter((t) => !known.has(t.key) && canOrchestrate(t.status));
+        const fresh = next.tickets.filter((t) => !known.has(t.key) && canOrchestrate(t.status, state.settings.qa));
         if (fresh.length === 1) announce(t.newTicketIn(fresh[0]!.status), `${fresh[0]!.key} · ${fresh[0]!.summary}`);
         else if (fresh.length > 1) announce(t.newTickets, fresh.map((t) => t.key).join(', '));
       })
@@ -417,12 +417,12 @@ export function App() {
     }
   };
 
-  const runSmoke = async (site: SmokeSite): Promise<boolean> => {
-    setLaunching(`smoke:${site}`);
+  const runSmoke = async (siteId: string): Promise<boolean> => {
+    setLaunching(`smoke:${siteId}`);
     try {
-      const automation = await api.runSmoke(site);
+      const automation = await api.runSmoke(siteId);
       await reloadRuns(automation);
-      notify(t.smokeOpened(SMOKE_SITES[site].label), 'info');
+      notify(t.smokeOpened(findSite(siteId, state.settings.qa)?.name ?? automation.target), 'info');
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -629,7 +629,7 @@ export function App() {
       {assistantOpen && (
         <AssistantPanel state={state} messages={chat} setMessages={setChat} onClose={() => setAssistantOpen(false)} onAction={doAssistantAction} />
       )}
-      {regressionOpen && <RegressionDialog onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
+      {regressionOpen && <RegressionDialog qa={state.settings.qa} onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
       {report && (
         <ReportDialog
           key={report.id}

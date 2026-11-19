@@ -2,6 +2,22 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.13.0] - 2026-11-19
+
+### Agregado
+- **Sitios y skills configurables** en **Tipos y ajustes → Sitios y skills**: los sitios donde se prueba (nombre, URL, ambiente y el estado de Jira cuyos tickets se validan ahí), el sitio de la regresión, los dominios aceptados para los test runs y los skills de Claude Code del orquestador, el smoke y la regresión. Antes estaban fijos en el código (QA y STG de alpinevm.com, On QA / On Staging, testomat.io y los skills de AVM), que quedan como valores por defecto. El smoke muestra un botón por sitio y el asistente conoce los sitios configurados.
+
+### Cambiado
+- Los registros de un smoke o una regresión en STG llevan el ambiente del sitio (**STG**); antes quedaban como «Staging» aunque ese ambiente no estuviera en la lista.
+- En **Registros**, las acciones de cada fila son iconos (reporte, editar, duplicar, borrar) con su nombre al pasar el ratón; ya no se cortan con poco ancho.
+
+### Corregido
+- Revisión visual de la interfaz a 1100, 1320 y 1600 px:
+  - Las tarjetas ya no se estiran a la altura de la vecina (Tipos de test en los ajustes, Por tipo de test en el dashboard).
+  - Las filas de **Ejecuciones con Claude** quedan alineadas.
+  - Las notas de los registros usan el ancho de su columna y las URLs largas se parten.
+  - La cabecera ya no se desborda a 1100 px.
+
 ## [1.12.0] - 2026-11-19
 
 ### Agregado

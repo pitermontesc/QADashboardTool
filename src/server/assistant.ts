@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toYmd } from '../shared/dates.js';
-import { canOrchestrate, isTestRunRef } from '../shared/orchestrator.js';
+import { canOrchestrate, findSite, isTestRunRef } from '../shared/orchestrator.js';
 import type { AppState, AssistantAction, AssistantReply, AssistantTurn, Lang } from '../shared/types.js';
 import { runInputSchema } from './schemas.js';
 
@@ -42,9 +42,11 @@ export function assistantContext(state: AppState, now = Date.now()) {
     language: lang,
     testTypes: state.settings.types.map((t) => ({ id: t.id, name: t.name, highlighted: t.major })),
     environments: state.settings.envs,
+    sites: state.settings.qa.sites.map((s) => ({ id: s.id, name: s.name, url: s.url, env: s.env, jiraStatus: s.jiraStatus })),
+    regressionSite: state.settings.qa.regressionSiteId,
     jira: {
       connected: state.jira.connection === 'connected',
-      tickets: state.jira.tickets.map((t) => ({ key: t.key, summary: t.summary, status: t.status, type: t.type, canRunOrchestrator: canOrchestrate(t.status) })),
+      tickets: state.jira.tickets.map((t) => ({ key: t.key, summary: t.summary, status: t.status, type: t.type, canRunOrchestrator: canOrchestrate(t.status, state.settings.qa) })),
     },
     runs: runs.map((r) => ({
       date: r.date, type: typeName.get(r.typeId) ?? r.typeId, title: r.title, ticket: r.ticket, env: r.env, result: r.result,
@@ -73,8 +75,8 @@ export function assistantContext(state: AppState, now = Date.now()) {
 }
 
 const ACTIONS_DOC = `Acciones (en "actions"; la app las muestra y el usuario las confirma, tú no ejecutas nada):
-- {"type":"run_smoke","site":"qa"|"stg"}: lanzar el smoke con Claude en QA o STG.
-- {"type":"run_regression","run":"<ID o link de testomat.io, o vacío>"}: lanzar la regresión.
+- {"type":"run_smoke","site":"<id de uno de sites>"}: lanzar el smoke con Claude en ese sitio.
+- {"type":"run_regression","run":"<ID o link del test run, o vacío>"}: lanzar la regresión (corre en regressionSite).
 - {"type":"run_orchestrator","key":"AVM-123"}: validar un ticket con el orquestador QA (solo tickets con canRunOrchestrator true).
 - {"type":"create_run","run":{"date":"YYYY-MM-DD","typeId":"<id de testTypes>","title":"…","ticket":"","env":"…","result":"passed"|"failed"|"blocked"|"progress","passed":n|null,"failed":n|null,"blocked":n|null,"bugs":n|null,"minutes":n|null,"notes":"…"}}: crear un registro.
 - {"type":"post_jira_comment","automationId":"…"}: publicar en Jira el comentario pendiente de una ejecución (jiraComment.state "pending").
@@ -111,7 +113,7 @@ export function assistantPrompt(context: AssistantContext, messages: AssistantTu
 }
 
 const actionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('run_smoke'), site: z.enum(['qa', 'stg']) }),
+  z.object({ type: z.literal('run_smoke'), site: z.string().trim().toLowerCase() }),
   z.object({ type: z.literal('run_regression'), run: z.string().trim().max(300).default('') }),
   z.object({ type: z.literal('run_orchestrator'), key: z.string().trim().toUpperCase() }),
   z.object({ type: z.literal('create_run'), run: runInputSchema }),
@@ -149,12 +151,12 @@ function isDoable(action: AssistantAction, state: AppState): boolean {
   const automation = 'automationId' in action ? state.automations.find((a) => a.id === action.automationId) : undefined;
   switch (action.type) {
     case 'run_smoke':
-      return true;
+      return findSite(action.site, state.settings.qa) !== undefined;
     case 'run_regression':
-      return isTestRunRef(action.run);
+      return isTestRunRef(action.run, state.settings.qa.testRunHosts);
     case 'run_orchestrator': {
       const ticket = state.jira.tickets.find((t) => t.key === action.key);
-      return ticket !== undefined && canOrchestrate(ticket.status);
+      return ticket !== undefined && canOrchestrate(ticket.status, state.settings.qa);
     }
     case 'create_run':
       return state.settings.types.some((t) => t.id === action.run.typeId);

@@ -98,6 +98,8 @@ describe('Asistente de QA', () => {
 describe('Asistente simulado de la demo', () => {
   const context = {
     today: '2026-11-19', language: 'es' as const, testTypes: [], environments: [], totalRuns: 1,
+    sites: [{ id: 'qa', name: 'QA', url: 'https://qa.example', env: 'QA', jiraStatus: 'On QA' }, { id: 'stg', name: 'STG', url: 'https://stg.example', env: 'STG', jiraStatus: 'On Staging' }],
+    regressionSite: 'stg',
     jira: { connected: true, tickets: [{ key: 'AVM-7061', summary: 'Totals', status: 'On QA', type: 'Story', canRunOrchestrator: true }] },
     runs: [{ date: '2026-11-18', type: 'Funcional', title: 'PDF sin dirección', ticket: 'AVM-7068', env: 'QA', result: 'failed' as const, passed: 3, failed: 1, blocked: 0, bugs: 1, minutes: 25, notes: '' }],
     claudeRuns: [{

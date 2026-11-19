@@ -5,7 +5,7 @@ import {
   buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { ORCHESTRATOR_SKILL, SMOKE_SITES, canOrchestrate, isRegressionType, isSmokeType, type SmokeSite } from '../../shared/orchestrator';
+import { canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type Automation, type JiraTicket } from '../../shared/types';
 import { Automations, elapsedMin, runningOf } from './Automations';
 import { useLang, useText } from '../i18n';
@@ -154,7 +154,8 @@ interface DashboardProps {
   /** Ticket cuyo orquestador se está abriendo. */
   launching: string | null;
   onRegression: () => void;
-  onSmoke: (site: SmokeSite) => void;
+  /** Lanza el smoke en uno de los sitios configurados (por su id). */
+  onSmoke: (siteId: string) => void;
   onDismissAutomation: (automation: Automation) => void;
   onOpenReport: (automation: Automation) => void;
   onNewRun: () => void;
@@ -217,11 +218,12 @@ interface TicketsProps {
   onOpenSettings: () => void;
   automations: Automation[];
   onOpenReport: (automation: Automation) => void;
+  qa: AppState['settings']['qa'];
   t: Text;
 }
 
 /** Tickets de Jira como tarjetas: el punto de partida habitual para registrar un test. */
-function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, t }: TicketsProps) {
+function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, t }: TicketsProps) {
   const lang = useLang();
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
@@ -293,7 +295,7 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
         <div className="tickets">
           {tickets.map((ticket) => {
             const logged = perTicket.get(ticket.key) ?? 0;
-            const ready = canOrchestrate(ticket.status);
+            const ready = canOrchestrate(ticket.status, qa);
             const active = runningOf(automations, 'orchestrator', ticket.key);
             return (
               <div key={ticket.key} className={`tk${ready || active ? ' has-run' : ''}${active ? ' is-running' : ''}`}>
@@ -338,7 +340,7 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
                     className="tk-run"
                     onClick={() => onOrchestrate(ticket)}
                     disabled={launching !== null}
-                    title={t.orchestratorTitle(`${ORCHESTRATOR_SKILL} ${ticket.key}`)}
+                    title={t.orchestratorTitle(`${qa.skills.orchestrator} ${ticket.key}`)}
                   >
                     <Icon name="play" size={13} />
                     {launching === ticket.key ? t.openingTerminal : t.runOrchestrator}
@@ -455,6 +457,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
         onOpenSettings={onOpenSettings}
         automations={state.automations}
         onOpenReport={onOpenReport}
+        qa={settings.qa}
         t={t}
       />
 
@@ -520,22 +523,22 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                 })()}
                 {isSmokeType(type.name) && (
                   <div className="major-run btn-row">
-                    {(Object.keys(SMOKE_SITES) as SmokeSite[]).map((site) => {
-                      const active = runningOf(state.automations, 'smoke', SMOKE_SITES[site].label);
+                    {settings.qa.sites.map((site) => {
+                      const active = runningOf(state.automations, 'smoke', site.name);
                       return active ? (
-                        <button key={site} className="btn small running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
-                          <i className="run-dot" /> {t.runningFor(SMOKE_SITES[site].label, elapsedMin(active))}
+                        <button key={site.id} className="btn small running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
+                          <i className="run-dot" /> {t.runningFor(site.name, elapsedMin(active))}
                         </button>
                       ) : (
                       <button
-                        key={site}
+                        key={site.id}
                         className="btn small"
-                        onClick={() => onSmoke(site)}
+                        onClick={() => onSmoke(site.id)}
                         disabled={launching !== null}
-                        title={t.smokeTitle(SMOKE_SITES[site].url)}
+                        title={t.smokeTitle(site.url)}
                       >
                         <Icon name="play" size={13} />
-                        {launching === `smoke:${site}` ? t.openingTerminal : t.smokeOn(SMOKE_SITES[site].label)}
+                        {launching === `smoke:${site.id}` ? t.openingTerminal : t.smokeOn(site.name)}
                       </button>
                       );
                     })}

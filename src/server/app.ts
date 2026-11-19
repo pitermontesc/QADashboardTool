@@ -4,11 +4,11 @@ import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
 import type { Automation, AutomationDetails, Lang } from '../shared/types.js';
 import { fetchJiraTickets, postJiraComment } from './jira.js';
-import { orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
+import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import { launchClaude, readActivity, runAssistant, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
 import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
-import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
-import { VERDICTS_BY_KIND, automationTitle, envFor, reportInstruction, runForAutomation } from './automation.js';
+import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
+import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportTranslationSchema, runInputSchema, settingsSchema,
 } from './schemas.js';
@@ -254,12 +254,14 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!isTicketKey(key)) throw new HttpError(400, `Ticket inválido: ${key}`);
     const ticket = store.getJiraState().tickets.find((t) => t.key === key);
     if (!ticket) throw new HttpError(404, `${key} no está entre los tickets cargados de Jira`);
-    if (!canOrchestrate(ticket.status)) {
-      throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets On QA u On Staging`);
+    const { qa } = store.getState().settings;
+    // El estado de Jira decide en qué sitio se prueba (On QA → QA, On Staging → STG, según los ajustes).
+    const site = siteForStatus(ticket.status, qa);
+    if (!site) {
+      throw new HttpError(409, `${key} está en "${ticket.status}"; el orquestador es para tickets en ${orList(readyStatuses(qa))}`);
     }
-    const env = envFor(/stag/i.test(ticket.status) ? 'staging' : 'qa', store.getState().settings);
     const title = automationTitle('orchestrator', key, lang(), ticket.summary);
-    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env, title }, (extra) => orchestratorPrompt(key, extra)));
+    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env: site.env, title }, (extra) => orchestratorPrompt(key, qa, extra)));
   });
 
   /** Lanza Claude Code en segundo plano y deja la ejecución «en curso» hasta que reporte el resultado. */
@@ -311,17 +313,19 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   api.post('/regression', async (req, res) => {
     const body = (req.body ?? {}) as { run?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
-    const env = envFor('staging', store.getState().settings);
+    const { qa } = store.getState().settings;
+    const env = findSite(qa.regressionSiteId, qa)?.env ?? '';
     const title = automationTitle('regression', run, lang());
-    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionPrompt(run, extra)));
+    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionPrompt(run, qa, extra)));
   });
 
   api.post('/smoke', async (req, res) => {
-    const { site } = (req.body ?? {}) as { site?: unknown };
-    if (!isSmokeSite(site)) throw new HttpError(400, 'Elige el sitio del smoke: QA o STG');
-    const env = envFor(site === 'qa' ? 'qa' : 'staging', store.getState().settings);
-    const { label } = SMOKE_SITES[site];
-    res.json(await launchAutomation(req, { kind: 'smoke', target: label, env, title: automationTitle('smoke', label, lang()) }, (extra) => smokePrompt(site, extra)));
+    const { site: siteId } = (req.body ?? {}) as { site?: unknown };
+    const { qa } = store.getState().settings;
+    const site = findSite(siteId, qa);
+    if (!site) throw new HttpError(400, `Ese sitio no existe: elige ${orList(qa.sites.map((s) => s.name))}`);
+    const title = automationTitle('smoke', site.name, lang());
+    res.json(await launchAutomation(req, { kind: 'smoke', target: site.name, env: site.env, title }, (extra) => smokePrompt(site.id, qa, extra)));
   });
 
   api.post('/automation/:id/result', (req, res) => {

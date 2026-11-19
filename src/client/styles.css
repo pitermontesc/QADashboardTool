@@ -86,7 +86,7 @@ main{max-width:1240px;margin:0 auto;padding:26px 28px 70px}
 .card h3.title{font-size:16px;color:var(--ink);text-transform:none;letter-spacing:-.01em;margin:0}
 .card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .card-sub{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
-.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px;align-items:start}
 @media (max-width:900px){.grid2{grid-template-columns:1fr}}
 
 /* ── Dashboard ───────────────────────────────────────────────── */
@@ -118,7 +118,7 @@ main{max-width:1240px;margin:0 auto;padding:26px 28px 70px}
 .major .meta+.major-run{margin-top:12px}
 .automations{margin-bottom:14px}
 .auto-list{list-style:none;margin:0;padding:0}
-.auto-row{display:grid;grid-template-columns:96px minmax(120px,1.2fr) 112px minmax(0,3fr) auto;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.auto-row{display:grid;grid-template-columns:96px minmax(120px,1.2fr) 120px minmax(0,3fr) 68px;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .auto-row:first-child{border-top:none}
 .auto-kind{font-weight:700;font-size:13px}
 .kind-smoke{color:var(--accent)} .kind-regression{color:#8b5cf6}
@@ -126,7 +126,7 @@ main{max-width:1240px;margin:0 auto;padding:26px 28px 70px}
 .auto-target b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .auto-detail{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:13px;min-width:0}
 .auto-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.auto-actions{display:flex;gap:4px}
+.auto-actions{display:flex;gap:4px;justify-content:flex-end}
 @media (max-width:760px){.auto-row{grid-template-columns:1fr auto;}.auto-detail{grid-column:1/-1}}
 dialog.narrow{width:min(520px,94vw)}
 .cmd-preview code{display:block;margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--muted-bg);color:var(--ink-2);font-size:12px;overflow-wrap:anywhere}
@@ -200,7 +200,7 @@ tr:last-child td{border-bottom:0}
 .tablewrap{overflow-x:auto;margin:0 -8px}
 .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
 .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:var(--muted-bg);white-space:nowrap}
-.notes{color:var(--muted);font-size:12.5px;max-width:340px;margin-top:2px}
+.notes{color:var(--muted);font-size:12.5px;max-width:72ch;margin-top:2px;overflow-wrap:anywhere}
 .ticket-link{color:var(--accent);font-weight:600;text-decoration:none}
 .ticket-link:hover{text-decoration:underline}
 .empty-msg{color:var(--muted);text-align:center;padding:28px 10px}
@@ -374,3 +374,33 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 header h1,nav button{white-space:nowrap}
 .running-indicator{min-width:0;flex-shrink:1}
 @media (max-width:1440px){.assistant-btn .assistant-label{display:none}}
+.qa-sites{margin-top:12px}
+.qa-sites-table{width:100%;border-collapse:collapse;margin-bottom:8px}
+.qa-sites-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:0 6px 6px 0}
+.qa-sites-table td{padding:0 6px 6px 0;vertical-align:middle}
+.qa-sites-table td:last-child{width:1%;white-space:nowrap}
+.qa-sites-table input{min-width:90px}
+.qa-sites-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.qa-sites-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.qa-sites-sub{margin:18px 0 0;font-size:13px}
+@media (max-width:900px){.qa-sites-grid,.qa-sites-grid.three{grid-template-columns:minmax(0,1fr)}}
+.table-wrap{overflow-x:auto}
+
+/* 5: con poco ancho la cabecera prescinde de lo accesorio antes de desbordarse. */
+@media (max-width:1240px){header .kbd{display:none}nav button .icon{display:none}header{gap:12px}}
+@media (max-width:1100px){.brand-sep,.ravn-logo{display:none}}
+.auto-row>.status-pill{justify-self:start}
+.qa-sites-table{table-layout:fixed}
+.qa-sites-table th:nth-child(1){width:13%}.qa-sites-table th:nth-child(2){width:15%}.qa-sites-table th:nth-child(3){width:34%}
+.qa-sites-table th:nth-child(4){width:14%}.qa-sites-table th:nth-child(5){width:16%}.qa-sites-table th:nth-child(6){width:8%}
+.qa-sites-table input{min-width:0}
+/* Acciones de cada registro: una debajo de otra, para que nunca queden cortadas. */
+td.acts{white-space:nowrap;text-align:right;vertical-align:top;padding-top:6px}
+td.acts>button{display:inline-grid;vertical-align:middle;margin-left:2px}
+td.acts>.icon-btn.danger:hover{color:var(--bad);background:var(--bad-bg)}
+td.acts>.icon-btn:hover{color:var(--accent);background:var(--soft)}
+/* Registros con poco ancho: las etiquetas de tipo se parten y las celdas se compactan para que la tabla quepa. */
+td .tag{white-space:normal}
+@media (max-width:1240px){.tablewrap th,.tablewrap td{padding:9px 8px}}
+td.acts>.icon-btn{width:26px;height:26px;margin-left:0}
+@media (max-width:1240px){.tablewrap td.acts{padding-left:4px;padding-right:4px}}

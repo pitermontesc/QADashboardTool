@@ -40,12 +40,6 @@ export function reportInstruction(kind: AutomationKind, port: number, id: string
   );
 }
 
-/** Ambiente de los ajustes que corresponde al sitio probado (QA o Staging). */
-export function envFor(target: 'qa' | 'staging', settings: Settings): string {
-  const match = settings.envs.find((env) => env.toLowerCase().startsWith(target === 'qa' ? 'qa' : 'stag'));
-  return match ?? (target === 'qa' ? 'QA' : 'Staging');
-}
-
 const RESULT_BY_VERDICT: Record<Verdict, Result> = {
   GO: 'passed',
   'NO-GO': 'failed',

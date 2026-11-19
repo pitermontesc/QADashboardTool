@@ -1,4 +1,5 @@
 import type { Lang, Result, Settings } from './types.js';
+import { defaultQaConfig } from './orchestrator.js';
 
 export const PALETTE = [
   '#2f5bd8', '#8b5cf6', '#0e9aa7', '#e0672b', '#c2410c', '#be185d', '#4d7c0f',
@@ -48,6 +49,7 @@ export function defaultSettings(language: Lang = 'es'): Settings {
     ticketBase: '',
     language,
     theme: 'system',
+    qa: defaultQaConfig(),
   };
 }
 

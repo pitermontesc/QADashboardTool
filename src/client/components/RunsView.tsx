@@ -98,13 +98,22 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }:
             settings={settings}
             actions={(run) => (
               <>
+                {/* Iconos con su nombre accesible y en el tooltip: caben en una línea a cualquier ancho. */}
                 {automationByRun.has(run.id) && (
-                  <button className="link" onClick={() => onOpenReport(automationByRun.get(run.id)!)}>{t.report}</button>
+                  <button className="icon-btn" title={t.report} aria-label={t.report} onClick={() => onOpenReport(automationByRun.get(run.id)!)}>
+                    <Icon name="eye" size={15} />
+                  </button>
                 )}
-                <button className="link" onClick={() => onEdit(run)}>{t.edit}</button>
-                <button className="link" onClick={() => onDuplicate(run)}>{t.duplicate}</button>
+                <button className="icon-btn" title={t.edit} aria-label={t.edit} onClick={() => onEdit(run)}>
+                  <Icon name="edit" size={15} />
+                </button>
+                <button className="icon-btn" title={t.duplicate} aria-label={t.duplicate} onClick={() => onDuplicate(run)}>
+                  <Icon name="copy" size={15} />
+                </button>
                 <button
-                  className="link danger"
+                  className={armedId === run.id ? 'link danger' : 'icon-btn danger'}
+                  title={armedId === run.id ? undefined : t.remove}
+                  aria-label={armedId === run.id ? t.confirm : t.remove}
                   onClick={() => {
                     if (armedId === run.id) {
                       setArmedId(null);
@@ -114,7 +123,7 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }:
                     }
                   }}
                 >
-                  {armedId === run.id ? t.confirm : t.remove}
+                  {armedId === run.id ? t.confirm : <Icon name="trash" size={15} />}
                 </button>
               </>
             )}

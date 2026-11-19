@@ -144,7 +144,7 @@ describe('App', () => {
     expect(leftovers()).toEqual([]);
 
     // Los errores del servidor también llegan en inglés.
-    expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).body.error).toBe('Choose the smoke site: QA or STG');
+    expect((await srv.call('POST', '/api/smoke', { site: 'prod' })).body.error).toBe('That site does not exist: choose QA or STG');
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
     fireEvent.click(screen.getByRole('button', { name: 'ES' }));
     await screen.findByRole('button', { name: 'Registros' });
