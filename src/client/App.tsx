@@ -573,8 +573,8 @@ export function App() {
             </button>
           ))}
         </div>
-        <button className="btn primary" onClick={newRun} title={`${t.newRun} (${MOD}N)`}>
-          <Icon name="plus" /> {t.newRun} <Kbd>{MOD}N</Kbd>
+        <button className="btn primary new-run-btn" onClick={newRun} title={`${t.newRun} (${MOD}N)`} aria-label={t.newRun}>
+          <Icon name="plus" /> <span className="new-run-label">{t.newRun}</span> <Kbd>{MOD}N</Kbd>
         </button>
       </header>
 

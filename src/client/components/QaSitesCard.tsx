@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { QaConfig, QaSite, Settings } from '../../shared/types';
 import { defaultQaConfig } from '../../shared/orchestrator';
 import { useText } from '../i18n';
+import { Icon } from './icons';
 
 interface QaSitesCardProps {
   settings: Settings;
@@ -75,13 +76,15 @@ export function QaSitesCard({ settings, onSave }: QaSitesCardProps) {
                 </td>
                 <td><input aria-label={`${t.jiraStatus} ${i + 1}`} placeholder={t.jiraStatusPh} value={site.jiraStatus} onChange={(e) => setSite(i, { jiraStatus: e.target.value })} /></td>
                 <td>
+                  {/* An icon, like the actions in Runs: a text label did not fit the column. */}
                   <button
-                    className="link danger"
+                    className="icon-btn danger"
                     disabled={draft.sites.length === 1}
+                    title={t.remove}
                     aria-label={t.removeSite(site.name || site.id)}
                     onClick={() => setDraft((d) => ({ ...d, sites: d.sites.filter((_, j) => j !== i) }))}
                   >
-                    {t.remove}
+                    <Icon name="trash" size={15} />
                   </button>
                 </td>
               </tr>

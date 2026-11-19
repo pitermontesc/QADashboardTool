@@ -389,11 +389,24 @@ header h1,nav button{white-space:nowrap}
 /* 5: when narrow, the header drops non-essentials before it overflows. */
 @media (max-width:1240px){header .kbd{display:none}nav button .icon{display:none}header{gap:12px}}
 @media (max-width:1100px){.brand-sep,.ravn-logo{display:none}}
+/* At the narrowest windows (the app's minimum is 900px), "New run" keeps only its + icon so the header never overflows. */
+@media (max-width:1080px){.new-run-label{display:none}}
 .auto-row>.status-pill{justify-self:start}
+/* Sites table: fixed columns sized for their headers in both languages; the URL takes the rest
+   and the remove action is a 36px icon, so nothing overlaps or gets cut in a half-width card. */
 .qa-sites-table{table-layout:fixed}
-.qa-sites-table th:nth-child(1){width:13%}.qa-sites-table th:nth-child(2){width:15%}.qa-sites-table th:nth-child(3){width:34%}
-.qa-sites-table th:nth-child(4){width:14%}.qa-sites-table th:nth-child(5){width:16%}.qa-sites-table th:nth-child(6){width:8%}
+.qa-sites-table th{letter-spacing:.03em;vertical-align:bottom;overflow-wrap:normal}
+.qa-sites-table th:nth-child(1){width:10%}.qa-sites-table th:nth-child(2){width:13%}
+.qa-sites-table th:nth-child(4){width:18%}.qa-sites-table th:nth-child(5){width:19%}.qa-sites-table th:nth-child(6){width:36px}
+/* In a narrow card (small window), smaller headers so "Environment" still fits its column. */
+.qa-sites{container-type:inline-size}
+@container (max-width:620px){.qa-sites-table th{font-size:10.5px;letter-spacing:0}}
+.qa-sites-table td:last-child{width:auto;padding-right:0}
 .qa-sites-table input{min-width:0}
+.qa-sites-table .icon-btn.danger:hover:not(:disabled){color:var(--bad);background:var(--bad-bg)}
+.qa-sites-table .icon-btn:disabled{opacity:.35;cursor:default}
+/* Skills: at most two per row so full names like /avm-qa-skills:avm-regression-runner stay readable. */
+.qa-sites-grid.three{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
 /* Per-run actions: stacked vertically so they are never cut off. */
 td.acts{white-space:nowrap;text-align:right;vertical-align:top;padding-top:6px}
 td.acts>button{display:inline-grid;vertical-align:middle;margin-left:2px}

@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.3] - 2026-11-19
+
+### Fixed
+- **Sites & skills table** in a half-width card: the "Environment" and "Jira status" headers overlapped and "Remove" was cut to "Remov". Columns are now sized for their headers in both languages, headers shrink a little when the window is narrow, and removing a site is a trash icon (with its name in the tooltip), like the actions in Runs.
+- **Claude Code skill fields** no longer cut long names such as `/avm-qa-skills:avm-regression-runner`: they are laid out at most two per row, so the whole name fits.
+- **Header at narrow windows**: in Spanish, at the app's minimum width (900 px), the "Nuevo registro" button stuck out of the header. Below 1080 px it now shows only its + icon (same name for screen readers and in its tooltip).
+
 ## [1.13.2] - 2026-11-19
 
 ### Changed
