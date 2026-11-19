@@ -10,6 +10,7 @@ import type {
 import type { AppOptions } from './app.js';
 import { automationTitle, runText } from './automation.js';
 import type { ClaudeLauncher, ReportTranslator } from './claudeRunner.js';
+import type { AssistantRunner } from './assistant.js';
 
 /**
  * Modo demo: la app con datos de ejemplo en una carpeta temporal y todo lo externo
@@ -452,7 +453,73 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
   };
 }
 
+/**
+ * Asistente simulado: reconoce unas pocas peticiones típicas y responde con los datos
+ * de la demo, igual que el asistente real (texto y acciones para confirmar).
+ */
+export const demoAssistant: AssistantRunner = async ({ context, messages, lang }) => {
+  const en = lang === 'en';
+  const ask = (messages.at(-1)?.text ?? '').toLowerCase();
+  const wants = /lanz|corr|ejecut|run|launch|start|valid/.test(ask);
+  const key = /[a-z][a-z0-9]+-\d+/i.exec(ask)?.[0]?.toUpperCase();
+  const latest = context.claudeRuns.find((a) => a.status === 'finished');
+
+  if (wants && /smoke/.test(ask)) {
+    const site = /\bqa\b/.test(ask) && !/stg|staging/.test(ask) ? 'qa' : 'stg';
+    return {
+      reply: en ? `I'll launch the smoke test on ${site.toUpperCase()}. Confirm it below.` : `Lanzo el smoke en ${site.toUpperCase()}. Confírmalo abajo.`,
+      actions: [{ type: 'run_smoke', site }],
+    };
+  }
+  if (wants && /regres/.test(ask)) {
+    return { reply: en ? 'I\'ll launch the regression. Confirm it below.' : 'Lanzo la regresión. Confírmala abajo.', actions: [{ type: 'run_regression', run: '' }] };
+  }
+  if (key && (wants || /orquest|orchestr/.test(ask))) {
+    return {
+      reply: en ? `I'll run the QA orchestrator on ${key}. Confirm it below.` : `Ejecuto el orquestador QA sobre ${key}. Confírmalo abajo.`,
+      actions: [{ type: 'run_orchestrator', key }],
+    };
+  }
+  if (/publica|post/.test(ask) && /jira|coment|comment/.test(ask)) {
+    const pending = context.claudeRuns.find((a) => a.jiraComment?.state === 'pending');
+    return pending
+      ? {
+          reply: en ? `The QA comment for ${pending.jiraComment!.ticket} is pending. Confirm below to post it.` : `El comentario de QA de ${pending.jiraComment!.ticket} está pendiente. Confirma abajo para publicarlo.`,
+          actions: [{ type: 'post_jira_comment', automationId: pending.automationId }],
+        }
+      : { reply: en ? 'There is no pending Jira comment.' : 'No hay ningún comentario de Jira pendiente.', actions: [] };
+  }
+  if (/fall|fail|bug|error/.test(ask)) {
+    const failed = context.runs.filter((r) => r.result === 'failed').slice(0, 5);
+    const bugs = context.claudeRuns.flatMap((a) => a.bugs);
+    const lines = failed.map((r) => `- ${r.date} · **${r.title}**${r.ticket ? ` (${r.ticket})` : ''}`);
+    const bugLines = bugs.map((b) => `- **${b.key}** ${b.title} (${b.severity})`);
+    return {
+      reply: en
+        ? `Recent failed runs:\n${lines.join('\n')}\n\nBugs from Claude runs:\n${bugLines.join('\n') || '- None'}`
+        : `Registros fallidos recientes:\n${lines.join('\n')}\n\nBugs de las ejecuciones con Claude:\n${bugLines.join('\n') || '- Ninguno'}`,
+      actions: [],
+    };
+  }
+  if (/ticket/.test(ask)) {
+    const lines = context.jira.tickets.map((t) => `- **${t.key}** (${t.status}) ${t.summary}`);
+    return { reply: `${en ? 'Tickets to test' : 'Tickets por probar'}:\n${lines.join('\n')}`, actions: [] };
+  }
+  if (latest && /report|resum|summar|últim|ultim|last/.test(ask)) {
+    return {
+      reply: `**${latest.kind} ${latest.target} · ${latest.verdict}**\n${latest.summary}`,
+      actions: [{ type: 'open_report', automationId: latest.automationId }],
+    };
+  }
+  return {
+    reply: en
+      ? 'In this demo I can: summarize the latest report, list failures and bugs, list the tickets to test, launch a smoke test or regression, run the orchestrator on a ticket, and post the pending Jira comment.'
+      : 'En esta demo puedo: resumir el último reporte, listar fallos y bugs, mostrar los tickets por probar, lanzar un smoke o una regresión, ejecutar el orquestador sobre un ticket y publicar el comentario de Jira pendiente.',
+    actions: [],
+  };
+};
+
 /** Opciones de la API en modo demo: todo lo externo simulado. */
-export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'demo'> {
-  return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, demo: true };
+export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo'> {
+  return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true };
 }

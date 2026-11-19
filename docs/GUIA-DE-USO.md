@@ -18,6 +18,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
    - [Ejecutar el smoke con Claude Code](#ejecutar-el-smoke-con-claude-code)
    - [Ejecutar la regresión con Claude Code](#ejecutar-la-regresión-con-claude-code)
    - [Ejecuciones con Claude en Registros y en el dashboard](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)
+   - [Asistente de Claude](#asistente-de-claude)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
 8. [Personalizar tipos de test y ambientes](#8-personalizar-tipos-de-test-y-ambientes)
@@ -309,6 +310,15 @@ Como son registros normales, cuentan en los KPIs y los gráficos, y el último s
 
 Si Claude no llega a reportar, puedes completar el registro «En progreso» a mano con **Editar** en **Registros**.
 
+### Asistente de Claude
+
+Pulsa **Asistente** en la cabecera (o `⌘K`, también en **Ver → Asistente de Claude**) para abrir un chat con Claude que conoce tus datos de QA: tus registros recientes, los tickets de Jira y los reportes de las ejecuciones con Claude.
+
+- **Pregúntale** por tus datos: «¿Qué falló esta semana?», «Resume el último reporte», «¿Qué tickets me faltan por probar?». Responde con fechas, claves y números de la app; si un dato no está, lo dice.
+- **Pídele acciones**: lanzar el smoke o la regresión, ejecutar el orquestador sobre un ticket, crear un registro, publicar en Jira el comentario pendiente o abrir un reporte. **Nunca hace nada solo**: cada acción aparece como una tarjeta y solo se ejecuta al pulsar **Confirmar** (o **Descartar** para no hacerla). Las acciones usan los mismos botones de la app, así que valen las mismas reglas (por ejemplo, no se lanza dos veces lo mismo).
+
+Usa Claude Code con tu sesión, como las ejecuciones: no hace falta API key. Cada respuesta tarda unos segundos. Claude no tiene herramientas en el asistente (no ejecuta comandos ni abre archivos); solo responde con lo que la app le pasa, y nunca recibe tu API token ni tu email de Jira. La conversación se mantiene mientras la app está abierta; el icono de recargar del panel empieza una nueva.
+
 ## 6. Leer el dashboard
 
 ![Dashboard completo: saludo, resumen del día, tickets por probar y KPIs](img/04-dashboard.png)
@@ -407,6 +417,7 @@ También están en los menús **Archivo** y **Ver** de la app.
 | `⌘3` | Tipos y ajustes |
 | `⌘F` o `/` | Buscar registros |
 | `⌘R` | Actualizar tickets de Jira |
+| `⌘K` | Abrir o cerrar el asistente de Claude |
 | `⌘↵` | Guardar el formulario |
 | `Esc` | Cerrar el formulario sin guardar |
 | `⌘+` / `⌘-` / `⌘0` | Acercar, alejar, tamaño real |

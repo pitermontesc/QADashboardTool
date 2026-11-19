@@ -1,11 +1,12 @@
 import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
 import type { Automation, AutomationDetails, Lang } from '../shared/types.js';
 import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
-import { launchClaude, readActivity, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
+import { launchClaude, readActivity, runAssistant, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
+import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
 import { SMOKE_SITES, canOrchestrate, isSmokeSite, isTicketKey } from '../shared/orchestrator.js';
 import { VERDICTS_BY_KIND, automationTitle, envFor, reportInstruction, runForAutomation } from './automation.js';
 import {
@@ -22,6 +23,8 @@ export interface AppOptions {
   launchClaude?: ClaudeLauncher;
   /** Inyectable para probar la traducción de reportes sin ejecutar Claude Code. */
   translateReport?: ReportTranslator;
+  /** Inyectable para probar el asistente sin ejecutar Claude Code. */
+  assistant?: AssistantRunner;
   /** Modo demo: la interfaz lo indica en la cabecera. */
   demo?: boolean;
 }
@@ -361,6 +364,32 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     } finally {
       posting.delete(id);
     }
+  });
+
+  /** Asistente de QA: responde sobre los datos de la app y propone acciones que el usuario confirma. */
+  const askAssistant = options.assistant ?? runAssistant;
+  const chatSchema = z.object({
+    messages: z
+      .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().trim().min(1).max(8000) }))
+      .min(1)
+      .max(40)
+      .refine((m) => m.at(-1)?.role === 'user', 'El último mensaje tiene que ser del usuario'),
+  });
+  api.post('/assistant', async (req, res) => {
+    const { messages } = chatSchema.parse(req.body);
+    const state = store.getState();
+    const context = assistantContext(state);
+    const raw = await askAssistant({
+      system: assistantSystem(state.settings.language),
+      prompt: assistantPrompt(context, messages),
+      schema: ASSISTANT_SCHEMA,
+      context,
+      messages,
+      lang: state.settings.language,
+    });
+    const reply = parseAssistantReply(raw, store.getState());
+    if (!reply.reply && reply.actions.length === 0) throw new HttpError(502, 'El asistente no pudo responder: respuesta vacía');
+    res.json(reply);
   });
 
   /** Descarta el comentario de Jira (p. ej. ya se publicó otro a mano) o lo recupera con `{dismissed: false}`. */

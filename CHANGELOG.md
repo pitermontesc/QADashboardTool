@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.12.0] - 2026-11-19
+
+### Agregado
+- **Asistente de Claude.** Un panel de chat (botón **Asistente** en la cabecera, `⌘K` o **Ver → Asistente de Claude**) que responde sobre tus registros, tickets de Jira y reportes de las ejecuciones con Claude, y propone acciones: lanzar el smoke o la regresión, ejecutar el orquestador sobre un ticket, crear un registro, publicar el comentario de Jira pendiente o abrir un reporte. Cada acción se ejecuta solo al confirmarla. Usa Claude Code con tu sesión (sin API key), sin herramientas, y nunca recibe el token ni el email de Jira. Las acciones que la app no podría hacer (un ticket que no está, un comentario ya publicado…) se descartan antes de mostrarlas. En la demo, el asistente está simulado.
+
+### Corregido
+- La cabecera ya no parte en dos líneas «QA Dashboard» ni las pestañas cuando hay una ejecución en curso; con poco ancho, el botón del asistente queda solo con su icono.
+
 ## [1.11.1] - 2026-11-19
 
 ### Cambiado

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput, Theme,
+  AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput, Theme,
 } from '../shared/types';
 import { applyTheme, nextTheme } from './theme';
 import { LANGUAGES } from '../shared/types';
@@ -11,6 +11,7 @@ import { Dashboard } from './components/Dashboard';
 import { SMOKE_SITES, canOrchestrate, type SmokeSite } from '../shared/orchestrator';
 import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
+import { AssistantPanel, type ChatMessage } from './components/AssistantPanel';
 import { ReportDialog } from './components/ReportDialog';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
@@ -56,6 +57,7 @@ const TEXT = {
     editRun: 'Editar registro',
     closeToast: 'Cerrar aviso',
     language: 'Idioma',
+    assistant: 'Asistente', runCreated: 'Registro creado por el asistente', commentPosted: 'Comentario publicado en Jira',
     themeNames: { system: 'Automático', light: 'Claro', dark: 'Oscuro' } as Record<Theme, string>,
     themeTitle: (current: string, next: string) => `Tema: ${current}. Pulsa para cambiar a ${next}.`,
   },
@@ -84,6 +86,7 @@ const TEXT = {
     editRun: 'Edit run',
     closeToast: 'Close notice',
     language: 'Language',
+    assistant: 'Assistant', runCreated: 'Run created by the assistant', commentPosted: 'Comment posted on Jira',
     themeNames: { system: 'Automatic', light: 'Light', dark: 'Dark' } as Record<Theme, string>,
     themeTitle: (current: string, next: string) => `Theme: ${current}. Click to switch to ${next}.`,
   },
@@ -139,6 +142,9 @@ export function App() {
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  /** La conversación sigue al cerrar y abrir el panel; «Nueva conversación» la vacía. */
+  const [chat, setChat] = useState<ChatMessage[]>([]);
   const formKey = useRef(0);
   const lang: Lang = state?.settings.language ?? systemLang();
   const t = TEXT[lang];
@@ -231,6 +237,9 @@ export function App() {
       if (mod && /^[123]$/.test(event.key)) {
         event.preventDefault();
         commands.current(`tab:${TABS[Number(event.key) - 1]!.id}`);
+      } else if (mod && (event.key === 'k' || event.key === 'K')) {
+        event.preventDefault();
+        commands.current('assistant');
       } else if (!mod && !event.altKey && !typing(event.target)) {
         if (event.key === 'n' || event.key === 'N') {
           event.preventDefault();
@@ -381,14 +390,16 @@ export function App() {
     else patch({ automations: [automation, ...state.automations] });
   };
 
-  const runOrchestrator = async (ticket: JiraTicket): Promise<void> => {
+  const runOrchestrator = async (ticket: JiraTicket): Promise<boolean> => {
     setLaunching(ticket.key);
     try {
       const automation = await api.runOrchestrator(ticket.key);
       await reloadRuns(automation);
       notify(t.orchestratorOpened(ticket.key), 'info');
+      return true;
     } catch (err) {
       notify((err as Error).message, 'error');
+      return false;
     } finally {
       setLaunching(null);
     }
@@ -406,14 +417,16 @@ export function App() {
     }
   };
 
-  const runSmoke = async (site: SmokeSite): Promise<void> => {
+  const runSmoke = async (site: SmokeSite): Promise<boolean> => {
     setLaunching(`smoke:${site}`);
     try {
       const automation = await api.runSmoke(site);
       await reloadRuns(automation);
       notify(t.smokeOpened(SMOKE_SITES[site].label), 'info');
+      return true;
     } catch (err) {
       notify((err as Error).message, 'error');
+      return false;
     } finally {
       setLaunching(null);
     }
@@ -441,6 +454,8 @@ export function App() {
     } else if (command === 'search') {
       setTab('runs');
       setTimeout(() => document.getElementById('runs-search')?.focus(), 0);
+    } else if (command === 'assistant') {
+      setAssistantOpen((open) => !open);
     } else if (command.startsWith('theme:')) {
       const next = command.slice(6);
       if (next === 'system' || next === 'light' || next === 'dark') void saveSettings({ ...state.settings, theme: next });
@@ -458,6 +473,41 @@ export function App() {
       patch({ runs: next.runs, automations: next.automations });
     } catch (err) {
       notify((err as Error).message, 'error');
+    }
+  };
+
+  /** Acción del asistente, confirmada por el usuario: la misma lógica que los botones de la app. */
+  const doAssistantAction = async (action: AssistantAction): Promise<boolean> => {
+    try {
+      switch (action.type) {
+        case 'run_smoke':
+          return await runSmoke(action.site);
+        case 'run_regression':
+          return await runRegression(action.run);
+        case 'run_orchestrator': {
+          const ticket = state.jira.tickets.find((tk) => tk.key === action.key);
+          return ticket ? await runOrchestrator(ticket) : false;
+        }
+        case 'create_run': {
+          const saved = await api.createRun(action.run);
+          setState((s) => (s ? { ...s, runs: [...s.runs, saved] } : s));
+          notify(t.runCreated);
+          return true;
+        }
+        case 'post_jira_comment': {
+          const body = state.automations.find((a) => a.id === action.automationId)?.details?.jiraComment?.body ?? '';
+          const updated = await api.postJiraComment(action.automationId, body);
+          patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) });
+          notify(t.commentPosted);
+          return true;
+        }
+        case 'open_report':
+          setReportId(action.automationId);
+          return true;
+      }
+    } catch (error) {
+      fail(error);
+      return false;
     }
   };
 
@@ -497,6 +547,15 @@ export function App() {
               : t.running(active.length)}
           </button>
         )}
+        <button
+          className={`btn small assistant-btn${assistantOpen ? ' on' : ''}`}
+          onClick={() => setAssistantOpen((open) => !open)}
+          title={`${t.assistant} (${MOD}K)`}
+          aria-label={t.assistant}
+          aria-expanded={assistantOpen}
+        >
+          <Icon name="sparkle" /> <span className="assistant-label">{t.assistant}</span>
+        </button>
         {(() => {
           const next = nextTheme(state.settings.theme);
           const icon = state.settings.theme === 'dark' ? 'moon' : state.settings.theme === 'light' ? 'sun' : 'auto';
@@ -566,6 +625,9 @@ export function App() {
           onSubmit={saveRun}
           onClose={() => setForm(null)}
         />
+      )}
+      {assistantOpen && (
+        <AssistantPanel state={state} messages={chat} setMessages={setChat} onClose={() => setAssistantOpen(false)} onAction={doAssistantAction} />
       )}
       {regressionOpen && <RegressionDialog onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
       {report && (

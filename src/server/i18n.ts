@@ -45,6 +45,8 @@ const EN: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^Hay tipos de test repetidos$/, () => 'There are repeated test types'],
   [/^El respaldo tiene registros de tipos de test que no existen$/, () => 'The backup has runs of test types that do not exist'],
   [/^Ya hay una ejecución en curso de (.+)$/, (what) => `There is already a run in progress for ${what}`],
+  [/^El asistente no pudo responder: (.*)$/s, (why) => `The assistant could not answer: ${why === 'respuesta vacía' ? 'empty answer' : why}`],
+  [/^El último mensaje tiene que ser del usuario$/, () => 'The last message must be from the user'],
   [/^Ese tipo de test no existe$/, () => 'That test type does not exist'],
   [/^El tipo «(.+)» tiene registros y no se puede quitar$/, (name) => `The type “${name}” has runs and cannot be removed`],
   [/^Veredicto (.+) no válido para esta ejecución: usa (.+)$/, (v, valid) => `Verdict ${v} is not valid for this run: use ${valid}`],

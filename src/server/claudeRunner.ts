@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { HttpError } from './errors.js';
 import type { ActivityItem, Lang, ReportTranslation } from '../shared/types.js';
+import type { AssistantRunner } from './assistant.js';
 
 /** Carpeta de trabajo de las ejecuciones con Claude; ahí quedan sus reportes y, en `logs/`, su registro. */
 export const RUNS_DIR = path.join(os.homedir(), 'qa-dashboard-runs');
@@ -149,6 +150,45 @@ export const translateReport: ReportTranslator = (report, lang) => {
       }
     });
     child.stdin.end(JSON.stringify(report));
+  });
+};
+
+const ASSISTANT_MS = 3 * 60_000;
+
+/**
+ * Asistente con Claude Code y la sesión del usuario: sin herramientas ni MCP (solo responde),
+ * con sus propias instrucciones y la respuesta validada contra un esquema JSON.
+ */
+export const runAssistant: AssistantRunner = ({ system, prompt, schema }) => {
+  const bin = findClaude();
+  mkdirSync(RUNS_DIR, { recursive: true });
+  const args = [
+    '-p', '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'json',
+    '--system-prompt', system, '--json-schema', JSON.stringify(schema), 'Responde al último mensaje del usuario.',
+  ];
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { cwd: RUNS_DIR, env: cleanEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    const limit = setTimeout(() => child.kill('SIGTERM'), ASSISTANT_MS);
+    child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => (err += chunk.toString('utf8')));
+    child.once('error', (e) => {
+      clearTimeout(limit);
+      reject(new HttpError(500, `No se pudo iniciar Claude Code: ${e.message}`));
+    });
+    child.once('close', (code) => {
+      clearTimeout(limit);
+      try {
+        const result = JSON.parse(out) as { is_error?: boolean; result?: string; structured_output?: unknown };
+        if (result.is_error) throw new Error(result.result || `exit ${code}`);
+        resolve(result.structured_output ?? result.result ?? '');
+      } catch (e) {
+        const why = e instanceof SyntaxError ? err.trim() || out.trim() || `exit ${code}` : e instanceof Error ? e.message : String(e);
+        reject(new HttpError(502, `El asistente no pudo responder: ${short(why, 300)}`));
+      }
+    });
+    child.stdin.end(prompt);
   });
 };
 

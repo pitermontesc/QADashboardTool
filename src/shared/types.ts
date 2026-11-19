@@ -182,6 +182,25 @@ export interface ActivityItem {
   text: string;
 }
 
+/** Lo que el asistente propone hacer; la app lo ejecuta solo si el usuario lo confirma. */
+export type AssistantAction =
+  | { type: 'run_smoke'; site: 'qa' | 'stg' }
+  | { type: 'run_regression'; run: string }
+  | { type: 'run_orchestrator'; key: string }
+  | { type: 'create_run'; run: TestRunInput }
+  | { type: 'post_jira_comment'; automationId: string }
+  | { type: 'open_report'; automationId: string };
+
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface AssistantReply {
+  reply: string;
+  actions: AssistantAction[];
+}
+
 export interface AppState {
   settings: Settings;
   runs: TestRun[];

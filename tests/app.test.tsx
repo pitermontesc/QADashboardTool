@@ -9,7 +9,11 @@ describe('App', () => {
   let srv: Awaited<ReturnType<typeof startServer>>;
 
   beforeAll(async () => {
-    srv = await startServer({ fetchImpl: fakeJira, launchClaude: async () => ({ pid: null, logFile: '', stop: () => undefined }) });
+    srv = await startServer({
+      fetchImpl: fakeJira,
+      launchClaude: async () => ({ pid: null, logFile: '', stop: () => undefined }),
+      assistant: async () => ({ reply: 'Hay **1** smoke pendiente.\n- Lo lanzo en STG', actions: [{ type: 'run_smoke', site: 'stg' }] }),
+    });
     await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
     await srv.call('POST', '/api/jira/refresh', {});
 
@@ -161,6 +165,26 @@ describe('App', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Apariencia' })).getByRole('button', { name: 'Automático' }));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBeUndefined());
     expect((await srv.call('GET', '/api/state')).body.settings.theme).toBe('system');
+  });
+
+  it('el asistente responde y solo lanza la acción cuando se confirma', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /Asistente/ }));
+    const panel = screen.getByRole('complementary', { name: 'Asistente' });
+    fireEvent.change(within(panel).getByLabelText('Pregunta o pide algo…'), { target: { value: '¿Qué hay pendiente?' } });
+    fireEvent.keyDown(within(panel).getByLabelText('Pregunta o pide algo…'), { key: 'Enter' });
+
+    expect(await within(panel).findByText('Lo lanzo en STG')).toBeTruthy();
+    expect(within(panel).getByText('1').tagName).toBe('B');
+    const before = (await srv.call('GET', '/api/state')).body.automations.length;
+    // Sin confirmar no se lanza nada.
+    expect((await srv.call('GET', '/api/state')).body.automations).toHaveLength(before);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Confirmar' }));
+    expect(await within(panel).findByText('Hecho')).toBeTruthy();
+    const { body } = await srv.call('GET', '/api/state');
+    expect(body.automations).toHaveLength(before + 1);
+    expect(body.automations[0]).toMatchObject({ kind: 'smoke', target: 'STG' });
+    await srv.call('POST', `/api/automation/${body.automations[0].id}/stop`, {});
   });
 
   it('actualiza los tickets solo al volver a la ventana y avisa de los nuevos en On QA', async () => {

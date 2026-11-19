@@ -36,6 +36,7 @@ Atajos (también en el menú de la app):
 | `⌘1` `⌘2` `⌘3` | Dashboard, Registros, Tipos y ajustes |
 | `⌘F` o `/` | Buscar registros |
 | `⌘R` | Actualizar tickets de Jira |
+| `⌘K` | Asistente de Claude |
 | `⌘↵` / `Esc` | Guardar / cancelar el formulario |
 
 La ventana recuerda su tamaño y posición. Arrastra `QA Dashboard.app` a `/Applications` y ábrela como cualquier otra app. No está firmada: la primera vez, clic derecho → Abrir. Los enlaces a Jira se abren en el navegador. Si `npm start` ya está corriendo, la app de escritorio reutiliza ese servidor.
@@ -116,5 +117,6 @@ tests/       Estadísticas, API (servidor real en puerto temporal) e interfaz (j
 | POST | `/api/import` | Reemplaza los datos con un respaldo |
 | PUT | `/api/jira/config` | Guarda la conexión con Jira |
 | POST | `/api/jira/refresh` | Recarga los tickets desde Jira |
+| POST | `/api/assistant` | Asistente: `{messages}` → `{reply, actions}`; las acciones solo se proponen, la app las ejecuta si el usuario confirma |
 | POST | `/api/automation/:id/translate` | Traduce el reporte de Claude al idioma pedido (`{lang}`) |
 | POST | `/api/automation/:id/jira-comment` | Publica en Jira el comentario de QA que dejó Claude (`{body}` opcional, editado) |
