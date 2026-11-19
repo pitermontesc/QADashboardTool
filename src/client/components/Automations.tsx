@@ -42,15 +42,15 @@ export const KIND_LABEL: Record<Lang, Record<AutomationKind, string>> = {
 
 const TEXT = {
   es: {
-    title: 'Ejecuciones con Claude',
-    sub: 'Cada ejecución aparece en Registros al lanzarla y se completa cuando Claude reporta el veredicto. Pulsa una para ver su reporte QA.',
+    title: 'Ejecuciones de QA automatizadas',
+    sub: 'Smoke, regresión y validación de tickets que corren solas con Claude. Cada una aparece en Registros al lanzarla y se completa con su veredicto. Pulsa una para ver su reporte QA.',
     stale: 'Sin resultado', running: 'Running', launched: (min: number) => `Corriendo en segundo plano · ${min} min`,
     viewReport: 'Ver el reporte QA', viewReportOf: (what: string) => `Ver el reporte QA de ${what}`,
     openLink: 'Abrir el reporte', dismiss: 'Detener y descartar esta ejecución',
   },
   en: {
-    title: 'Claude runs',
-    sub: 'Each run shows up in Runs when launched and is completed when Claude reports the verdict. Click one to see its QA report.',
+    title: 'Automated QA runs',
+    sub: 'Smoke tests, regressions and ticket validations that Claude runs on its own. Each one shows up in Runs when launched and is completed with its verdict. Click one to see its QA report.',
     stale: 'No result', running: 'Running', launched: (min: number) => `Running in the background · ${min} min`,
     viewReport: 'View QA report', viewReportOf: (what: string) => `View QA report for ${what}`,
     openLink: 'Open the report', dismiss: 'Stop and dismiss this run',

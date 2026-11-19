@@ -501,8 +501,8 @@ export const demoAssistant: AssistantRunner = async ({ context, messages, lang }
     const bugLines = bugs.map((b) => `- **${b.key}** ${b.title} (${b.severity})`);
     return {
       reply: en
-        ? `Recent failed runs:\n${lines.join('\n')}\n\nBugs from Claude runs:\n${bugLines.join('\n') || '- None'}`
-        : `Registros fallidos recientes:\n${lines.join('\n')}\n\nBugs de las ejecuciones con Claude:\n${bugLines.join('\n') || '- Ninguno'}`,
+        ? `Recent failed runs:\n${lines.join('\n')}\n\nBugs from automated QA runs:\n${bugLines.join('\n') || '- None'}`
+        : `Registros fallidos recientes:\n${lines.join('\n')}\n\nBugs de las ejecuciones de QA automatizadas:\n${bugLines.join('\n') || '- Ninguno'}`,
       actions: [],
     };
   }

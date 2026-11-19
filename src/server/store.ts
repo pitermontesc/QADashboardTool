@@ -26,7 +26,7 @@ interface StoreData {
   automations: Automation[];
 }
 
-/** Ejecuciones con Claude que se conservan (las más recientes). */
+/** Ejecuciones de QA automatizadas que se conservan (las más recientes). */
 const MAX_AUTOMATIONS = 30;
 
 const emptyData = (): StoreData => ({

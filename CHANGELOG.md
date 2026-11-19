@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 
+## [1.13.1] - 2026-11-19
+
+### Agregado
+- **Checklist de alta de un QA nuevo** en `docs/ALTA-NUEVO-QA.md`: qué prepara quien invita, qué instala y configura el QA nuevo (Claude Code, Claude in Chrome, skills, su perfil de QA, Jira y sitios) y una prueba final.
+
+### Cambiado
+- La sección **Ejecuciones con Claude** del dashboard pasa a llamarse **Ejecuciones de QA automatizadas** (en inglés, **Automated QA runs**): el nombre dice qué son (smoke, regresión y validación de tickets) y no con qué herramienta corren.
+
 ## [1.13.0] - 2026-11-19
 
 ### Agregado

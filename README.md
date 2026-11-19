@@ -46,6 +46,10 @@ La ventana recuerda su tamaño y posición. Arrastra `QA Dashboard.app` a `/Appl
 | `QA_DASH_PORT` | Puerto del servidor | `8765` |
 | `QA_DASH_DATA` | Carpeta de datos | macOS: `~/Library/Application Support/QA Dashboard` |
 
+## Dar de alta a otro QA
+
+La checklist para que otra persona del equipo use la app y los skills de QA con su propia cuenta está en [docs/ALTA-NUEVO-QA.md](docs/ALTA-NUEVO-QA.md): instalación, Claude Code y Claude in Chrome, su perfil de QA (`~/.config/avm-qa/profile.json`, para que los skills le asignen los tickets a ella y no a otra persona), la configuración de la app y una prueba final.
+
 ## Demo
 
 `npm run demo` (o `npm run demo:en`) abre la app en `http://127.0.0.1:8790` con datos de ejemplo en una carpeta temporal, que se reinicia en cada arranque. Jira, Claude Code y la traducción están simulados (`src/server/demo.ts`): las ejecuciones con Claude escriben su actividad paso a paso y reportan un resultado de ejemplo, y nada sale de la máquina. En la app de escritorio está en **Ayuda → Abrir demo**. El guion para presentarla está en [docs/DEMO.md](docs/DEMO.md) (en inglés: [docs/DEMO.en.md](docs/DEMO.en.md)).
@@ -68,7 +72,7 @@ La app toma el sitio y el filtro del link, pide los tickets a la API Agile de Ji
 
 Los tickets en **On QA** u **On Staging** tienen el botón **Ejecutar orquestador QA**: corre Claude Code en segundo plano con `/avm-qa-orchestrator <TICKET>` (requiere el comando `claude` y el skill instalado).
 
-La tarjeta de la suite **Smoke** tiene los botones **Smoke en QA** y **Smoke en STG**, que corren `/avm-qa-skills:avm-smoke-tester` sobre qa.alpinevm.com o staging.alpinevm.com. La de **Regression** tiene el botón **Ejecutar regresión**: pide el test run de testomat.io y corre `/avm-qa-skills:avm-regression-runner`. Las ejecuciones corren sin ventana ni preguntas (`claude -p --chrome --permission-mode auto` en `~/qa-dashboard-runs`, con su log en `logs/`); el dashboard las marca como **Running** en la cabecera, en la tarjeta de la suite o en la del ticket, y su reporte muestra la actividad en vivo y un botón para detenerlas. Toda ejecución lanzada con Claude (orquestador, smoke, regresión) aparece en Registros como «En progreso» desde que se lanza; al terminar, Claude reporta el veredicto a `POST /api/automation/:id/result` y la app completa ese registro y lo muestra en la sección **Ejecuciones con Claude**.
+La tarjeta de la suite **Smoke** tiene un botón por cada sitio configurado (por defecto **Smoke en QA** y **Smoke en STG**, sobre qa.alpinevm.com y staging.alpinevm.com) y la de **Regression** el botón **Ejecutar regresión**. Los sitios, los estados de Jira listos para el orquestador, los dominios de los test runs y los skills (por defecto `/avm-qa-orchestrator`, `/avm-qa-skills:avm-smoke-tester` y `/avm-qa-skills:avm-regression-runner`) se configuran en **Tipos y ajustes → Sitios y skills**. Las ejecuciones corren sin ventana ni preguntas (`claude -p --chrome --permission-mode auto` en `~/qa-dashboard-runs`, con su log en `logs/`); el dashboard las marca como **Running** en la cabecera, en la tarjeta de la suite o en la del ticket, y su reporte muestra la actividad en vivo y un botón para detenerlas. Toda ejecución lanzada con Claude (orquestador, smoke, regresión) aparece en Registros como «En progreso» desde que se lanza; al terminar, Claude reporta el veredicto a `POST /api/automation/:id/result` y la app completa ese registro y lo muestra en la sección **Ejecuciones de QA automatizadas**.
 
 Cada ticket aparece como botón en el dashboard; al pulsarlo se abre un registro nuevo con el ticket y el título ya cargados.
 

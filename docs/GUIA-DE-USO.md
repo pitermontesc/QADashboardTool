@@ -17,7 +17,7 @@ Todo funciona en tu equipo: no hay servidor en la nube y tus datos no salen de t
 5. [Registrar un test sin ticket (Smoke, Regression…)](#5-registrar-un-test-sin-ticket-smoke-regression)
    - [Ejecutar el smoke con Claude Code](#ejecutar-el-smoke-con-claude-code)
    - [Ejecutar la regresión con Claude Code](#ejecutar-la-regresión-con-claude-code)
-   - [Ejecuciones con Claude en Registros y en el dashboard](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)
+   - [Ejecuciones de QA automatizadas en Registros y en el dashboard](#ejecuciones-de-qa-automatizadas-en-registros-y-en-el-dashboard)
    - [Asistente de Claude](#asistente-de-claude)
 6. [Leer el dashboard](#6-leer-el-dashboard)
 7. [Buscar, editar, duplicar y borrar registros](#7-buscar-editar-duplicar-y-borrar-registros)
@@ -197,7 +197,7 @@ Los tickets en **On QA** u **On Staging** tienen debajo el botón **▷ Ejecutar
 1. **Pulsa «Ejecutar orquestador QA»** en la tarjeta del ticket. En la app aparece el aviso **Orquestador QA corriendo en segundo plano para AVM-7057**.
 2. **La tarjeta del ticket pasa a «Running · validando · N min»** y la cabecera muestra **Running**. Pulsa cualquiera de los dos para ver el progreso en vivo (ver [Seguir una ejecución en curso](#seguir-una-ejecución-en-curso)).
 3. El orquestador analiza el ticket, ejecuta los casos en qa.alpinevm.com, revisa el impacto y la regresión, se asigna el ticket, publica el comentario de QA y puede crear TCs y bugs. Cierra con un veredicto **PASSED / PASSED W/F / FAILED / BLOCKED**.
-4. **El resultado queda en Registros solo**: al lanzarlo aparece un registro «En progreso» del ticket y, cuando el orquestador termina, se completa con su veredicto (ver [Ejecuciones con Claude](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
+4. **El resultado queda en Registros solo**: al lanzarlo aparece un registro «En progreso» del ticket y, cuando el orquestador termina, se completa con su veredicto (ver [Ejecuciones de QA automatizadas](#ejecuciones-de-qa-automatizadas-en-registros-y-en-el-dashboard)).
 
 Requisitos y límites:
 
@@ -223,7 +223,7 @@ La tarjeta **★ Smoke** del dashboard tiene dos botones, uno por sitio: **▷ S
 
 1. **Pulsa el botón del sitio que quieres probar.** No hace falta ningún dato más. En la app aparece el aviso **Smoke en QA corriendo en segundo plano** y el botón pasa a **Running · QA · N min**.
 2. El smoke recorre el happy path de login, navegación, Work Orders, Reports, los wizards de Mass Upload/Update, Purchase Orders, Vendors/Customers y Admin, sin crear datos. Cierra con un veredicto **GO / NO-GO** y un resumen en markdown; tú decides dónde publicarlo.
-3. Al terminar, **Claude reporta el resultado a la app** y el smoke queda registrado solo (ver [Ejecuciones con Claude en Registros y en el dashboard](#ejecuciones-con-claude-en-registros-y-en-el-dashboard)).
+3. Al terminar, **Claude reporta el resultado a la app** y el smoke queda registrado solo (ver [Ejecuciones de QA automatizadas en Registros y en el dashboard](#ejecuciones-de-qa-automatizadas-en-registros-y-en-el-dashboard)).
 
 Si necesitas los dos sitios, pulsa los dos botones: cada smoke corre por separado. Los botones aparecen en cualquier tipo de test cuyo nombre contenga «Smoke» y que esté marcado con ★.
 
@@ -243,7 +243,7 @@ La tarjeta **★ Regression** del dashboard tiene el botón **▷ Ejecutar regre
 
 El botón aparece en cualquier tipo de test cuyo nombre contenga «Regres» y que esté marcado con ★. Los requisitos son los del orquestador (sección 4): Claude Code instalado y el skill disponible. La app solo acepta links de testomat.io o IDs de run.
 
-### Ejecuciones con Claude en Registros y en el dashboard
+### Ejecuciones de QA automatizadas en Registros y en el dashboard
 
 **Toda ejecución que lanzas desde la app queda registrada**: el orquestador QA de un ticket, el smoke en QA o STG y la regresión.
 
@@ -260,9 +260,9 @@ Cómo se traduce el veredicto en el resultado del registro:
 | Regresión | ★ Regression | GO → **Passed** · NO-GO → **Failed** · BLOCKED → **Blocked** |
 | Orquestador QA | Funcional (con el ticket) | PASSED y PASSED W/F → **Passed** · FAILED → **Failed** · BLOCKED → **Blocked** |
 
-El dashboard las muestra además en la sección **Ejecuciones con Claude**:
+El dashboard las muestra además en la sección **Ejecuciones de QA automatizadas**:
 
-![Sección «Ejecuciones con Claude»: smoke en curso en STG, orquestador AVM-7061 PASSED W/F, smoke QA GO y regresión NO-GO](img/20-smoke-regresion-resultados.png)
+![Sección «Ejecuciones de QA automatizadas»: smoke en curso en STG, orquestador AVM-7061 PASSED W/F, smoke QA GO y regresión NO-GO](img/20-smoke-regresion-resultados.png)
 
 - **Running**: Claude todavía está trabajando en segundo plano. La app consulta cada 10 segundos si ya hay resultado, sin que tengas que recargar.
 - **Con veredicto** (GO, NO-GO, BLOCKED, PASSED, PASSED W/F, FAILED): Claude terminó y reportó los casos, los bugs, un resumen corto y, si hay, el link al reporte, epic o comentario (icono ↗). La app avisa con, por ejemplo, «Smoke STG: GO» y, en la app de escritorio, con una notificación del sistema.
@@ -277,7 +277,7 @@ Mientras una ejecución corre, el dashboard lo indica en varios sitios:
 - En la **cabecera**, junto al selector de idioma: **Running · Smoke STG · 6 min**, o **2 ejecuciones en curso** si hay varias.
 - En la **tarjeta Smoke o Regression**: la etiqueta **Running** y el botón del sitio en **Running · STG · 6 min**.
 - En la **tarjeta del ticket** que valida el orquestador: **Running · validando · 3 min**.
-- En **Ejecuciones con Claude**: **Running** y los minutos que lleva en segundo plano.
+- En **Ejecuciones de QA automatizadas**: **Running** y los minutos que lleva en segundo plano.
 
 ![Dashboard con dos ejecuciones en curso: indicador en la cabecera, ticket AVM-7061 validándose y smoke en STG corriendo](img/24-running.png)
 
@@ -287,7 +287,7 @@ Pulsa cualquiera de esos indicadores para abrir la ejecución. Verás la **activ
 
 #### Reporte QA de una ejecución
 
-**Pulsa una ejecución** en **Ejecuciones con Claude** (o el icono del ojo), o **Reporte** junto a su registro en **Registros**, para abrir su reporte QA completo:
+**Pulsa una ejecución** en **Ejecuciones de QA automatizadas** (o el icono del ojo), o **Reporte** junto a su registro en **Registros**, para abrir su reporte QA completo:
 
 ![Reporte QA de un smoke en STG: veredicto NO-GO, inicio, fin y build, casos passed/failed/blocked, bugs y duración, y los módulos con sus pasos](img/23-reporte-qa.png)
 

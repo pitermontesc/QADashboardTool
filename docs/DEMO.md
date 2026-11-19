@@ -12,7 +12,7 @@ Para presentar la herramienta al equipo en unos 10 minutos, con la demo: datos d
 2. Comprueba que la cabecera muestra la marca **DEMO**.
 3. La demo empieza siempre igual: cerrarla y volver a abrirla la deja como nueva. Si ensayaste antes, reiníciala.
 
-Datos de la demo: 5 tickets de Jira (4 en On QA u On Staging y 1 en Test), 23 registros del último mes y 4 ejecuciones con Claude ya terminadas, con su reporte: orquestador AVM-7057 (PASSED W/F, con comentario de Jira pendiente), smoke STG (GO), regresión #b333fb92 (NO-GO, 2 bugs) y smoke QA (BLOCKED).
+Datos de la demo: 5 tickets de Jira (4 en On QA u On Staging y 1 en Test), 23 registros del último mes y 4 ejecuciones de QA automatizadas ya terminadas, con su reporte: orquestador AVM-7057 (PASSED W/F, con comentario de Jira pendiente), smoke STG (GO), regresión #b333fb92 (NO-GO, 2 bugs) y smoke QA (BLOCKED).
 
 ## Guion
 
@@ -25,7 +25,7 @@ Datos de la demo: 5 tickets de Jira (4 en On QA u On Staging y 1 en Test), 23 re
 | 3:15 | En la tarjeta **Smoke**, pulsa **Smoke en QA**. | «Desde aquí se lanza el smoke con Claude. Corre en segundo plano, en Chrome, sin Terminal ni preguntas.» |
 | 3:45 | Señala **Running** en la cabecera y en la tarjeta, y púlsalo. | «Mientras corre, veo qué está haciendo: cada página que abre y lo que va encontrando. Puedo detenerlo.» Deja la ventana abierta unos segundos. |
 | 4:30 | Cierra la ventana y sigue; en unos 40 segundos llega el aviso del resultado. | «Al terminar, Claude manda el veredicto y el reporte completo, y queda como registro.» |
-| 5:00 | Abre el smoke recién terminado en **Ejecuciones con Claude**. | «El reporte QA: veredicto, tiempos, cada módulo con sus pasos.» |
+| 5:00 | Abre el smoke recién terminado en **Ejecuciones de QA automatizadas**. | «El reporte QA: veredicto, tiempos, cada módulo con sus pasos.» |
 | 5:45 | Abre la **regresión #b333fb92** (NO-GO). | «Cuando algo falla, el módulo se abre solo con el paso que falló y la nota, y abajo están los bugs con su link a Jira.» |
 | 6:45 | Abre el **orquestador AVM-7057** y baja a **Comentario de QA para AVM-7057**. | «El orquestador valida un ticket de punta a punta y redacta el comentario de QA. Si no pudo publicarlo, lo reviso aquí y lo publico con un clic, o lo descarto si ya publiqué otro.» Pulsa **Publicar en AVM-7057** dos veces (la segunda confirma): en la demo no se publica nada real. |
 | 8:00 | Pulsa **EN** en la cabecera. | «La app funciona en inglés o en español; también traduce los reportes de Claude.» Abre la regresión otra vez para mostrarla en inglés y vuelve a **ES**. |

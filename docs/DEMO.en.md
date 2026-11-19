@@ -10,7 +10,7 @@ A 10-minute walkthrough of the tool for the team, using the demo: sample data, w
 2. Check that the header shows the **DEMO** badge.
 3. The demo always starts the same way: closing and reopening it resets it. If you rehearsed, restart it.
 
-Demo data: 5 Jira tickets (4 in On QA or On Staging and 1 in Test), 23 runs from the last month and 4 finished Claude runs with their reports: orchestrator AVM-7057 (PASSED W/F, with a pending Jira comment), smoke STG (GO), regression #b333fb92 (NO-GO, 2 bugs) and smoke QA (BLOCKED).
+Demo data: 5 Jira tickets (4 in On QA or On Staging and 1 in Test), 23 runs from the last month and 4 finished automated QA runs with their reports: orchestrator AVM-7057 (PASSED W/F, with a pending Jira comment), smoke STG (GO), regression #b333fb92 (NO-GO, 2 bugs) and smoke QA (BLOCKED).
 
 ## Script
 
@@ -23,7 +23,7 @@ Demo data: 5 Jira tickets (4 in On QA or On Staging and 1 in Test), 23 runs from
 | 3:15 | On the **Smoke** card, click **Smoke on QA**. | "This launches the smoke test with Claude. It runs in the background, in Chrome, with no Terminal and no questions." |
 | 3:45 | Point at **Running** in the header and on the card, and click it. | "While it runs, I can see what it's doing: every page it opens and what it finds. I can stop it." Leave the window open for a few seconds. |
 | 4:30 | Close the window and move on; the result notice arrives in about 40 seconds. | "When it finishes, Claude sends the verdict and the full report, and it's saved as a run." |
-| 5:00 | Open the smoke run that just finished under **Claude runs**. | "The QA report: verdict, timing, every module with its steps." |
+| 5:00 | Open the smoke run that just finished under **Automated QA runs**. | "The QA report: verdict, timing, every module with its steps." |
 | 5:45 | Open the **regression #b333fb92** (NO-GO). | "When something fails, the module opens on its own with the failed step and its note, and the bugs are listed below with their Jira links." |
 | 6:45 | Open the **AVM-7057 orchestrator** and scroll to **QA comment for AVM-7057**. | "The orchestrator validates a ticket end to end and writes the QA comment. If it couldn't post it, I review it here and post it in one click, or dismiss it if I already posted another." Click **Post on AVM-7057** twice (the second click confirms): the demo posts nothing for real. |
 | 8:00 | Click **ES** in the header. | "The app works in English or Spanish, and it translates Claude's reports too." Open the regression again to show it in Spanish, then switch back to **EN**. |
