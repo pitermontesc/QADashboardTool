@@ -141,6 +141,11 @@ export interface ReportBug {
   module: string;
 }
 
+/** A bug as edited from the report: `from` is its position in the list shown before editing (null if it is new). */
+export interface ReportBugEdit extends ReportBug {
+  from: number | null;
+}
+
 /** QA comment for Jira that Claude prepares; the app posts it in one click if Claude could not. */
 export interface JiraComment {
   /** Ticket the comment belongs to (e.g. AVM-6926). */

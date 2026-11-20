@@ -296,7 +296,7 @@ Click any of those indicators to open the run. You see the **Live activity**: wh
 - **Header**: verdict, environment, start and end time, and the build tested if Claude saw it.
 - **Totals**: passed, failed and blocked cases, bugs found and duration.
 - **Modules and steps**: each tested area (Login, Work Orders, Reports…) with its status, the OK steps out of the total, and its minutes. Modules with failures or blocks open on their own and show each step with its status and a note on what happened; the ones that passed expand with a click.
-- **Bugs found**: Jira key, title, severity and module, with a link to each bug.
+- **Bugs found**: Jira key, title, severity and module, with a link to each bug. Once the run has finished, **Edit** lets you fix them: add the Jira key of a bug you filed later (with only the key, the link is built from your Jira site), correct a title, severity or module, and add or remove bugs. The change is saved in every language of the report, and the run's bug count follows the list.
 - **Notes**: what was left untested and why, risks and notes from Claude.
 - **QA comment for Jira**: the comment the skill wrote for the ticket. If Claude could not post it (for example, because the Jira tool asks for approval and nobody can give it in the background), review it, edit it if needed, and click **Post on AVM-…** (asks for confirmation). The app posts it with your Jira email and API token, the same ones used for the ticket list, and adds a **View on Jira** link. **Copy** copies it to the clipboard. If you already posted another comment on the ticket (for example, after finishing by hand what was blocked), click **Already posted / Dismiss** (asks for confirmation) so the app does not post it; **Restore** makes it pending again.
 

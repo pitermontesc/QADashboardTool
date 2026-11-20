@@ -637,7 +637,11 @@ export function App() {
           run={state.runs.find((r) => r.id === report.runId)}
           onClose={() => setReportId(null)}
           onStop={stopAutomation}
-          onUpdate={(updated) => patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) })}
+          onUpdate={(updated) => {
+            patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) });
+            // Editing the bugs can change the test run's bug count.
+            void api.getState().then((next) => setState((s) => (s ? { ...s, runs: next.runs } : s)), () => undefined);
+          }}
           onError={fail}
         />
       )}

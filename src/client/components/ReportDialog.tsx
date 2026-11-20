@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import type { ActivityItem, Automation, JiraComment, ReportModule, StepStatus, TestRun } from '../../shared/types';
+import type { ActivityItem, Automation, JiraComment, ReportBug, ReportBugEdit, ReportModule, StepStatus, TestRun } from '../../shared/types';
 import { KIND_LABEL, VERDICT_TONE, elapsedMin, reportIn } from './Automations';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
@@ -45,6 +45,9 @@ const TEXT = {
     copy: 'Copiar', copied: 'Copiado',
     dismiss: 'Ya publicado / Descartar', confirmDismiss: '¿Descartar? No se publicará',
     dismissed: 'Descartado: la app no lo publicará (por ejemplo, porque ya se publicó otro comentario en el ticket).', restore: 'Recuperar',
+    editBugs: 'Editar', bugKey: 'Clave de Jira', severity: 'Severidad', module: 'Módulo', bugTitle: 'Título', link: 'Link',
+    linkPh: 'Vacío: se arma con la clave y tu sitio de Jira', addBug: 'Agregar bug', cancel: 'Cancelar', save: 'Guardar bugs', saving: 'Guardando…',
+    removeBug: (n: number) => `Quitar el bug ${n}`, needsTitle: 'Cada bug necesita un título.',
   },
   en: {
     status: { passed: 'Passed', failed: 'Failed', blocked: 'Blocked', skipped: 'Not tested' } as Record<StepStatus, string>,
@@ -69,6 +72,9 @@ const TEXT = {
     copy: 'Copy', copied: 'Copied',
     dismiss: 'Already posted / Dismiss', confirmDismiss: 'Dismiss? It will not be posted',
     dismissed: 'Dismissed: the app will not post it (for example, because another comment was already posted on the ticket).', restore: 'Restore',
+    editBugs: 'Edit', bugKey: 'Jira key', severity: 'Severity', module: 'Module', bugTitle: 'Title', link: 'Link',
+    linkPh: 'Empty: built from the key and your Jira site', addBug: 'Add bug', cancel: 'Cancel', save: 'Save bugs', saving: 'Saving…',
+    removeBug: (n: number) => `Remove bug ${n}`, needsTitle: 'Each bug needs a title.',
   },
 };
 type Text = typeof TEXT.es;
@@ -207,6 +213,107 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
           )}
         </div>
       </div>
+    </>
+  );
+}
+
+/** Bugs found: a list that can be edited once the run finished (add the Jira key or link, fix a title, add or remove bugs). */
+function BugsBlock({ automation, bugs, count, t, onUpdate, onError }: {
+  automation: Automation; bugs: ReportBug[] | null; count: number; t: Text; onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
+}) {
+  const lang = useLang();
+  const [draft, setDraft] = useState<ReportBugEdit[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const set = (index: number, patch: Partial<ReportBug>): void =>
+    setDraft((d) => d && d.map((b, i) => (i === index ? { ...b, ...patch } : b)));
+  const missingTitle = draft?.some((b) => !b.title.trim()) ?? false;
+  const save = async (): Promise<void> => {
+    if (!draft) return;
+    setSaving(true);
+    try {
+      onUpdate(await api.updateReportBugs(automation.id, lang, draft));
+      setDraft(null);
+    } catch (error) {
+      onError(error);
+    }
+    setSaving(false);
+  };
+  const field = (index: number, name: keyof ReportBug, label: string, extra: { placeholder?: string; list?: string; wide?: boolean } = {}) => (
+    <label className={`f${extra.wide ? ' wide' : ''}`}>
+      {label}
+      <input
+        value={draft?.[index]?.[name] ?? ''}
+        placeholder={extra.placeholder}
+        list={extra.list}
+        onChange={(e) => set(index, { [name]: name === 'key' ? e.target.value.toUpperCase() : e.target.value })}
+      />
+    </label>
+  );
+
+  return (
+    <>
+      <h3 className="rep-h rep-h-row">
+        {t.bugs} <span className="hint">({draft ? draft.length : count})</span>
+        {!draft && (
+          <button type="button" className="btn small" onClick={() => setDraft((bugs ?? []).map((b, i) => ({ ...b, from: i })))}>
+            <Icon name="edit" size={14} /> {t.editBugs}
+          </button>
+        )}
+      </h3>
+      {draft ? (
+        <div className="rep-bugs-edit">
+          {draft.map((_, i) => (
+            <div key={i} className="rep-bug-edit">
+              <div className="rep-bug-grid">
+                {field(i, 'key', t.bugKey, { placeholder: 'AVM-123' })}
+                {field(i, 'severity', t.severity, { list: 'rep-severities' })}
+                {field(i, 'module', t.module)}
+                {field(i, 'title', t.bugTitle, { wide: true })}
+                {field(i, 'link', t.link, { placeholder: t.linkPh, wide: true })}
+              </div>
+              <button type="button" className="icon-btn danger" aria-label={t.removeBug(i + 1)} title={t.removeBug(i + 1)}
+                onClick={() => setDraft((d) => d && d.filter((_, j) => j !== i))}>
+                <Icon name="trash" size={15} />
+              </button>
+            </div>
+          ))}
+          <datalist id="rep-severities">{['Critical', 'High', 'Medium', 'Low'].map((s) => <option key={s} value={s} />)}</datalist>
+          <div className="rep-jira-actions">
+            <button type="button" className="btn small"
+              onClick={() => setDraft((d) => [...(d ?? []), { from: null, key: '', title: '', severity: '', module: '', link: '' }])}>
+              <Icon name="plus" size={14} /> {t.addBug}
+            </button>
+            <div className="spacer" />
+            {missingTitle && <span className="hint">{t.needsTitle}</span>}
+            <button type="button" className="btn small" disabled={saving} onClick={() => setDraft(null)}>{t.cancel}</button>
+            <button type="button" className="btn small primary" disabled={saving || missingTitle} onClick={() => void save()}>
+              {saving ? t.saving : t.save}
+            </button>
+          </div>
+        </div>
+      ) : bugs && bugs.length > 0 ? (
+        <ul className="rep-bugs">
+          {bugs.map((b, i) => (
+            <li key={i}>
+              {b.severity && <span className="rep-sev">{b.severity}</span>}
+              <div>
+                <span>
+                  {b.key && <b>{b.key} · </b>}
+                  {b.title}
+                </span>
+                {b.module && <span className="hint">{b.module}</span>}
+              </div>
+              {b.link && (
+                <a className="icon-btn" href={b.link} target="_blank" rel="noopener noreferrer" aria-label={b.key ? t.openBugOf(b.key) : t.openBug} title={t.openBug}>
+                  <Icon name="external" size={14} />
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="rep-empty">{count ? t.bugsNoDetail(count) : t.none}</p>
+      )}
     </>
   );
 }
@@ -357,30 +464,7 @@ export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, on
               <p className="rep-empty">{t.noDetails}</p>
             )}
 
-            <h3 className="rep-h">{t.bugs} <span className="hint">({bugCount})</span></h3>
-            {details && details.bugs.length > 0 ? (
-              <ul className="rep-bugs">
-                {details.bugs.map((b, i) => (
-                  <li key={i}>
-                    {b.severity && <span className="rep-sev">{b.severity}</span>}
-                    <div>
-                      <span>
-                        {b.key && <b>{b.key} · </b>}
-                        {b.title}
-                      </span>
-                      {b.module && <span className="hint">{b.module}</span>}
-                    </div>
-                    {b.link && (
-                      <a className="icon-btn" href={b.link} target="_blank" rel="noopener noreferrer" aria-label={b.key ? t.openBugOf(b.key) : t.openBug} title={t.openBug}>
-                        <Icon name="external" size={14} />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="rep-empty">{bugCount ? t.bugsNoDetail(bugCount) : t.none}</p>
-            )}
+            <BugsBlock automation={a} bugs={details?.bugs ?? null} count={bugCount} t={t} onUpdate={onUpdate} onError={onError} />
 
             {details?.notes && (
               <>

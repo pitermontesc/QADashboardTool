@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.4] - 2026-11-20
+
+### Added
+- **Edit the bugs of a QA report**: once a run has finished, **Edit** in "Bugs found" lets you change each bug's Jira key, severity, module, title and link, and add or remove bugs. With only a key, the link is built from your Jira site; changing the key updates a link that pointed to the old one, and a link typed by hand is kept. The original report and its translation get the same bugs (untouched texts keep each language's wording), and the run's bug count follows the list unless it had been changed by hand.
+
 ## [1.13.3] - 2026-11-19
 
 ### Fixed

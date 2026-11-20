@@ -198,6 +198,23 @@ export const automationDetailsSchema = z.object({
     .default(null),
 });
 
+/** Bugs of a finished report, edited by the user in the language the report is shown in. */
+export const reportBugsEditSchema = z.object({
+  lang: z.enum(LANGUAGES),
+  bugs: z
+    .array(
+      z.object({
+        from: z.number().int().min(0).nullable().default(null),
+        title: z.string().trim().min(1, 'Each bug needs a title').max(300),
+        severity: z.string().trim().max(40).default(''),
+        key: z.string().trim().toUpperCase().max(60).default(''),
+        link: httpUrlOrEmpty.default(''),
+        module: z.string().trim().max(200).default(''),
+      }),
+    )
+    .max(200),
+});
+
 /** Translation returned by Claude: the summary and the report, with the same shape. */
 export const reportTranslationSchema = z.object({
   summary: clipped(5000),

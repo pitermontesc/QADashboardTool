@@ -1,5 +1,5 @@
 import type {
-  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, JiraConfigInput, JiraState, Lang, Settings, TestRun, TestRunInput,
+  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, JiraConfigInput, JiraState, Lang, ReportBugEdit, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -39,6 +39,8 @@ export const api = {
   postJiraComment: (id: string, body: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/jira-comment`, { body }),
   dismissJiraComment: (id: string, dismissed: boolean) =>
     request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/jira-comment/dismiss`, { dismissed }),
+  updateReportBugs: (id: string, lang: Lang, bugs: ReportBugEdit[]) =>
+    request<Automation>('PUT', `/api/automation/${encodeURIComponent(id)}/bugs`, { lang, bugs }),
   askAssistant: (messages: AssistantTurn[]) => request<AssistantReply>('POST', '/api/assistant', { messages }),
   stopAutomation: (id: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/stop`, {}),
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),

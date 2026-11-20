@@ -10,7 +10,7 @@ import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, p
 import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
 import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
 import {
-  automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportTranslationSchema, runInputSchema, settingsSchema,
+  automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportBugsEditSchema, reportTranslationSchema, runInputSchema, settingsSchema,
 } from './schemas.js';
 import type { Store } from './store.js';
 
@@ -404,6 +404,16 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (comment.posted) throw new HttpError(409, 'That comment is already posted on Jira');
     const { dismissed = true } = (req.body ?? {}) as { dismissed?: unknown };
     res.json(store.setJiraCommentDismissed(id, dismissed !== false));
+  });
+
+  /** Edits the bugs of a finished report (key, link, title, severity, module), add or remove some. */
+  api.put('/automation/:id/bugs', (req, res) => {
+    const id = String(req.params.id);
+    const automation = store.getAutomation(id);
+    if (!automation) throw new HttpError(404, 'That run no longer exists');
+    if (automation.finishedAt === null) throw new HttpError(409, 'That run is still in progress');
+    const { lang: shownIn, bugs } = reportBugsEditSchema.parse(req.body);
+    res.json(store.updateReportBugs(id, shownIn, bugs));
   });
 
   /** Stops a running run; it is closed as BLOCKED. */

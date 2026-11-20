@@ -6,7 +6,7 @@ import { automationTitle, runText, titleSubject } from './automation.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import {
   LANGUAGES, type AppState, type Automation, type Backup, type JiraConnection, type JiraState, type JiraTicket, type Lang,
-  type ReportTranslation, type Settings, type TestRun, type TestRunInput,
+  type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
@@ -240,6 +240,43 @@ export class Store {
     if (!automation) return null;
     automation.translations = { ...automation.translations, [lang]: translation };
     if (lang === this.data.settings.language) this.localizeAutomation(automation);
+    this.persist();
+    return automation;
+  }
+
+  /**
+   * Replaces a finished report's bugs with the list the user edited, in the language it was shown in.
+   * The original and every translation get the same bugs: a text the user did not touch keeps each
+   * version's own wording; a changed text, the key, the link and the severity are the same in all.
+   */
+  updateReportBugs(id: string, lang: Lang, edits: ReportBugEdit[]): Automation | null {
+    const automation = this.getAutomation(id);
+    if (!automation) return null;
+    const original = automation.details ?? { build: '', modules: [], bugs: [], notes: '', jiraComment: null };
+    const translated = lang === automation.lang ? null : automation.translations[lang]?.details?.bugs;
+    const shown = translated ?? original.bugs;
+    // A key without a link points to the bug in Jira; if the key changed, so does a link that pointed to the old one.
+    const site = this.data.jira.site.replace(/\/+$/, '');
+    const jiraLink = (key: string): string => (site && /^[A-Z][A-Z0-9]+-\d+$/.test(key) ? `${site}/browse/${key}` : '');
+    const linkOf = (edit: ReportBugEdit, before: ReportBug | undefined): string => {
+      const keyChanged = before !== undefined && edit.key !== before.key && edit.link === before.link;
+      return edit.link && !keyChanged ? edit.link : jiraLink(edit.key) || (keyChanged ? '' : edit.link);
+    };
+    const rebase = (version: ReportBug[]): ReportBug[] =>
+      edits.map((edit) => {
+        const before = edit.from === null ? undefined : shown[edit.from];
+        const own = edit.from === null ? undefined : version[edit.from];
+        const text = (field: 'title' | 'module'): string => (before && own && edit[field] === before[field] ? own[field] : edit[field]);
+        return { title: text('title'), module: text('module'), severity: edit.severity, key: edit.key, link: linkOf(edit, before) };
+      });
+    const previousCount = original.bugs.length;
+    automation.details = { ...original, bugs: rebase(original.bugs) };
+    for (const [l, translation] of Object.entries(automation.translations)) {
+      if (translation?.details) automation.translations[l as Lang] = { ...translation, details: { ...translation.details, bugs: rebase(translation.details.bugs) } };
+    }
+    // The test run's bug count follows the list, unless it was set to something else.
+    const run = this.data.runs.find((r) => r.id === automation.runId);
+    if (run && (run.bugs === null || run.bugs === previousCount)) run.bugs = edits.length;
     this.persist();
     return automation;
   }

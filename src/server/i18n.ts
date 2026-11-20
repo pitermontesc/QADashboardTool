@@ -22,6 +22,8 @@ const ES: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^That run does not exist or was dismissed$/, () => 'Esa ejecución no existe o se descartó'],
   [/^That run already has a result$/, () => 'Esa ejecución ya tiene resultado'],
   [/^That run no longer exists$/, () => 'Esa ejecución ya no existe'],
+  [/^That run is still in progress$/, () => 'Esa ejecución todavía está en curso'],
+  [/^Each bug needs a title$/, () => 'Cada bug necesita un título'],
   [/^Claude Code \(claude\) was not found on this Mac$/, () => 'No se encontró Claude Code (claude) en esta Mac'],
   [/^Could not start Claude Code: (.*)$/s, (why) => `No se pudo iniciar Claude Code: ${why}`],
   [/^Set up Jira \(site, email and API token\) in Types & settings to post comments$/, () => 'Configura Jira (sitio, email y API token) en Tipos y ajustes para publicar comentarios'],
