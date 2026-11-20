@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildBuckets, countByTicket, countByType, EMPTY_FILTERS, filterByPeriod, filterRuns, lastRunByType, sortRuns, summarize,
+  bugKeysByRun, buildBuckets, countByTicket, countByType, EMPTY_FILTERS, filterByPeriod, filterRuns, lastRunByType, sortRuns, summarize,
 } from '../src/shared/stats';
 import type { TestRun } from '../src/shared/types';
 
@@ -27,6 +27,38 @@ describe('summarize', () => {
   it('uses finished runs when there are no case counts', () => {
     const s = summarize([run({}), run({ result: 'failed' }), run({ result: 'progress' })]);
     expect(s).toMatchObject({ passRate: 50, passRateBasis: 'runs', passNumerator: 1, passDenominator: 2 });
+  });
+
+  it('counts a Jira bug found in several runs once (same bug on QA and STG), and bugs without a key as reported', () => {
+    const qa = run({ env: 'QA', bugs: 2 });
+    const stg = run({ env: 'STG', bugs: 2 });
+    const manual = run({ bugs: 1 });
+    const keys = bugKeysByRun([
+      { runId: qa.id, details: { build: '', modules: [], notes: '', jiraComment: null, bugs: [
+        { title: 'Back keeps the last record', severity: '', key: 'AVM-7144', link: '', module: '' },
+        { title: 'Search label', severity: '', key: '', link: '', module: '' },
+      ] } },
+      { runId: stg.id, details: { build: '', modules: [], notes: '', jiraComment: null, bugs: [
+        { title: 'Back keeps the last record', severity: '', key: ' avm-7144 ', link: '', module: '' },
+        { title: 'Raw status', severity: '', key: 'AVM-7145', link: '', module: '' },
+      ] } },
+      // A report whose run was deleted adds nothing.
+      { runId: null, details: { build: '', modules: [], notes: '', jiraComment: null, bugs: [{ title: 'x', severity: '', key: 'AVM-1', link: '', module: '' }] } },
+    ]);
+    // 4 reported + 1 manual, minus AVM-7144 counted twice.
+    expect(summarize([qa, stg, manual], keys).bugs).toBe(4);
+    // The order of the runs does not change the total, and each run alone counts all its bugs.
+    expect(summarize([stg, manual, qa], keys).bugs).toBe(4);
+    expect(summarize([stg], keys).bugs).toBe(2);
+    // Without the reports' keys nothing is merged.
+    expect(summarize([qa, stg, manual]).bugs).toBe(5);
+  });
+
+  it('a key repeated inside one report also counts once', () => {
+    const r = run({ bugs: 2 });
+    const bug = { title: 'Same', severity: '', key: 'AVM-9', link: '', module: '' };
+    const keys = bugKeysByRun([{ runId: r.id, details: { build: '', modules: [], notes: '', jiraComment: null, bugs: [bug, bug] } }]);
+    expect(summarize([r], keys).bugs).toBe(1);
   });
 
   it('returns null without data', () => {

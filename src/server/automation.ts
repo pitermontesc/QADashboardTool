@@ -26,6 +26,7 @@ export function reportInstruction(kind: AutomationKind, port: number, id: string
       ` with the fields verdict (${verdicts.slice(0, -1).join(', ')} or BLOCKED; use BLOCKED if it could not be tested, for example no browser or no access), passed, failed, blocked, bugs and minutes (numbers), summary (short summary), link (URL of the report, test run, epic or comment, if any)` +
       ` and details, the full QA report: ${DETAILS_SHAPE}` +
       ` with one module per tested area and every executed step; status is passed, failed, blocked or skipped.` +
+      ` If a bug you find is already in Jira (for example, it was found before on another site), put its existing key and link in the bug instead of reporting it as new: the dashboard counts a bug with the same key once.` +
       ` If you write a QA comment for Jira, put it in details.jiraComment (key of the ticket, body in Markdown, posted true only if you published it); if the Jira tool asks for approval or fails, do not try another way: the dashboard publishes it with one click.` +
       ` Write summary and details in English.`
     );
@@ -36,6 +37,7 @@ export function reportInstruction(kind: AutomationKind, port: number, id: string
     ` con los campos verdict (${verdicts.slice(0, -1).join(', ')} o BLOCKED; usa BLOCKED si no se pudo probar, por ejemplo sin navegador o sin acceso), passed, failed, blocked, bugs y minutes (numeros), summary (resumen corto), link (URL del reporte, test run, epic o comentario, si hay)` +
     ` y details, el reporte QA completo: ${DETAILS_SHAPE}` +
     ` con un modulo por area probada y cada paso ejecutado; status es passed, failed, blocked o skipped.` +
+    ` Si un bug que encuentras ya existe en Jira (por ejemplo, se encontro antes en otro sitio), pon su key y su link en el bug en vez de reportarlo como nuevo: el dashboard cuenta una sola vez los bugs con la misma key.` +
     ` Si redactas un comentario de QA para Jira, ponlo en details.jiraComment (key del ticket, body en Markdown, posted true solo si lo publicaste); si la herramienta de Jira pide aprobacion o falla, no lo intentes por otra via: el dashboard lo publica con un clic.` +
     ` Escribe summary y details en espanol.`
   );

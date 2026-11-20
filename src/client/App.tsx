@@ -635,6 +635,7 @@ export function App() {
           key={report.id}
           automation={report}
           run={state.runs.find((r) => r.id === report.runId)}
+          automations={state.automations}
           onClose={() => setReportId(null)}
           onStop={stopAutomation}
           onUpdate={(updated) => {

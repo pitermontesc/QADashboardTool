@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy, greeting, longDate, parseYmd, relativeDay, relativeTime, toYmd } from '../../shared/dates';
 import {
-  buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
+  bugKeysByRun, buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
 import { canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
@@ -386,18 +386,20 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
   const [period, setPeriod] = useState<Period>(30);
   const lang = useLang();
   const t = useText(TEXT);
-  const { settings, runs, jira } = state;
+  const { settings, runs, jira, automations } = state;
   // Memoized by value so stats are only recomputed when the day changes.
   const todayYmd = toYmd(new Date());
   const today = useMemo(() => parseYmd(todayYmd), [todayYmd]);
 
+  // The same Jira bug found by several runs (for example, on QA and on STG) counts once.
+  const bugKeys = useMemo(() => bugKeysByRun(automations), [automations]);
   const view = useMemo(() => {
     const inPeriod = filterByPeriod(runs, period, today);
     const todayRuns = runs.filter((r) => r.date === todayYmd);
     return {
       inPeriod,
-      summary: summarize(inPeriod),
-      today: summarize(todayRuns),
+      summary: summarize(inPeriod, bugKeys),
+      today: summarize(todayRuns, bugKeys),
       buckets: buildBuckets(runs, period, today, lang),
       byType: countByType(inPeriod),
       lastByType: lastRunByType(runs),
@@ -405,7 +407,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
       recent: sortRuns(runs).slice(0, 8),
       todayCount: todayRuns.length,
     };
-  }, [runs, period, today, todayYmd, lang]);
+  }, [runs, period, today, todayYmd, lang, bugKeys]);
 
   const { summary } = view;
   const kpis: Array<[label: string, value: string | number, sub: string, tone?: string]> = [

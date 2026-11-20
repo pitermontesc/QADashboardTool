@@ -1,5 +1,5 @@
 import { addDays, shortLabel, startOfDay, toYmd } from './dates.js';
-import { type Lang, RESULTS, type Result, type TestRun } from './types.js';
+import { type Automation, type Lang, RESULTS, type Result, type TestRun } from './types.js';
 
 /** Days back the dashboard covers; 0 = full history. */
 export type Period = 7 | 30 | 90 | 0;
@@ -37,17 +37,38 @@ export interface Summary {
   passDenominator: number;
 }
 
+/** Jira keys of the bugs listed in each run's report (run id → keys), so a bug found in several runs counts once. */
+export type BugKeysByRun = ReadonlyMap<string, readonly string[]>;
+
+/** The Jira keys of each report's bugs, by the id of the run the report completed. */
+export function bugKeysByRun(automations: readonly Pick<Automation, 'runId' | 'details'>[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const a of automations) {
+    const keys = (a.details?.bugs ?? []).map((b) => b.key.trim().toUpperCase()).filter(Boolean);
+    if (a.runId && keys.length > 0) map.set(a.runId, [...(map.get(a.runId) ?? []), ...keys]);
+  }
+  return map;
+}
+
 /**
  * The pass rate is computed over cases when case counts exist; otherwise over
  * finished runs (runs still in progress do not count).
+ * Bugs: a Jira key listed by more than one report (the same bug on QA and on STG, or a smoke
+ * repeated) counts once; bugs without a key are counted as each run reports them.
  */
-export function summarize(runs: readonly TestRun[]): Summary {
+export function summarize(runs: readonly TestRun[], bugKeys: BugKeysByRun = new Map()): Summary {
   let passed = 0, failed = 0, blocked = 0, bugs = 0, minutes = 0, runsPassed = 0, runsDone = 0;
+  const seen = new Set<string>();
   for (const r of runs) {
     passed += r.passed ?? 0;
     failed += r.failed ?? 0;
     blocked += r.blocked ?? 0;
-    bugs += r.bugs ?? 0;
+    let repeated = 0;
+    for (const key of bugKeys.get(r.id) ?? []) {
+      if (seen.has(key)) repeated++;
+      else seen.add(key);
+    }
+    bugs += Math.max(0, (r.bugs ?? 0) - repeated);
     minutes += r.minutes ?? 0;
     if (r.result !== 'progress') {
       runsDone++;

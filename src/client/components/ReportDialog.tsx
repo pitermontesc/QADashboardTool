@@ -4,11 +4,13 @@ import type { ActivityItem, Automation, JiraComment, ReportBug, ReportBugEdit, R
 import { KIND_LABEL, VERDICT_TONE, elapsedMin, reportIn } from './Automations';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
-import { dateTime } from '../../shared/dates';
+import { dateTime, shortLabel } from '../../shared/dates';
 
 interface ReportDialogProps {
   automation: Automation;
   run: TestRun | undefined;
+  /** Every run, to show which other reports list the same Jira bug. */
+  automations: Automation[];
   onClose: () => void;
   onStop: (automation: Automation) => Promise<void>;
   /** The automation changed (translation or posted comment). */
@@ -48,6 +50,7 @@ const TEXT = {
     editBugs: 'Editar', bugKey: 'Clave de Jira', severity: 'Severidad', module: 'Módulo', bugTitle: 'Título', link: 'Link',
     linkPh: 'Vacío: se arma con la clave y tu sitio de Jira', addBug: 'Agregar bug', cancel: 'Cancelar', save: 'Guardar bugs', saving: 'Guardando…',
     removeBug: (n: number) => `Quitar el bug ${n}`, needsTitle: 'Cada bug necesita un título.',
+    alsoIn: (where: string) => `También en ${where}: cuenta una sola vez en el dashboard`,
   },
   en: {
     status: { passed: 'Passed', failed: 'Failed', blocked: 'Blocked', skipped: 'Not tested' } as Record<StepStatus, string>,
@@ -75,6 +78,7 @@ const TEXT = {
     editBugs: 'Edit', bugKey: 'Jira key', severity: 'Severity', module: 'Module', bugTitle: 'Title', link: 'Link',
     linkPh: 'Empty: built from the key and your Jira site', addBug: 'Add bug', cancel: 'Cancel', save: 'Save bugs', saving: 'Saving…',
     removeBug: (n: number) => `Remove bug ${n}`, needsTitle: 'Each bug needs a title.',
+    alsoIn: (where: string) => `Also in ${where}: counted once on the dashboard`,
   },
 };
 type Text = typeof TEXT.es;
@@ -218,10 +222,19 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
 }
 
 /** Bugs found: a list that can be edited once the run finished (add the Jira key or link, fix a title, add or remove bugs). */
-function BugsBlock({ automation, bugs, count, t, onUpdate, onError }: {
-  automation: Automation; bugs: ReportBug[] | null; count: number; t: Text; onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
+function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError }: {
+  automation: Automation; automations: Automation[]; bugs: ReportBug[] | null; count: number; t: Text;
+  onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
 }) {
   const lang = useLang();
+  /** Other reports that list the same Jira key, e.g. "Smoke QA · 19 Nov". */
+  const alsoIn = (key: string): string =>
+    key
+      ? automations
+          .filter((o) => o.id !== automation.id && o.details?.bugs.some((b) => b.key.trim().toUpperCase() === key.trim().toUpperCase()))
+          .map((o) => `${KIND_LABEL[lang][o.kind]} ${o.target} · ${shortLabel(new Date(o.startedAt), lang)}`)
+          .join(', ')
+      : '';
   const [draft, setDraft] = useState<ReportBugEdit[] | null>(null);
   const [saving, setSaving] = useState(false);
   const set = (index: number, patch: Partial<ReportBug>): void =>
@@ -302,6 +315,7 @@ function BugsBlock({ automation, bugs, count, t, onUpdate, onError }: {
                   {b.title}
                 </span>
                 {b.module && <span className="hint">{b.module}</span>}
+                {alsoIn(b.key) && <span className="hint rep-also">{t.alsoIn(alsoIn(b.key))}</span>}
               </div>
               {b.link && (
                 <a className="icon-btn" href={b.link} target="_blank" rel="noopener noreferrer" aria-label={b.key ? t.openBugOf(b.key) : t.openBug} title={t.openBug}>
@@ -361,7 +375,7 @@ function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: bo
 }
 
 /** QA report of a Claude automation: verdict, timings, modules with their steps, and bugs found. */
-export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, onError }: ReportDialogProps) {
+export function ReportDialog({ automation: a, run, automations, onClose, onStop, onUpdate, onError }: ReportDialogProps) {
   const lang = useLang();
   const t = useText(TEXT);
   const activity = useActivity(a);
@@ -464,7 +478,7 @@ export function ReportDialog({ automation: a, run, onClose, onStop, onUpdate, on
               <p className="rep-empty">{t.noDetails}</p>
             )}
 
-            <BugsBlock automation={a} bugs={details?.bugs ?? null} count={bugCount} t={t} onUpdate={onUpdate} onError={onError} />
+            <BugsBlock automation={a} automations={automations} bugs={details?.bugs ?? null} count={bugCount} t={t} onUpdate={onUpdate} onError={onError} />
 
             {details?.notes && (
               <>

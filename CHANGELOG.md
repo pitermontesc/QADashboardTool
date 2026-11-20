@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.5] - 2026-11-20
+
+### Changed
+- **A bug found on more than one site counts once**: the dashboard's **Bugs found** counts each Jira key once, even when several reports list it (for example, the same bug on QA and on STG, or a repeated smoke). Bugs without a key are counted as each run reports them, and each run keeps its own count in Runs.
+- In a QA report, a bug that another report also lists shows **Also in Smoke QA · 11/19**.
+- Smoke, regression and orchestrator runs are asked to report a bug that is already in Jira with its existing key and link instead of as a new one.
+
 ## [1.13.4] - 2026-11-20
 
 ### Added
