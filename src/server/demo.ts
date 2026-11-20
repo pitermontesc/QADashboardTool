@@ -262,6 +262,7 @@ function seededAutomation(
     finishedAt: startedAt + minutes * 60_000, verdict, summary: summary[lang], link: extra.link ?? '',
     details: def ? details(def, lang, extra.jiraComment ?? null) : null, runId: null, pid: null, logFile: '', lang,
     translations: { [other]: { summary: summary[other], details: def ? details(def, other) : null } satisfies ReportTranslation },
+    dryRun: false,
   };
   const c = def ? counts(def) : { passed: 0, failed: 0, blocked: 8, bugs: 0 };
   const run: TestRun = {

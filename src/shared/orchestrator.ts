@@ -38,6 +38,16 @@ export const findSite = (id: unknown, qa: QaConfig): QaSite | undefined =>
 /** Valid Jira keys (AVM-7057). Only these reach the command line. */
 export const isTicketKey = (key: string): boolean => /^[A-Z][A-Z0-9_]*-\d+$/.test(key);
 
+/**
+ * Appended to the regression prompt in test mode: validate in the browser as usual, but write
+ * nothing to Jira or testomat.io. Shared so the dialog shows exactly what Claude receives.
+ */
+export const REGRESSION_DRY_RUN =
+  ' -- TEST MODE (dry run): read the test run and its test cases from testomat.io, but do not write anything there' +
+  ' (do not mark results, do not change statuses, do not add messages). Do not create, edit, transition or comment anything in Jira:' +
+  ' no epic, no suite tasks, no bugs, no comments. Validate every test case in the browser as usual, report each bug in details.bugs' +
+  ' without key or link, leave details.jiraComment empty, and list in details.notes what you would have created or marked.';
+
 /** Suites the regression runner is offered for. */
 export const isRegressionType = (name: string): boolean => /regres/i.test(name);
 

@@ -237,7 +237,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!valid.includes(result.verdict)) {
       throw new HttpError(400, `Verdict ${result.verdict} is not valid for this run: use ${valid.join(', ')}`);
     }
-    const { verdict, summary, link, details } = result;
+    const { verdict, summary, link } = result;
+    // In test mode nothing goes to Jira: a comment Claude prepared anyway is not offered for posting.
+    const details = automation.dryRun && result.details ? { ...result.details, jiraComment: null } : result.details;
     const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
     return store.finishAutomation(id, { verdict, summary, link, details }, runInput);
   };
@@ -311,12 +313,13 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
 
   api.post('/regression', async (req, res) => {
-    const body = (req.body ?? {}) as { run?: unknown };
+    const body = (req.body ?? {}) as { run?: unknown; dryRun?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
+    const dryRun = body.dryRun === true;
     const { qa } = store.getState().settings;
     const env = findSite(qa.regressionSiteId, qa)?.env ?? '';
-    const title = automationTitle('regression', run, lang());
-    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title }, (extra) => regressionPrompt(run, qa, extra)));
+    const title = automationTitle('regression', run, lang(), '', dryRun);
+    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title, dryRun }, (extra) => regressionPrompt(run, qa, extra, dryRun)));
   });
 
   api.post('/smoke', async (req, res) => {

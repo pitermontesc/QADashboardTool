@@ -84,6 +84,7 @@ export class Store {
         // The app generated the title in the language the run was launched with: it is the best hint.
         lang: a.lang ?? guessLang([a.title, a.summary, a.details?.notes, ...(a.details?.modules ?? []).map((m) => m.name)].join(' ')),
         translations: a.translations ?? {},
+        dryRun: a.dryRun ?? false,
       })),
     };
     } catch (cause) {
@@ -120,9 +121,12 @@ export class Store {
    * Records a just-launched smoke, regression or orchestrator run; the last MAX_AUTOMATIONS are kept.
    * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
    */
-  startAutomation(input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'>, runFor: (a: Automation) => TestRunInput): Automation {
+  startAutomation(
+    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'> & { dryRun?: boolean },
+    runFor: (a: Automation) => TestRunInput,
+  ): Automation {
     const automation: Automation = {
-      ...input, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
+      ...input, dryRun: input.dryRun ?? false, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
       lang: this.data.settings.language, translations: {},
     };
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
@@ -220,7 +224,7 @@ export class Store {
     const lang = this.data.settings.language;
     if (!automation.title) return;
     const subject = titleSubject(automation.title);
-    const titleIn = (l: Lang): string => automationTitle(automation.kind, automation.target, l, subject);
+    const titleIn = (l: Lang): string => automationTitle(automation.kind, automation.target, l, subject, automation.dryRun);
     const finished = automation.finishedAt !== null;
     const run = this.data.runs.find((r) => r.id === automation.runId);
     if (run) {

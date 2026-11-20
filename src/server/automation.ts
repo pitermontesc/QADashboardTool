@@ -60,17 +60,18 @@ function typeFor(kind: AutomationKind, settings: Settings): string {
 }
 
 const TITLE_TEXT = {
-  es: { orchestrator: 'Orquestador QA', withClaude: 'con Claude', running: 'en curso', verdict: 'Veredicto',
+  es: { orchestrator: 'Orquestador QA', withClaude: 'con Claude', testMode: 'modo prueba', running: 'en curso', verdict: 'Veredicto',
     launched: 'Lanzado con Claude Code desde QA Dashboard; el resultado se completa cuando Claude lo reporte.' },
-  en: { orchestrator: 'QA orchestrator', withClaude: 'with Claude', running: 'running', verdict: 'Verdict',
+  en: { orchestrator: 'QA orchestrator', withClaude: 'with Claude', testMode: 'test mode', running: 'running', verdict: 'Verdict',
     launched: 'Launched with Claude Code from QA Dashboard; the result is filled in when Claude reports it.' },
 } as const;
 
 /** A run's title in the requested language; `subject` is the ticket summary (orchestrator). */
-export function automationTitle(kind: AutomationKind, target: string, lang: Lang, subject = ''): string {
+export function automationTitle(kind: AutomationKind, target: string, lang: Lang, subject = '', dryRun = false): string {
   const t = TITLE_TEXT[lang];
   if (kind === 'orchestrator') return `${t.orchestrator}: ${subject}`.slice(0, 250);
-  return kind === 'smoke' ? `Smoke ${target} ${t.withClaude}` : `Regression ${target || 'testomat.io'} ${t.withClaude}`;
+  if (kind === 'smoke') return `Smoke ${target} ${t.withClaude}`;
+  return `Regression ${target || 'testomat.io'} ${t.withClaude}${dryRun ? ` (${t.testMode})` : ''}`;
 }
 
 /** The ticket summary inside an orchestrator title, whatever its language. */

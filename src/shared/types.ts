@@ -202,6 +202,8 @@ export interface Automation {
   lang: Lang;
   /** Translations of the summary and report, made when the app is viewed in another language. */
   translations: Partial<Record<Lang, ReportTranslation>>;
+  /** Test mode: Claude only reads Jira and testomat.io; it creates, marks and posts nothing there. */
+  dryRun: boolean;
 }
 
 /** One step of Claude's progress, read from its log. */

@@ -29,6 +29,7 @@ const TEXT = {
     stepsOk: (done: number, total: number) => `${done}/${total} pasos OK`,
     title: (what: string) => `Reporte QA · ${what}`,
     start: 'Inicio', end: 'Fin', build: 'Build', running: 'En curso', close: 'Cerrar',
+    dryRun: 'Modo prueba: sin crear ni marcar nada en Jira ni en testomat.io',
     stillRunning: 'Claude está trabajando en segundo plano. El reporte completo aparece aquí en cuanto envíe el resultado.',
     activity: 'Actividad en vivo', waiting: 'Esperando los primeros pasos de Claude…',
     elapsed: (min: number) => `${min} min`, stop: 'Detener', confirmStop: '¿Detener?', stopping: 'Deteniendo…',
@@ -57,6 +58,7 @@ const TEXT = {
     stepsOk: (done: number, total: number) => `${done}/${total} steps OK`,
     title: (what: string) => `QA report · ${what}`,
     start: 'Start', end: 'End', build: 'Build', running: 'Running', close: 'Close',
+    dryRun: 'Test mode: nothing is created or marked in Jira or testomat.io',
     stillRunning: 'Claude is working in the background. The full report shows up here as soon as it sends the result.',
     activity: 'Live activity', waiting: 'Waiting for Claude’s first steps…',
     elapsed: (min: number) => `${min} min`, stop: 'Stop', confirmStop: 'Stop?', stopping: 'Stopping…',
@@ -410,6 +412,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
               {a.finishedAt !== null && ` · ${t.end} ${dateTime(a.finishedAt, lang)}`}
               {details?.build && ` · ${t.build} ${details.build}`}
             </p>
+            {a.dryRun && <p className="hint rep-dry">{t.dryRun}</p>}
           </div>
           {running ? (
             <span className="status-pill tone-prog pulsing"><i />{t.running}</span>

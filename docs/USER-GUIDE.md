@@ -241,6 +241,8 @@ The dashboard's **★ Regression** card has the **▷ Run regression** button. I
 4. The skill validates each TC in the browser, marks the results in testomat.io, documents the bugs, creates the Jira epic with its work items and ends with a **GO / NO-GO** verdict.
 5. When it finishes, **Claude reports the result to the app** and the regression is logged automatically (see below).
 
+> **Test mode.** Check **Test mode: read-only in Jira and testomat.io** in the dialog to try a regression without leaving anything behind: Claude validates the test cases in the browser as usual, but does not create the epic, suite tasks, bugs or summary comment in Jira, and does not mark results in testomat.io. The run is titled **Regression … (test mode)**, its report says so, lists the bugs without Jira keys and notes what it would have created; the app never offers a Jira comment for it.
+
 !["Run regression" dialog with test run #b333fb92 and the command that will run](img/19-regression-dialog.png)
 
 The button appears on any test type whose name contains "Regres" and that is marked with ★. The requirements are the same as for the orchestrator (section 4): Claude Code installed and the skill available. The app only accepts testomat.io links or run IDs (the accepted domains are configured in **Sites & skills**).

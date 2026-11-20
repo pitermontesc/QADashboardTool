@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.6] - 2026-11-20
+
+### Added
+- **Regression in test mode**: the Run regression dialog has a **Test mode: read-only in Jira and testomat.io** checkbox. Claude validates the test cases in the browser as usual, but creates nothing in Jira (no epic, suite tasks, bugs or comment) and marks no results in testomat.io; it notes in the report what it would have created. The run is titled "Regression … (test mode)", the report shows a test-mode notice, and a Jira comment Claude prepared anyway is never offered for posting.
+
 ## [1.13.5] - 2026-11-20
 
 ### Changed

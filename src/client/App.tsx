@@ -405,9 +405,9 @@ export function App() {
     }
   };
 
-  const runRegression = async (run: string): Promise<boolean> => {
+  const runRegression = async (run: string, dryRun = false): Promise<boolean> => {
     try {
-      const automation = await api.runRegression(run);
+      const automation = await api.runRegression(run, dryRun);
       await reloadRuns(automation);
       notify(t.regressionOpened(run), 'info');
       return true;

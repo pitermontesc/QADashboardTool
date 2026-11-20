@@ -1,4 +1,4 @@
-import { findSite, isTestRunRef, isTicketKey } from '../shared/orchestrator.js';
+import { REGRESSION_DRY_RUN, findSite, isTestRunRef, isTicketKey } from '../shared/orchestrator.js';
 import type { QaConfig } from '../shared/types.js';
 import { HttpError } from './errors.js';
 
@@ -18,11 +18,11 @@ export function orchestratorPrompt(key: string, qa: QaConfig, extra = ''): strin
 }
 
 /** Regression runner; without a test run, the skill picks the right one or reports BLOCKED. */
-export function regressionPrompt(run: string, qa: QaConfig, extra = ''): string {
+export function regressionPrompt(run: string, qa: QaConfig, extra = '', dryRun = false): string {
   if (!isTestRunRef(run, qa.testRunHosts)) {
     throw new HttpError(400, `Invalid test run: paste its link (${qa.testRunHosts.join(', ') || 'no domains configured'}) or its ID (e.g. #b333fb92)`);
   }
-  return `${run ? `${qa.skills.regression} ${run}` : qa.skills.regression}${extra}`;
+  return `${run ? `${qa.skills.regression} ${run}` : qa.skills.regression}${dryRun ? REGRESSION_DRY_RUN : ''}${extra}`;
 }
 
 /** Smoke tester on one of the configured sites. */
