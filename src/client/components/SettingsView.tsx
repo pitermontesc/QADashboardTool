@@ -6,7 +6,7 @@ import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, ty
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
 import { Icon } from './icons';
-import { JiraStatus } from './ui';
+import { JiraStatus, typeInk } from './ui';
 
 interface SettingsViewProps {
   state: AppState;
@@ -151,7 +151,7 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
           <h3>{t.types}</h3>
           <p className="hint">{t.typesHint}</p>
           <div className="tablewrap">
-            <table>
+            <table className="types-table">
               <thead>
                 <tr><th>★</th><th>{t.name}</th><th>{t.runs}</th><th /></tr>
               </thead>
@@ -174,7 +174,8 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
                         <input
                           key={type.name}
                           defaultValue={type.name}
-                          style={{ borderColor: 'transparent', padding: '4px 6px', color: type.color, fontWeight: 600 }}
+                          className="type-ink"
+                          style={{ ...typeInk(type.color), borderColor: 'transparent', padding: '4px 6px', fontWeight: 600 }}
                           onBlur={(e) => {
                             const name = e.target.value.trim();
                             if (name && name !== type.name) updateType(type.id, { name });

@@ -554,7 +554,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
 
       <Automations automations={state.automations} runs={state.runs} onDismiss={onDismissAutomation} onOpen={onOpenReport} />
 
-      <div className="grid2">
+      <div className="grid2 even">
         <div className="card">
           <h3>{t.activity(daily, view.buckets.length)}</h3>
           <ActivityChart buckets={view.buckets} t={t} />

@@ -21,13 +21,13 @@ const TEXT = {
     search: 'Buscar título, ticket o notas…  ( / )', searchLabel: 'Buscar registros',
     allTypes: 'Todos los tipos', allEnvs: 'Todos los ambientes', allResults: 'Todos los resultados',
     from: 'Desde', to: 'Hasta', count: (n: number, total: number) => `${n} de ${total} registros`,
-    clear: 'Limpiar filtros', report: 'Reporte', edit: 'Editar', duplicate: 'Duplicar', confirm: '¿Confirmar?', remove: 'Borrar',
+    clear: 'Limpiar filtros', noMatch: 'Ningún registro coincide con los filtros.', report: 'Reporte', edit: 'Editar', duplicate: 'Duplicar', confirm: '¿Confirmar?', remove: 'Borrar',
   },
   en: {
     search: 'Search title, ticket or notes…  ( / )', searchLabel: 'Search runs',
     allTypes: 'All types', allEnvs: 'All environments', allResults: 'All results',
     from: 'From', to: 'To', count: (n: number, total: number) => `${n} of ${total} runs`,
-    clear: 'Clear filters', report: 'Report', edit: 'Edit', duplicate: 'Duplicate', confirm: 'Confirm?', remove: 'Delete',
+    clear: 'Clear filters', noMatch: 'No runs match the filters.', report: 'Report', edit: 'Edit', duplicate: 'Duplicate', confirm: 'Confirm?', remove: 'Delete',
   },
 };
 
@@ -96,6 +96,7 @@ export function RunsView({ state, onEdit, onDuplicate, onDelete, onOpenReport }:
           <RunsTable
             runs={rows}
             settings={settings}
+            empty={runs.length > 0 ? t.noMatch : undefined}
             actions={(run) => (
               <>
                 {/* Icons with their accessible name also in the tooltip: they fit on one line at any width. */}

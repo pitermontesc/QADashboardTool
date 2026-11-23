@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.7] - 2026-11-23
+
+### Fixed
+- **Runs with filters that match nothing** now say "No runs match the filters." instead of "No runs yet…".
+- **Test type colors are readable in both themes**: type names and tags are lightened in dark mode and darkened in light mode, so every color reaches at least 4.5:1 contrast (Accessibility and UAT were nearly invisible in dark mode).
+- **Run regression dialog**: the subtitle wraps instead of being cut off, and names the site set in **The regression runs on** (for example "STG (staging.alpinevm.com)") instead of always saying staging. The test run example now shows a `/launch/` link, like testomat.io's.
+- **Web version at narrow widths**: below 820px the header drops the title and the DEMO badge, so **New run** no longer goes off-screen.
+- **Types & settings**: each test type's run count and "in use" line up with its name, and the hint under **Test run domains** is no longer bold.
+- **Dashboard**: **Activity per day** and **By test type** have the same height.
+
 ## [1.13.6] - 2026-11-20
 
 ### Added

@@ -6,8 +6,8 @@ import { useText } from '../i18n';
 
 const TEXT = {
   es: {
-    title: 'Ejecutar regresión', sub: 'Corre Claude Code en segundo plano con el skill de regresión contra staging.', close: 'Cerrar',
-    run: 'Test run', optional: '(opcional)', placeholder: (host: string) => `https://app.${host}/projects/…/runs/… o #b333fb92`,
+    title: 'Ejecutar regresión', sub: (site: string) => `Corre Claude Code en segundo plano con el skill de regresión contra ${site}.`, close: 'Cerrar',
+    run: 'Test run', optional: '(opcional)', placeholder: (host: string) => `https://app.${host}/projects/…/launch/… o #b333fb92`,
     emptyHint: 'Si lo dejas vacío, el skill elige el test run que corresponda o reporta BLOCKED si no puede.',
     invalid: (hosts: string) => `Pega el link del test run (${hosts}) o su ID (p. ej. #b333fb92).`,
     cancel: 'Cancelar', opening: 'Iniciando…', open: 'Ejecutar', openDry: 'Ejecutar en modo prueba',
@@ -15,8 +15,8 @@ const TEXT = {
     dryRunHint: 'Valida los casos en el navegador como siempre, pero no crea el epic, las tareas, los bugs ni el comentario en Jira, y no marca resultados en testomat.io. El reporte queda en el dashboard y dice qué habría creado.',
   },
   en: {
-    title: 'Run regression', sub: 'Runs Claude Code in the background with the regression skill against staging.', close: 'Close',
-    run: 'Test run', optional: '(optional)', placeholder: (host: string) => `https://app.${host}/projects/…/runs/… or #b333fb92`,
+    title: 'Run regression', sub: (site: string) => `Runs Claude Code in the background with the regression skill against ${site}.`, close: 'Close',
+    run: 'Test run', optional: '(optional)', placeholder: (host: string) => `https://app.${host}/projects/…/launch/… or #b333fb92`,
     emptyHint: 'If you leave it empty, the skill picks the right test run or reports BLOCKED if it cannot.',
     invalid: (hosts: string) => `Paste the test run link (${hosts}) or its ID (e.g. #b333fb92).`,
     cancel: 'Cancel', opening: 'Starting…', open: 'Run', openDry: 'Run in test mode',
@@ -40,6 +40,10 @@ export function RegressionDialog({ qa, onLaunch, onClose }: RegressionDialogProp
   const [launching, setLaunching] = useState(false);
   const value = run.trim();
   const valid = isTestRunRef(value, qa.testRunHosts);
+  // The site configured in Settings ("The regression runs on"), e.g. "STG (staging.alpinevm.com)".
+  const site = qa.sites.find((s) => s.id === qa.regressionSiteId);
+  const host = site ? site.url.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') : '';
+  const siteLabel = site ? (host ? `${site.name || site.id} (${host})` : site.name || site.id) : qa.regressionSiteId;
 
   useEffect(() => {
     const el = dialog.current;
@@ -60,7 +64,7 @@ export function RegressionDialog({ qa, onLaunch, onClose }: RegressionDialogProp
         <div className="dialog-head">
           <div>
             <h2 id="regression-title">{t.title}</h2>
-            <p className="hint">{t.sub}</p>
+            <p className="hint wrap">{t.sub(siteLabel)}</p>
           </div>
           <button type="button" className="icon-btn" aria-label={t.close} onClick={onClose}>
             <Icon name="close" />

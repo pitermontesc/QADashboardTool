@@ -2,7 +2,7 @@ import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy } from '../../shared/dates';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import type { JiraConnection, JiraState, Result, Settings, TestRun, TestType } from '../../shared/types';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
 
@@ -21,9 +21,15 @@ export function ResultPill({ result }: { result: Result }) {
   );
 }
 
+/**
+ * Style for text in a test type's color: the `.type-ink` class darkens it in light mode and
+ * lightens it in dark mode, so every palette color stays readable (≥ 4.5:1) in both themes.
+ */
+export const typeInk = (color: string): CSSProperties => ({ '--type': color }) as CSSProperties;
+
 export function TypeTag({ type }: { type: TestType }) {
   return (
-    <span className="tag" style={{ color: type.color }}>
+    <span className="tag type-ink" style={typeInk(type.color)}>
       {type.major && <span className="star">★ </span>}
       {type.name}
     </span>
@@ -57,6 +63,8 @@ interface RunsTableProps {
   settings: Settings;
   /** Per-row actions cell; if omitted the table is read-only. */
   actions?: (run: TestRun) => ReactNode;
+  /** Message when `runs` is empty; defaults to the "no runs yet" one. */
+  empty?: string;
 }
 
 const TABLE_TEXT = {
@@ -70,11 +78,11 @@ const TABLE_TEXT = {
   },
 };
 
-export function RunsTable({ runs, settings, actions }: RunsTableProps) {
+export function RunsTable({ runs, settings, actions, empty }: RunsTableProps) {
   const lang = useLang();
   const t = TABLE_TEXT[lang];
   if (runs.length === 0) {
-    return <div className="empty-msg">{t.empty}</div>;
+    return <div className="empty-msg">{empty ?? t.empty}</div>;
   }
   return (
     <table>

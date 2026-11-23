@@ -76,6 +76,37 @@ describe('App', () => {
     expect((await srv.call('GET', '/api/state')).body.runs).toEqual([]);
   });
 
+  it('says no run matches the filters (not that there are none yet) when the filters hide every run', async () => {
+    const { body: run } = await srv.call('POST', '/api/runs', {
+      date: '2026-11-20', typeId: 't2', title: 'Filtered out', ticket: '', env: 'QA', result: 'passed',
+      passed: 1, failed: 0, blocked: 0, bugs: null, minutes: null, notes: '',
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Registros' }));
+    fireEvent.change(screen.getByLabelText('Buscar registros'), { target: { value: 'zzzz-no-match' } });
+
+    expect(screen.getByText('0 de 1 registros')).toBeTruthy();
+    expect(screen.getByText('Ningún registro coincide con los filtros.')).toBeTruthy();
+    expect(screen.queryByText(/No hay registros todavía/)).toBeNull();
+
+    await srv.call('DELETE', `/api/runs/${run.id}`);
+  });
+
+  it('the regression dialog names the site the regression runs on, as set in the settings', async () => {
+    const { body } = await srv.call('GET', '/api/state');
+    const settings = body.settings;
+    const qa = { ...settings.qa, regressionSiteId: 'qa' };
+    await srv.call('PUT', '/api/settings', { ...settings, qa });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /Ejecutar regresión/ }));
+
+    const site = qa.sites.find((s: { id: string }) => s.id === 'qa');
+    const host = new URL(site.url).host;
+    expect(screen.getByText(`Corre Claude Code en segundo plano con el skill de regresión contra ${site.name} (${host}).`)).toBeTruthy();
+
+    await srv.call('PUT', '/api/settings', settings);
+  });
+
   it('adds a custom test type from the settings', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Tipos y ajustes' }));

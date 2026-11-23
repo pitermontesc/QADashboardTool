@@ -404,6 +404,21 @@ header h1,nav button{white-space:nowrap}
 @media (max-width:1100px){.brand-sep,.ravn-logo{display:none}}
 /* At the narrowest windows (the app's minimum is 900px), "New run" keeps only its + icon so the header never overflows. */
 @media (max-width:1080px){.new-run-label{display:none}}
+/* The web version can be narrower than the app's 900px: drop the title and the DEMO badge before the header overflows. */
+@media (max-width:820px){.brand h1,.demo-badge{display:none}}
+/* Text in a test type's color (see typeInk): darker in light mode and lighter in dark mode, so it reads at ≥ 4.5:1. */
+.type-ink{color:color-mix(in srgb,var(--type) var(--type-ink-pct),var(--type-ink-base))}
+:root{--type-ink-pct:75%;--type-ink-base:#000}
+:root[data-theme="dark"]{--type-ink-pct:55%;--type-ink-base:#fff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--type-ink-pct:55%;--type-ink-base:#fff}}
+/* Types table: the name is an input, so center the star, count and "in use" with it. */
+.types-table td{vertical-align:middle}
+/* A hint inside a field label keeps normal weight (labels are semibold). */
+label.f .hint{font-weight:400}
+/* Dashboard rows whose two cards should end at the same height. */
+.grid2.even{align-items:stretch}
+/* A dialog subtitle that must be read whole wraps instead of ending in an ellipsis. */
+.dialog-head p.wrap{white-space:normal}
 .auto-row>.status-pill{justify-self:start}
 /* Sites table: fixed columns sized for their headers in both languages; the URL takes the rest
    and the remove action is a 36px icon, so nothing overlaps or gets cut in a half-width card. */
