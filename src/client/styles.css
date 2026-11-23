@@ -417,6 +417,8 @@ header h1,nav button{white-space:nowrap}
 label.f .hint{font-weight:400}
 /* Dashboard rows whose two cards should end at the same height. */
 .grid2.even{align-items:stretch}
+/* Runs list: "Showing 100 of 1,000" and the button that draws the next rows. */
+.more-row{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px}
 /* A dialog subtitle that must be read whole wraps instead of ending in an ellipsis. */
 .dialog-head p.wrap{white-space:normal}
 .auto-row>.status-pill{justify-self:start}

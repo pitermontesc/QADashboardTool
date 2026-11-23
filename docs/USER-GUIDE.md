@@ -354,11 +354,11 @@ Below the KPIs:
 
 ## 7. Search, edit, duplicate and delete runs
 
-The **Runs** view (`⌘2`) lists your whole history, from newest to oldest:
+The **Runs** view (`⌘2`) lists your whole history, from newest to oldest. It shows the first 100 runs; **Show 100 more**, under the table, adds the next ones:
 
 ![Runs view with the full table and the filters at the top](img/11-runs.png)
 
-**Search and filter.** The search box (`⌘F` or `/`) searches title, ticket and notes. You can combine it with type, environment, result and a date range (from / to). **Clear filters** shows everything again.
+**Search and filter.** The search box (`⌘F` or `/`) searches title, ticket and notes. You can combine it with type, environment, result and a date range (from / to). **Clear filters** shows everything again. Search and filters always look at every run, not only the ones on screen.
 
 ![Runs filtered by "AVM" and result Failed: 2 of 26 runs](img/12-runs-filtered.png)
 

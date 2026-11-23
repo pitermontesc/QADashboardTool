@@ -92,6 +92,35 @@ describe('App', () => {
     await srv.call('DELETE', `/api/runs/${run.id}`);
   });
 
+  it('draws the first 100 runs and the next ones on demand, while the filters search all of them', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 130; i++) {
+      const { body } = await srv.call('POST', '/api/runs', {
+        date: '2026-11-20', typeId: 't2', title: i === 129 ? 'Oldest needle' : `Bulk run ${i}`, ticket: '', env: 'QA', result: 'passed',
+        passed: 1, failed: 0, blocked: 0, bugs: null, minutes: null, notes: '',
+      });
+      ids.push(body.id);
+    }
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Registros' }));
+    const rows = () => document.querySelectorAll('tbody tr').length;
+
+    expect(screen.getByText('130 de 130 registros')).toBeTruthy();
+    expect(rows()).toBe(100);
+    expect(screen.getByText('Mostrando 100 de 130')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar 30 más' }));
+    expect(rows()).toBe(130);
+    expect(screen.queryByText(/Mostrando/)).toBeNull();
+
+    // A run past the first 100 is still found by the search, and changing a filter starts again from 100.
+    fireEvent.change(screen.getByLabelText('Buscar registros'), { target: { value: 'Oldest needle' } });
+    expect(rows()).toBe(1);
+    fireEvent.change(screen.getByLabelText('Buscar registros'), { target: { value: 'Bulk run' } });
+    expect(rows()).toBe(100);
+
+    for (const id of ids) await srv.call('DELETE', `/api/runs/${id}`);
+  });
+
   it('the regression dialog names the site the regression runs on, as set in the settings', async () => {
     const { body } = await srv.call('GET', '/api/state');
     const settings = body.settings;

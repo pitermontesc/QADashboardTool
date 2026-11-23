@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.13.8] - 2026-11-23
+
+### Changed
+- **Runs stays fast with thousands of runs**: the list draws the first 100 runs and **Show 100 more** adds the next ones, with "Showing 100 of …" next to it. Search and filters still look at every run, and changing a filter starts again from the first 100. With 5,000 runs, opening Runs went from ~600 ms to ~25 ms, and the list no longer freezes the window for ~70 ms every 10 s while Claude runs something.
+
 ## [1.13.7] - 2026-11-23
 
 ### Fixed
