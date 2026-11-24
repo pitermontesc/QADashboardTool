@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_JQL, defaultSettings, guessLang, localizeTypes } from '../shared/defaults.js';
@@ -24,10 +24,12 @@ interface StoreData {
   jira: JiraCredentials;
   jiraCache: { tickets: JiraTicket[]; fetchedAt: number | null; ok: boolean | null; error: string | null };
   automations: Automation[];
+  /**
+   * SHA-256 of each run's report key: only the Claude process that was given the key can report
+   * its result. Kept on the server only (never in the state the UI receives).
+   */
+  reportKeys: Record<string, string>;
 }
-
-/** Automated QA runs that are kept (the most recent ones). */
-const MAX_AUTOMATIONS = 30;
 
 const emptyData = (): StoreData => ({
   version: 1,
@@ -36,7 +38,10 @@ const emptyData = (): StoreData => ({
   jira: { site: '', email: '', board: '', jql: DEFAULT_JQL, token: '' },
   jiraCache: { tickets: [], fetchedAt: null, ok: null, error: null },
   automations: [],
+  reportKeys: {},
 });
+
+const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 
 /**
  * Persistence in a single JSON file. The data volume (a few test runs per day)
@@ -86,6 +91,8 @@ export class Store {
         translations: a.translations ?? {},
         dryRun: a.dryRun ?? false,
       })),
+      // Before v1.14.0 runs had no report key.
+      reportKeys: saved.reportKeys ?? {},
     };
     } catch (cause) {
       // An unreadable file is not overwritten: it could contain recoverable data.
@@ -118,7 +125,7 @@ export class Store {
   }
 
   /**
-   * Records a just-launched smoke, regression or orchestrator run; the last MAX_AUTOMATIONS are kept.
+   * Records a just-launched smoke, regression or orchestrator run (every report is kept).
    * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
    */
   startAutomation(
@@ -132,9 +139,25 @@ export class Store {
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
     this.data.runs.push(run);
     automation.runId = run.id;
-    this.data.automations = [automation, ...this.data.automations].slice(0, MAX_AUTOMATIONS);
+    this.data.automations = [automation, ...this.data.automations];
     this.persist();
     return automation;
+  }
+
+  /** Creates the run's report key: returned once (for Claude's prompt) and stored only as a hash. */
+  newReportKey(id: string): string {
+    const key = randomBytes(24).toString('hex');
+    this.data.reportKeys[id] = sha256(key);
+    this.persist();
+    return key;
+  }
+
+  /** Whether a result may be reported with this key. Runs launched before v1.14.0 have none and accept any. */
+  acceptsReportKey(id: string, key: string): boolean {
+    const expected = this.data.reportKeys[id];
+    if (expected === undefined) return true;
+    const given = Buffer.from(sha256(key), 'hex');
+    return timingSafeEqual(given, Buffer.from(expected, 'hex'));
   }
 
   /** Saves the process and log of a just-launched run. */
@@ -162,6 +185,8 @@ export class Store {
       automation.runId = run.id;
     }
     Object.assign(automation, result, { finishedAt: Date.now(), pid: null });
+    // A finished run takes no more reports: its key is no longer needed.
+    delete this.data.reportKeys[id];
     this.persist();
     return automation;
   }
@@ -173,6 +198,7 @@ export class Store {
     const before = this.data.automations.length;
     this.data.automations = this.data.automations.filter((a) => a.id !== id);
     if (this.data.automations.length === before) return false;
+    delete this.data.reportKeys[id];
     this.persist();
     return true;
   }
@@ -305,22 +331,39 @@ export class Store {
     return automation;
   }
 
-  importBackup({ runs, ...settings }: Backup): void {
+  /** Replaces settings and runs; a backup that includes QA reports (v1.14.0 and later) also replaces them. */
+  importBackup({ runs, automations, ...settings }: Backup): void {
     this.data.settings = settings;
     this.data.runs = runs;
+    if (automations) {
+      // A report still "in progress" in the backup has no process here: it is kept as it is, without a pid.
+      this.data.automations = automations.map((a) => ({ ...a, pid: null }));
+      this.data.reportKeys = {};
+    }
+    this.localizeAll();
     this.persist();
   }
 
   saveJiraConfig(config: { site: string; email: string; board: string; jql: string; token?: string }): void {
     const board = parseJiraBoardUrl(config.board);
+    const site = board?.site ?? config.site.replace(/\/+$/, '');
+    const origin = (url: string): string => {
+      try {
+        return new URL(url).origin;
+      } catch {
+        return '';
+      }
+    };
+    // The saved token belongs to its Jira site: it is never sent to a different one.
+    const keepToken = origin(site) !== '' && origin(site) === origin(this.data.jira.site);
     this.data.jira = {
       // The board's site wins, so the two cannot get out of sync.
-      site: board?.site ?? config.site.replace(/\/+$/, ''),
+      site,
       email: config.email,
       board: board ? config.board : '',
       // With a board, the JQL is an optional extra filter; without one, it is the whole search.
       jql: board ? (config.jql === DEFAULT_JQL ? '' : config.jql) : config.jql || DEFAULT_JQL,
-      token: config.token || this.data.jira.token,
+      token: config.token || (keepToken ? this.data.jira.token : ''),
     };
     // The configuration changed: the connection must be tested again.
     this.data.jiraCache = { ...this.data.jiraCache, ok: null, error: null };

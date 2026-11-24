@@ -5,7 +5,10 @@ import { translateError } from './i18n.js';
 import type { Automation, AutomationDetails, Lang } from '../shared/types.js';
 import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
-import { launchClaude, readActivity, runAssistant, stopPid, translateReport, type ClaudeHandle, type ClaudeLauncher, type ReportTranslator } from './claudeRunner.js';
+import {
+  MAX_RUN_MS, isClaudeProcess, lastMessage, launchClaude, readActivity, runAssistant, stopPid, translateReport,
+  type ClaudeHandle, type ClaudeLauncher, type ReportTranslator,
+} from './claudeRunner.js';
 import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
 import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
 import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
@@ -27,7 +30,12 @@ export interface AppOptions {
   assistant?: AssistantRunner;
   /** Demo mode: the UI shows it in the header. */
   demo?: boolean;
+  /** Whether a saved pid is still a running Claude process; injectable to test runs left by an earlier session. */
+  processAlive?: (pid: number) => boolean;
 }
+
+/** How often runs left by an earlier session are checked. */
+const ORPHAN_CHECK_MS = 30_000;
 
 /**
  * Translated report merged onto the original: only the texts are taken from the translation
@@ -59,11 +67,14 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
  * rebinding) and the Origin (prevents another site open in the browser from calling the API).
  */
 const localOnly = (lang: () => Lang): RequestHandler => (req, res, next) => {
-  const host = (req.headers.host ?? '').split(':')[0] ?? '';
+  const hostHeader = req.headers.host ?? '';
+  const host = hostHeader.split(':')[0] ?? '';
   let originOk = true;
   if (req.headers.origin) {
+    // Only the app's own page: another local tool or dev server (any other port) is a different origin.
+    // Behind the Vite dev proxy the Host is forwarded as is, so the dev page is still same-origin.
     try {
-      originOk = LOCAL_HOSTS.has(new URL(req.headers.origin).hostname);
+      originOk = new URL(req.headers.origin).host === hostHeader;
     } catch {
       originOk = false;
     }
@@ -72,6 +83,32 @@ const localOnly = (lang: () => Lang): RequestHandler => (req, res, next) => {
     res.status(403).json({ error: translateError('Local access only', lang()) });
     return;
   }
+  next();
+};
+
+/**
+ * Changes must be JSON requests: a browser cannot send that content type to another origin without
+ * a CORS preflight (which this server never approves), so a form or `no-cors` fetch from any page is refused.
+ */
+const jsonWrites = (lang: () => Lang): RequestHandler => (req, res, next) => {
+  // The header, not req.is(): a DELETE has no body but must still declare JSON.
+  const type = (req.headers['content-type'] ?? '').toLowerCase();
+  if (req.method === 'GET' || req.method === 'HEAD' || type.startsWith('application/json')) {
+    next();
+    return;
+  }
+  res.status(415).json({ error: translateError('Changes must be sent as JSON', lang()) });
+};
+
+/** No page may frame the app (clickjacking), and it only loads its own scripts and data. */
+const securityHeaders: RequestHandler = (_req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'",
+  );
   next();
 };
 
@@ -102,8 +139,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   const app = express();
   app.disable('x-powered-by');
   app.use(localOnly(lang));
+  app.use(securityHeaders);
 
   const api = express.Router();
+  api.use(jsonWrites(lang));
   api.use(express.json({ limit: '5mb' }));
   api.use((_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -166,7 +205,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const automation = store.getAutomation(id);
     if (!automation || !needsTranslation(automation, to)) return Promise.resolve(automation);
     // The Jira comment is not translated: it goes to the ticket exactly as the skill wrote it.
-    const job = translate({ summary: automation.summary, details: automation.details ? { ...automation.details, jiraComment: null } : null }, to)
+    // Inside a promise: a translator that throws at once (no claude on this Mac) becomes a failed translation, not a crash.
+    const job = Promise.resolve()
+      .then(() => translate({ summary: automation.summary, details: automation.details ? { ...automation.details, jiraComment: null } : null }, to))
       .then((raw) => {
         const result = reportTranslationSchema.parse(raw);
         const latest = store.getAutomation(id);
@@ -194,18 +235,27 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       let release: (value: Automation | null) => void = () => undefined;
       // Reserve the queue slot so the state counts pending translations.
       translating.set(key, new Promise((resolve) => (release = resolve)));
-      queue = queue.then(async () => {
-        translating.delete(key);
-        const result = lang() === to ? await translateOne(a.id, to).catch(() => null) : null;
-        release(result);
-      });
+      queue = queue
+        .then(async () => {
+          let result: Automation | null = null;
+          try {
+            translating.delete(key);
+            result = lang() === to ? await translateOne(a.id, to).catch(() => null) : null;
+          } finally {
+            release(result);
+          }
+        })
+        // One failed job never blocks the ones queued after it.
+        .catch(() => undefined);
     }
   };
   translateAll(lang());
 
   api.post('/import', (req, res) => {
+    const before = lang();
     store.importBackup(backupSchema.parse(req.body));
-    res.json(store.getState());
+    if (lang() !== before) translateAll(lang());
+    res.json({ ...store.getState(), translating: translating.size, demo: options.demo === true });
   });
 
   api.put('/jira/config', (req, res) => {
@@ -227,6 +277,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   const launch = options.launchClaude ?? launchClaude;
   /** Running processes launched by this server. */
   const running = new Map<string, ClaudeHandle>();
+  /** Runs whose process is being started (they have no pid yet). */
+  const launching = new Set<string>();
 
   /** Saves a run's result and completes its test run. */
   const complete = (id: string, result: AutomationResult) => {
@@ -278,11 +330,13 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (busy) throw new HttpError(409, `There is already a run in progress for ${input.kind === 'orchestrator' ? input.target : `${input.kind} ${input.target}`.trim()}`);
     const settings = store.getState().settings;
     const automation = store.startAutomation(input, (a) => runInputSchema.parse(runForAutomation(a, settings)));
+    const reportKey = store.newReportKey(automation.id);
     const en = settings.language === 'en';
+    launching.add(automation.id);
     try {
       const handle = await launch({
         id: automation.id,
-        prompt: prompt(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id, settings.language)),
+        prompt: prompt(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id, settings.language, reportKey)),
         onExit: ({ code, lastMessage }) => {
           running.delete(automation.id);
           // Claude reports with a POST before exiting; if it did not, the run must not stay "in progress" forever.
@@ -297,6 +351,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     } catch (err) {
       store.deleteAutomation(automation.id);
       throw err;
+    } finally {
+      launching.delete(automation.id);
     }
     return store.getAutomation(automation.id);
   };
@@ -306,11 +362,37 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const handle = running.get(id);
     if (handle) handle.stop();
     else {
+      // A pid saved by an earlier session is only signaled if it is still that Claude process (pids get reused).
       const pid = store.getAutomation(id)?.pid;
-      if (pid) stopPid(pid);
+      if (pid && processAlive(pid)) stopPid(pid);
     }
     running.delete(id);
   };
+
+  /**
+   * Runs this server did not launch (the app was closed or crashed while they ran) are watched here:
+   * one whose Claude process is gone is closed as BLOCKED, and one past the time limit is stopped.
+   * Without this they stayed "in progress" forever and blocked new runs on the same target.
+   */
+  const processAlive = options.processAlive ?? isClaudeProcess;
+  const checkOrphans = (): void => {
+    const en = lang() === 'en';
+    for (const a of store.getState().automations) {
+      if (a.finishedAt !== null || running.has(a.id) || launching.has(a.id)) continue;
+      const tail = a.logFile ? lastMessage(a.logFile) : '';
+      if (!a.pid || !processAlive(a.pid)) {
+        const why = en
+          ? 'Claude stopped without reporting a result (the app was closed or restarted while it ran).'
+          : 'Claude se detuvo sin reportar el resultado (la app se cerró o reinició mientras corría).';
+        closeUnreported(a.id, [why, tail].filter(Boolean).join('\n'));
+      } else if (Date.now() - a.startedAt > MAX_RUN_MS) {
+        stopPid(a.pid);
+        closeUnreported(a.id, en ? 'Stopped: it ran longer than the time limit.' : 'Detenida: superó el tiempo máximo.');
+      }
+    }
+  };
+  checkOrphans();
+  setInterval(checkOrphans, ORPHAN_CHECK_MS).unref();
 
   api.post('/regression', async (req, res) => {
     const body = (req.body ?? {}) as { run?: unknown; dryRun?: unknown };
@@ -331,8 +413,12 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     res.json(await launchAutomation(req, { kind: 'smoke', target: site.name, env: site.env, title }, (extra) => smokePrompt(site.id, qa, extra)));
   });
 
-  api.post('/automation/:id/result', (req, res) => {
-    res.json(complete(String(req.params.id), automationResultSchema.parse(req.body)));
+  api.post(['/automation/:id/result', '/automation/:id/result/:key'], (req, res) => {
+    const id = String(req.params.id);
+    // Only the Claude process this run launched has its key (the last segment of the report URL in its prompt).
+    const key = typeof req.params.key === 'string' ? req.params.key : '';
+    if (store.getAutomation(id) && !store.acceptsReportKey(id, key)) throw new HttpError(403, 'Invalid or missing report key');
+    res.json(complete(id, automationResultSchema.parse(req.body)));
   });
 
   /** What Claude is doing, to follow the run from the app. */

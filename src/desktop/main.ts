@@ -207,15 +207,27 @@ function createWindow(url = URL_, demo = false): void {
   if (!demo) win.on('close', () => saveWindowState(win));
 
   // External links (Jira tickets) open in the browser, not inside the app.
-  const isInternal = (target: string) => target.startsWith(url);
+  // Same origin, not a prefix: "http://127.0.0.1:8765@evil.example" starts with the app URL but is another site.
+  const origin = (target: string): string | null => {
+    try {
+      return new URL(target).origin;
+    } catch {
+      return null;
+    }
+  };
+  const isInternal = (target: string) => origin(target) === origin(url);
+  // Only web links go to the system browser; other schemes (file:, custom app handlers) are ignored.
+  const openOutside = (target: string): void => {
+    if (/^https?:\/\//i.test(target)) void shell.openExternal(target);
+  };
   win.webContents.setWindowOpenHandler(({ url: target }) => {
-    if (!isInternal(target)) void shell.openExternal(target);
+    if (!isInternal(target)) openOutside(target);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, target) => {
     if (!isInternal(target)) {
       event.preventDefault();
-      void shell.openExternal(target);
+      openOutside(target);
     }
   });
 

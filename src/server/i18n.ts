@@ -13,6 +13,8 @@ const orToSpanish = (list: string): string => {
 const ES: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^Invalid data( \((.+?)\))?: (.*)$/s, (_, field, message) => `Datos inválidos${field ? ` (${field})` : ''}: ${toSpanish(message ?? '')}`],
   [/^Local access only$/, () => 'Solo acceso local'],
+  [/^Changes must be sent as JSON$/, () => 'Los cambios se envían como JSON'],
+  [/^Invalid or missing report key$/, () => 'Falta la clave del reporte o no es válida'],
   [/^Invalid JSON$/, () => 'JSON inválido'],
   [/^Internal app error$/, () => 'Error interno de la app'],
   [/^Not found$/, () => 'No encontrado'],

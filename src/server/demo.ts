@@ -412,7 +412,7 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
     const lang: Lang = /Write summary and details in English/.test(job.prompt) ? 'en' : 'es';
     const kind: AutomationKind = /smoke/i.test(job.prompt) ? 'smoke' : /regression/i.test(job.prompt) ? 'regression' : 'orchestrator';
     const target = kind === 'smoke' ? (/run smoke on (\w+)/.exec(job.prompt)?.[1] ?? 'STG') : (/[A-Z][A-Z0-9]+-\d+/.exec(job.prompt)?.[0] ?? '');
-    const reportUrl = /http:\/\/127\.0\.0\.1:\d+\/api\/automation\/[\w-]+\/result/.exec(job.prompt)?.[0];
+    const reportUrl = /http:\/\/127\.0\.0\.1:\d+\/api\/automation\/[\w-]+\/result(\/[0-9a-f]+)?/.exec(job.prompt)?.[0];
     // The smoke prompt carries the configured site URL; the other kinds use a sample site.
     const siteUrl = (/\((https?:\/\/[^)\s]+)\)/.exec(job.prompt)?.[1] ?? 'https://staging.alpinevm.com').replace(/\/+$/, '');
     const steps = SCRIPT[kind];

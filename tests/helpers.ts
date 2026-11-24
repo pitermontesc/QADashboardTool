@@ -12,17 +12,32 @@ export async function startServer(options: AppOptions = {}) {
   const translateReport: AppOptions['translateReport'] = async () => {
     throw new Error('no translator in tests');
   };
-  const server = createApp(new Store(file), { translateReport, ...options }).listen(0, '127.0.0.1');
+  // Each run's report key travels in its prompt, as it does to Claude; the tests report with it like Claude does.
+  const reportKeys = new Map<string, string>();
+  const fake = options.launchClaude;
+  const launchClaude: AppOptions['launchClaude'] = fake
+    ? async (job) => {
+        const found = /\/api\/automation\/([\w-]+)\/result\/([0-9a-f]+)/.exec(job.prompt);
+        if (found) reportKeys.set(found[1]!, found[2]!);
+        return fake(job);
+      }
+    : undefined;
+  const server = createApp(new Store(file), { translateReport, ...options, launchClaude }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     base,
     file,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    reportKey: (id: string) => reportKeys.get(id) ?? '',
     call: async (method: string, url: string, body?: unknown, headers: Record<string, string> = {}) => {
+      // A result posted to the bare URL uses the run's key, like Claude's report URL (…/result/<key>).
+      const result = /^\/api\/automation\/([\w-]+)\/result$/.exec(url);
+      if (result && reportKeys.has(result[1]!)) url += `/${reportKeys.get(result[1]!)}`;
       const res = await fetch(base + url, {
         method,
-        headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
+        // Like the app: every change is JSON, even without a body.
+        headers: { ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }), ...headers },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       return { status: res.status, body: res.status === 204 ? null : ((await res.json()) as any) };

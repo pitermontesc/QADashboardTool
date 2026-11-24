@@ -14,12 +14,20 @@ function download(name: string, text: string, mime: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportBackup({ settings, runs }: AppState): void {
-  const backup: Backup = { ...settings, runs };
+export function exportBackup({ settings, runs, automations }: AppState): void {
+  const backup: Backup = { ...settings, runs, automations };
   download(`qa-tests-${settings.language === 'en' ? 'backup' : 'respaldo'}-${toYmd(new Date())}.json`, JSON.stringify(backup, null, 2), 'application/json');
 }
 
-const csvCell = (value: string | number | null): string => `"${String(value ?? '').replace(/"/g, '""')}"`;
+/**
+ * A quoted CSV cell. Text that a spreadsheet would run as a formula (=, +, -, @, tab or CR first,
+ * for example a title copied from Jira) gets a leading apostrophe, so it is shown as text.
+ */
+export const csvCell = (value: string | number | null): string => {
+  const text = String(value ?? '');
+  const safe = typeof value === 'string' && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
 
 export function exportCsv({ settings, runs }: AppState): void {
   const typeName = new Map(settings.types.map((t) => [t.id, t.name]));

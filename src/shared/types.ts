@@ -244,4 +244,6 @@ export interface AppState {
 
 export interface Backup extends Settings {
   runs: TestRun[];
+  /** QA reports; backups from before v1.14.0 do not have them (importing one keeps the current reports). */
+  automations?: Automation[];
 }

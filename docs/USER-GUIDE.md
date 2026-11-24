@@ -89,7 +89,7 @@ Go to **Types & settings** (or click **Connect Jira** on the dashboard) and find
 | Field | What to enter |
 | --- | --- |
 | **Board** | The link to your Jira board, copied as is from the browser. If the board has a people filter (`?filter=assignee+IN+(...)`), it is used too. It is optional: without a board, the app uses the JQL. |
-| **Site** | Filled in automatically when you paste the board (`https://your-site.atlassian.net`). Without a board, type it by hand. |
+| **Site** | Filled in automatically when you paste the board (`https://your-site.atlassian.net`). Without a board, type it by hand; it must start with `https://`. If you change it to another site, enter the token again: the saved token is only sent to the site it was saved for. |
 | **Atlassian email** | The email you sign in to Jira with. |
 | **API token** | The token from the previous step. The eye icon shows or hides it. |
 | **Extra JQL** | With a board: an optional extra filter (see below). Without a board: the full query. |
@@ -414,9 +414,9 @@ Changes are saved together with **Save sites & skills**; **Restore defaults** br
 
 | Button | What it does |
 | --- | --- |
-| **Export backup (JSON)** | Saves a file (the app asks you where) with your runs, types, environments and ticket link. It does not include the Jira connection or the token. |
+| **Export backup (JSON)** | Saves a file (the app asks you where) with your runs, Claude's QA reports, types, environments and ticket link. It does not include the Jira connection or the token. |
 | **Export CSV** | Saves the runs as a table to open in Excel or Google Sheets. |
-| **Import backup** | Loads a JSON backup. It **replaces** the current runs and settings; export first if in doubt. |
+| **Import backup** | Loads a JSON backup. It **replaces** the current runs and settings, and the QA reports if the backup has them (backups from before v1.14.0 do not, and keep the current reports); export first if in doubt. |
 
 **Where the data is stored:** in `~/Library/Application Support/QA Dashboard/qa-tests.json` (macOS). Only your user can read the file, because it contains the Jira API token. Do not share it: to pass your runs to someone else, use **Export backup (JSON)**.
 

@@ -18,7 +18,9 @@ export const LOGS_DIR = path.join(RUNS_DIR, 'logs');
 export const CLAUDE_ARGS = ['-p', '--chrome', '--permission-mode', 'auto', '--output-format', 'stream-json', '--verbose'];
 
 /** If Claude is still running after this long, it is stopped. */
-const MAX_RUN_MS = 4 * 60 * 60_000;
+export const MAX_RUN_MS = 4 * 60 * 60_000;
+/** A stopped process that ignores SIGTERM is killed after this long. */
+const KILL_AFTER_MS = 10_000;
 
 export interface ClaudeJob {
   id: string;
@@ -85,11 +87,7 @@ export const launchClaude: ClaudeLauncher = (job) => {
     });
     closeSync(fd);
     const stop = (): void => {
-      try {
-        if (child.pid) process.kill(-child.pid, 'SIGTERM');
-      } catch {
-        // It had already exited.
-      }
+      if (child.pid) stopPid(child.pid);
     };
     const limit = setTimeout(stop, MAX_RUN_MS);
     limit.unref();
@@ -149,6 +147,8 @@ export const translateReport: ReportTranslator = (report, lang) => {
         reject(new HttpError(502, `Could not translate the report: ${short(e instanceof Error ? e.message : String(e), 300)}`));
       }
     });
+    // If claude exits before reading stdin (EPIPE), 'close' reports the failure; without a listener it would crash the server.
+    child.stdin.on('error', () => undefined);
     child.stdin.end(JSON.stringify(report));
   });
 };
@@ -188,20 +188,52 @@ export const runAssistant: AssistantRunner = ({ system, prompt, schema }) => {
         reject(new HttpError(502, `The assistant could not answer: ${short(why, 300)}`));
       }
     });
+    // If claude exits before reading stdin (EPIPE), 'close' reports the failure; without a listener it would crash the server.
+    child.stdin.on('error', () => undefined);
     child.stdin.end(prompt);
   });
 };
 
-/** Stops a process by its pid (for example, from a run launched before the app restarted). */
-export function stopPid(pid: number): void {
+/** Sends a signal to the process group (Claude and the helpers it started), or to the process alone. */
+function signal(pid: number, sig: NodeJS.Signals): boolean {
   try {
-    process.kill(-pid, 'SIGTERM');
+    process.kill(-pid, sig);
+    return true;
   } catch {
     try {
-      process.kill(pid, 'SIGTERM');
+      process.kill(pid, sig);
+      return true;
     } catch {
-      // It no longer exists.
+      return false; // It no longer exists.
     }
+  }
+}
+
+/**
+ * Stops a Claude run by its pid (also one launched before the app restarted): SIGTERM first and,
+ * if it is still that Claude process after a few seconds, SIGKILL, so a stopped run cannot keep working.
+ */
+export function stopPid(pid: number): void {
+  if (!signal(pid, 'SIGTERM')) return;
+  const force = setTimeout(() => {
+    if (isClaudeProcess(pid)) signal(pid, 'SIGKILL');
+  }, KILL_AFTER_MS);
+  force.unref();
+}
+
+/** Whether the pid is a running Claude Code process (a saved pid may have been reused by another program). */
+export function isClaudeProcess(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return false;
+  }
+  try {
+    const command = execFileSync('ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8', timeout: 5000 });
+    // Launched as …/bin/claude (a symlink) or by its versioned binary (…/claude/versions/2.1.327).
+    return /(^|\/)claude(\s|$)|\/claude\/versions\//.test(command.trim());
+  } catch {
+    return false;
   }
 }
 

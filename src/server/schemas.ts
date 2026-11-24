@@ -121,11 +121,17 @@ export const settingsSchema = z.object({
 });
 
 export const backupSchema = settingsSchema
-  .extend({ runs: z.array(runSchema) })
-  .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'The backup has runs of test types that do not exist');
+  .extend({ runs: z.array(runSchema), automations: z.lazy(() => z.array(storedAutomationSchema)).optional() })
+  .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'The backup has runs of test types that do not exist')
+  .refine((b) => new Set(b.runs.map((r) => r.id)).size === b.runs.length, 'The backup has two runs with the same id');
 
 export const jiraConfigSchema = z.object({
-  site: httpUrlOrEmpty,
+  // https only: the Jira API token goes in every request.
+  site: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => v === '' || /^https:\/\//i.test(v), 'The Jira site must start with https://'),
   email: z.string().trim().max(200),
   board: z
     .string()
@@ -238,3 +244,24 @@ export const automationResultSchema = z.object({
   details: automationDetailsSchema.nullable().default(null),
 });
 export type AutomationResult = z.infer<typeof automationResultSchema>;
+
+/** A QA report as saved, inside a backup. The process and its log belong to the machine that ran it, so they are not imported. */
+const storedAutomationSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  kind: z.enum(['smoke', 'regression', 'orchestrator']),
+  target: z.string().max(300),
+  title: z.string().max(600),
+  env: z.string().max(100),
+  startedAt: z.number(),
+  finishedAt: z.number().nullable(),
+  verdict: z.enum(VERDICTS).nullable(),
+  summary: z.string().max(5000),
+  link: httpUrlOrEmpty.default(''),
+  details: automationDetailsSchema.nullable(),
+  runId: z.string().max(100).nullable(),
+  pid: z.unknown().transform(() => null),
+  logFile: z.unknown().transform(() => ''),
+  lang: z.enum(LANGUAGES),
+  translations: z.partialRecord(z.enum(LANGUAGES), z.object({ summary: z.string().max(5000), details: automationDetailsSchema.nullable() })).default({}),
+  dryRun: z.boolean().default(false),
+});

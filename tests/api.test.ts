@@ -45,9 +45,11 @@ describe('API', () => {
     expect((await srv.call('PUT', '/api/runs/nope', RUN)).status).toBe(404);
   });
 
-  it('only accepts local requests', async () => {
+  it('only accepts local requests from the app itself', async () => {
     expect((await srv.call('GET', '/api/state', undefined, { Origin: 'https://evil.example' })).status).toBe(403);
-    expect((await srv.call('GET', '/api/state', undefined, { Origin: 'http://localhost:5173' })).status).toBe(200);
+    // Another local tool or dev server (another port) is another origin since v1.14.0.
+    expect((await srv.call('GET', '/api/state', undefined, { Origin: 'http://localhost:5173' })).status).toBe(403);
+    expect((await srv.call('GET', '/api/state', undefined, { Origin: srv.base })).status).toBe(200);
   });
 
   it('imports a backup and replaces the data', async () => {
@@ -189,8 +191,9 @@ describe('QA orchestrator', () => {
     const started = (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === automation.runId);
     expect(started).toMatchObject({ typeId: 't0', env: 'STG', result: 'progress', title: 'Smoke STG con Claude · en curso' });
     // The prompt tells Claude where to report; that same URL is used.
-    const reportUrl = new URL(launched[0]!.match(/POST JSON a (\S+)/)![1]!);
-    expect(reportUrl.pathname).toBe(`/api/automation/${automation.id}/result`);
+    // Since v1.14.0 it ends in the run's report key, and the JSON header is spelled out.
+    const reportUrl = new URL(launched[0]!.match(/POST JSON \(cabecera Content-Type: application\/json\) a (\S+)/)![1]!);
+    expect(reportUrl.pathname).toBe(`/api/automation/${automation.id}/result/${srv.reportKey(automation.id)}`);
 
     expect((await srv.call('POST', reportUrl.pathname, { verdict: 'maybe' })).status).toBe(400);
     const runsBefore = (await srv.call('GET', '/api/state')).body.runs.length;

@@ -16,13 +16,15 @@ const DETAILS_SHAPE =
  * result to the local API. No single quotes: it goes inside the command line.
  * Written in the app language, since Claude writes the report in the language it is addressed in.
  */
-export function reportInstruction(kind: AutomationKind, port: number, id: string, lang: Lang = 'es'): string {
-  const url = `http://127.0.0.1:${port}/api/automation/${id}/result`;
+export function reportInstruction(kind: AutomationKind, port: number, id: string, lang: Lang = 'es', reportKey = ''): string {
+  // The key proves the result comes from the process this run launched; the server refuses it without the key.
+  // It goes in the path, not as ?key=: an unquoted "?" is a glob in zsh and would break Claude's curl.
+  const url = `http://127.0.0.1:${port}/api/automation/${id}/result${reportKey ? `/${reportKey}` : ''}`;
   const verdicts = VERDICTS_BY_KIND[kind];
   if (lang === 'en') {
     return (
       ` -- You are running unattended in the background: nobody will answer questions, so decide with the skill's own criteria and keep going, and note any decision you made in details.notes.` +
-      ` When you finish, report the result to the QA Dashboard with a JSON POST to ${url}` +
+      ` When you finish, report the result to the QA Dashboard with a JSON POST (header Content-Type: application/json) to ${url}` +
       ` with the fields verdict (${verdicts.slice(0, -1).join(', ')} or BLOCKED; use BLOCKED if it could not be tested, for example no browser or no access), passed, failed, blocked, bugs and minutes (numbers), summary (short summary), link (URL of the report, test run, epic or comment, if any)` +
       ` and details, the full QA report: ${DETAILS_SHAPE}` +
       ` with one module per tested area and every executed step; status is passed, failed, blocked or skipped.` +
@@ -33,7 +35,7 @@ export function reportInstruction(kind: AutomationKind, port: number, id: string
   }
   return (
     ` -- Corres sin supervision en segundo plano: nadie respondera preguntas, asi que decide con el criterio del skill y continua, y anota en details.notes las decisiones que tomaste.` +
-    ` Al terminar, reporta el resultado al QA Dashboard con un POST JSON a ${url}` +
+    ` Al terminar, reporta el resultado al QA Dashboard con un POST JSON (cabecera Content-Type: application/json) a ${url}` +
     ` con los campos verdict (${verdicts.slice(0, -1).join(', ')} o BLOCKED; usa BLOCKED si no se pudo probar, por ejemplo sin navegador o sin acceso), passed, failed, blocked, bugs y minutes (numeros), summary (resumen corto), link (URL del reporte, test run, epic o comentario, si hay)` +
     ` y details, el reporte QA completo: ${DETAILS_SHAPE}` +
     ` con un modulo por area probada y cada paso ejecutado; status es passed, failed, blocked o skipped.` +

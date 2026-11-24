@@ -2,6 +2,24 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-11-24
+
+Security and data fixes from a code review.
+
+### Security
+- **Only the app's own page can use the local API.** Before, any page on `localhost` (any port, for example a dev server) could launch a real regression with a single request. Now the `Origin` must be the app's own, every change must be sent as JSON (which a browser cannot do across origins without a preflight the server never approves), and the app cannot be framed (`X-Frame-Options: DENY` and a Content-Security-Policy).
+- **Results need the run's report key.** Each Claude run gets a secret key in its report URL (`…/result/<key>`, in the path so an unquoted curl in zsh still works). A result without it is refused, so another program cannot post a fake verdict or a Jira comment for you to publish. The key is stored only as a hash and never reaches the UI.
+- **The Jira token stays with its site.** Changing the Jira site drops the saved token unless you enter a new one, and the site must be `https://`.
+- **Desktop app**: a link that only looks like the app's address (`http://127.0.0.1:8765@other.site`) is no longer opened inside the app, and only `http(s)` links go to the browser.
+- **CSV export**: text that a spreadsheet would run as a formula (starting with `=`, `+`, `-` or `@`, for example a title copied from Jira) is exported as text.
+
+### Fixed
+- **QA reports are no longer deleted.** Only the last 30 were kept; older ones disappeared without notice. Now every report is kept, and **Export backup (JSON)** includes them (importing an older backup without reports keeps the current ones).
+- **Runs left "in progress" close on their own.** If the app was closed or crashed while Claude ran, the run stayed in progress forever and blocked new runs on the same site or ticket. Now the app checks those runs at startup and every 30 s: if Claude is gone, the run is closed as BLOCKED saying why, and one past the 4-hour limit is stopped.
+- **Stop is safer and final.** A saved process id is only signaled if it is still a Claude process (ids get reused after a restart), and a run that ignores the stop is killed after 10 s, so it cannot keep working after it shows BLOCKED.
+- **Translations no longer get stuck.** If Claude Code was not found, the translation queue stopped for good and "Translating…" never ended; a failed translation now only affects its own report. An early exit of `claude` can no longer crash the server.
+- Importing a backup in another language translates its texts like a language change does.
+
 ## [1.13.8] - 2026-11-23
 
 ### Changed

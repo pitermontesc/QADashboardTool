@@ -79,7 +79,9 @@ Each ticket appears as a button on the dashboard; clicking it opens a new run wi
 ## Data and security
 
 - Everything is stored in `qa-tests.json` in the data folder (see `QA_DASH_DATA`), outside the repository; the browser and the desktop app share the same file. That file contains the Jira API token and is created with `0600` permissions.
-- The server listens only on `127.0.0.1` and rejects requests with an external `Host` or `Origin`.
+- The server listens only on `127.0.0.1` and only answers its own page: it rejects requests with an external `Host` or with an `Origin` other than its own (another local port included), refuses changes that are not JSON, and sends `X-Frame-Options: DENY` and a Content-Security-Policy.
+- Each Claude run gets a secret report key in its report URL (`/api/automation/<id>/result/<key>`); a result without that key is refused. The key is stored only as a hash and never reaches the UI.
+- The Jira token is kept only for the site it was saved for (the site must be `https://`).
 - The token is never sent to the UI; the API only reports whether one is saved.
 - **Types & settings → Data backup** exports JSON or CSV and imports a JSON backup.
 
@@ -118,7 +120,7 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | POST | `/api/runs` | Creates a run |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
 | PUT | `/api/settings` | Saves types, environments and ticket URL |
-| POST | `/api/import` | Replaces the data with a backup |
+| POST | `/api/import` | Replaces the data with a backup (and the QA reports, if the backup has them) |
 | PUT | `/api/jira/config` | Saves the Jira connection |
 | POST | `/api/jira/refresh` | Reloads the tickets from Jira |
 | POST | `/api/assistant` | Assistant: `{messages}` → `{reply, actions}`; actions are only proposed, and the app runs them if the user confirms |
