@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
-  candidateReason, effectiveRank, estimateMinutes, isEnvironmentBlock, isUsageLimit, laneSchedule, orderLane, type TicketCandidate,
+  candidateReason, effectiveRank, estimateMinutes, priorityRank, isEnvironmentBlock, isUsageLimit, laneSchedule, orderLane, type TicketCandidate,
 } from '../src/shared/queue';
 import { defaultQaConfig } from '../src/shared/orchestrator';
 import type { Automation, JiraTicket } from '../src/shared/types';
@@ -73,6 +73,14 @@ describe('Order within a site', () => {
     expect(candidateReason(ordered[2]!, 'es', NOW)).toContain('después de AVM-3 (bloqueado por él)');
     // A cycle in Jira does not hang the ordering.
     expect(keys(orderLane([candidate(ticket('A'), { waitsFor: ['B'] }), candidate(ticket('B'), { waitsFor: ['A'] })])).sort()).toEqual(['A', 'B']);
+  });
+});
+
+describe('Jira priority schemes', () => {
+  it('reads numbered priorities (1 the most urgent, as in AVM) like named ones', () => {
+    expect(['1', '2', '3', '4', '5', 'P1', 'p5', '9'].map(priorityRank)).toEqual([0, 1, 2, 3, 4, 0, 4, 4]);
+    const list = [candidate(ticket('AVM-5', { priority: '5' })), candidate(ticket('AVM-2', { priority: '2' })), candidate(ticket('AVM-3', { priority: '3' }))];
+    expect(keys(orderLane(list.map((c) => ({ ...c, rank: effectiveRank(c.ticket, NOW) }))))).toEqual(['AVM-2', 'AVM-3', 'AVM-5']);
   });
 });
 

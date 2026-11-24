@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.15.2] - 2026-11-24
+
+### Fixed
+- **Numbered Jira priorities order the queue.** The AVM project names its priorities `1`…`5` (1 the most urgent, 5 the default); they were read as unknown and all counted as Medium, so priority did not change the order. Now `1`…`5` and `P1`…`P5` are read as Highest…Lowest.
+
 ## [1.15.1] - 2026-11-24
 
 ### Added

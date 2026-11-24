@@ -14,9 +14,14 @@ export function laneOf(a: Pick<Automation, 'site' | 'kind' | 'target' | 'env'>, 
   return qa.sites.find((s) => s.env === a.env)?.id ?? '';
 }
 
-/** Jira priority as a rank: 0 is the most urgent. Unknown names count as Medium. */
+/**
+ * Jira priority as a rank: 0 is the most urgent. Named schemes (Highest…Lowest, Blocker…) and numbered
+ * ones ("1"…"5" or "P1"…"P5", 1 the most urgent, as in the AVM project) are read; unknown names count as Medium.
+ */
 export function priorityRank(priority: string): number {
   const p = priority.trim().toLowerCase();
+  const numbered = /^p?([1-9])$/.exec(p);
+  if (numbered) return Math.min(4, Number(numbered[1]) - 1);
   if (/highest|blocker|critical|urgent/.test(p)) return 0;
   if (/lowest|trivial/.test(p)) return 4;
   if (/high/.test(p)) return 1;

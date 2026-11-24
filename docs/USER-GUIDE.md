@@ -214,7 +214,7 @@ To validate every ticket that is ready, click **▷ Validate all (N)** next to *
 
 1. **Within each site, this order**, and each ticket says why (**Priority High · created 9 d ago · ~25 min · epic AVM-7000**):
    - **Tickets last BLOCKED by the environment** (the site, the login or the browser failed, not the ticket) go **last**: the site may still be failing.
-   - **The most urgent Jira priority first** (Highest, High, Medium, Low, Lowest). A ticket **moves up one level for every 30 days** since it was created (**Priority Low (moved up for its age)**), so a low-priority ticket does not wait forever.
+   - **The most urgent Jira priority first** (Highest, High, Medium, Low, Lowest, or numbered `1`…`5` with 1 the most urgent, as in AVM). A ticket **moves up one level for every 30 days** since it was created (**Priority Low (moved up for its age)**), so a low-priority ticket does not wait forever.
    - **With the same priority, the shortest first**: the app estimates each run from earlier ones (the median of runs on tickets of the same type, Bug or Story; BLOCKED runs do not count because they end early). Shorter ones first means more tickets validated sooner. Until there is history it assumes 30 min (**no history yet**).
    - **Then the oldest ticket.**
    - **Tickets of the same epic go together**, where the first of them is.
