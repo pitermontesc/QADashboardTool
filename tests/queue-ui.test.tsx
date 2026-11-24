@@ -36,6 +36,7 @@ describe('Run queue in the app', () => {
   });
   afterEach(async () => {
     cleanup();
+    vi.useRealTimers();
     await srv.reset();
   });
   afterAll(async () => {
@@ -81,5 +82,21 @@ describe('Run queue in the app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Quitar Smoke QA de la cola' }));
     await waitFor(() => expect(screen.queryByText('QA · En cola · #1')).toBeNull());
     expect((await srv.call('GET', '/api/state')).body.queue.items).toEqual([]);
+  });
+
+  it('when a whole batch is done, the app says how it went, after the last result', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /Validar todos/ }));
+    const dialog = await screen.findByRole('dialog');
+    for (const box of within(dialog).getAllByRole('checkbox')) if ((box as HTMLInputElement).checked !== (box.getAttribute('aria-label') === 'AVM-13')) fireEvent.click(box);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Encolar 1 ticket' }));
+    await screen.findByText('1 empezó');
+
+    const { body } = await srv.call('GET', '/api/state');
+    const run = body.automations.find((a: { target: string; finishedAt: number | null }) => a.target === 'AVM-13' && a.finishedAt === null);
+    await srv.call('POST', `/api/automation/${run.id}/result`, { verdict: 'PASSED', summary: 'All good' });
+    vi.advanceTimersByTime(10_000); // The app's refresh.
+    expect(await screen.findByText(/^Cola terminada: 1 PASSED · \d+ min$/)).toBeTruthy();
   });
 });

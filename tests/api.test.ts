@@ -84,8 +84,12 @@ describe('API', () => {
     expect(refreshed.body).toMatchObject({ connection: 'connected', error: null });
     expect(refreshed.body.tickets).toEqual([
       // Priority and creation date order the queue (v1.15.0); Jira writes the offset without a colon.
-      { key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story', priority: 'High', created: Date.parse('2026-11-10T09:00:00.000-05:00') },
-      { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug', priority: '', created: null },
+      // Its epic and what it "is blocked by" (v1.15.1): not what it blocks, nor other link types.
+      {
+        key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story', priority: 'High', created: Date.parse('2026-11-10T09:00:00.000-05:00'),
+        epic: 'AVM-100', blockedBy: ['AVM-99'],
+      },
+      { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug', priority: '', created: null, epic: '', blockedBy: [] },
     ]);
 
     // Saving without a token keeps the previous one; an invalid JQL returns Jira's detail.

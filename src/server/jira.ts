@@ -13,6 +13,8 @@ interface JiraIssue {
     issuetype?: { name?: string } | null;
     priority?: { name?: string } | null;
     created?: string | null;
+    parent?: { key?: string } | null;
+    issuelinks?: Array<{ type?: { name?: string; inward?: string }; inwardIssue?: { key?: string } }> | null;
   };
 }
 
@@ -24,7 +26,7 @@ interface JiraSearchResponse {
 
 const TIMEOUT_MS = 25_000;
 const MAX_TICKETS = 100;
-const FIELDS = 'summary,status,issuetype,priority,created';
+const FIELDS = 'summary,status,issuetype,priority,created,parent,issuelinks';
 
 /** JQL to fetch a board's tickets: its quick filter + the extra JQL, excluding finished ones. */
 export function boardJql(board: JiraBoardRef, extraJql: string): string {
@@ -114,6 +116,11 @@ const toTicket = (issue: JiraIssue): JiraTicket => ({
   type: issue.fields?.issuetype?.name ?? '',
   priority: issue.fields?.priority?.name ?? '',
   created: toTime(issue.fields?.created),
+  epic: issue.fields?.parent?.key ?? '',
+  // A link with an inward issue on a "Blocks" type means this ticket "is blocked by" that one.
+  blockedBy: (issue.fields?.issuelinks ?? [])
+    .filter((l) => l.inwardIssue?.key && (l.type?.name === 'Blocks' || /blocked by/i.test(l.type?.inward ?? '')))
+    .map((l) => l.inwardIssue!.key!),
 });
 
 /** Jira date ("2026-11-20T10:31:00.000-0500") in ms; null if missing or unreadable. */

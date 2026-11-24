@@ -26,7 +26,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 /** Answer to a launch: the run, or its place in its site's queue if the site was busy. */
 export type LaunchResult = Automation | { queued: QueueItem; position: number };
-export const isQueued = (result: LaunchResult): result is { queued: QueueItem; position: number } => 'queued' in result;
+// `position` is only in the queued answer (an Automation has a `queued` field of its own).
+export const isQueued = (result: LaunchResult): result is { queued: QueueItem; position: number } => 'position' in result;
 
 export const api = {
   getState: () => request<AppState>('GET', '/api/state'),

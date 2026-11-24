@@ -6,7 +6,7 @@ import { automationTitle, runText, titleSubject } from './automation.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import {
   LANGUAGES, type AppState, type Automation, type Backup, type JiraConnection, type JiraState, type JiraTicket, type Lang,
-  type QueueItem, type QueueState, type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
+  type QueueBatchDone, type QueueItem, type QueueState, type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
@@ -44,7 +44,7 @@ const emptyData = (): StoreData => ({
   jiraCache: { tickets: [], fetchedAt: null, ok: null, error: null },
   automations: [],
   reportKeys: {},
-  queue: { items: [], paused: {}, skipped: [] },
+  queue: { items: [], paused: {}, skipped: [], finished: [] },
 });
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -82,7 +82,11 @@ export class Store {
       settings: { ...base.settings, ...saved.settings },
       jira: { ...base.jira, ...saved.jira },
       // Tickets cached before v1.15.0 have no priority or creation date.
-      jiraCache: { ...base.jiraCache, ...saved.jiraCache, tickets: (saved.jiraCache?.tickets ?? []).map((t) => ({ ...t, priority: t.priority ?? '', created: t.created ?? null })) },
+      jiraCache: {
+        ...base.jiraCache,
+        ...saved.jiraCache,
+        tickets: (saved.jiraCache?.tickets ?? []).map((t) => ({ ...t, priority: t.priority ?? '', created: t.created ?? null, epic: t.epic ?? '', blockedBy: t.blockedBy ?? [] })),
+      },
       // Runs from v1.7.0 had no title.
       automations: (saved.automations ?? []).map((a) => ({
         ...a,
@@ -99,10 +103,18 @@ export class Store {
         dryRun: a.dryRun ?? false,
         // Before v1.15.0 the lane was not saved (laneOf works it out).
         site: a.site ?? '',
+        ticketType: a.ticketType ?? '',
+        queued: a.queued ?? null,
       })),
       // Before v1.14.0 runs had no report key.
       reportKeys: saved.reportKeys ?? {},
-      queue: { ...base.queue, ...saved.queue },
+      // v1.15.1 added batches and retries to queued runs.
+      queue: {
+        ...base.queue,
+        ...saved.queue,
+        items: (saved.queue?.items ?? []).map((q) => ({ ...q, batch: q.batch ?? q.id, retries: q.retries ?? 0 })),
+        finished: saved.queue?.finished ?? [],
+      },
     };
     } catch (cause) {
       // An unreadable file is not overwritten: it could contain recoverable data.
@@ -142,11 +154,11 @@ export class Store {
    * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
    */
   startAutomation(
-    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title' | 'site'> & { dryRun?: boolean },
+    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title' | 'site'> & { dryRun?: boolean; ticketType?: string; queued?: Automation['queued'] },
     runFor: (a: Automation) => TestRunInput,
   ): Automation {
     const automation: Automation = {
-      ...input, dryRun: input.dryRun ?? false, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
+      ...input, dryRun: input.dryRun ?? false, ticketType: input.ticketType ?? '', queued: input.queued ?? null, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
       lang: this.data.settings.language, translations: {},
     };
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
@@ -384,8 +396,10 @@ export class Store {
   }
 
   /** Adds runs to the end of the queue, in the order given. */
-  enqueue(items: Array<Pick<QueueItem, 'kind' | 'target' | 'site' | 'dryRun'>>): QueueItem[] {
-    const added = items.map((item) => ({ ...item, id: randomUUID(), addedAt: Date.now() }));
+  enqueue(items: Array<Pick<QueueItem, 'kind' | 'target' | 'site' | 'dryRun'> & Partial<Pick<QueueItem, 'batch' | 'retries'>>>): QueueItem[] {
+    // Runs queued in one call are one batch (one summary when all are done).
+    const batch = items.find((i) => i.batch)?.batch ?? randomUUID();
+    const added = items.map((item) => ({ ...item, batch: item.batch ?? batch, retries: item.retries ?? 0, id: randomUUID(), addedAt: Date.now() }));
     this.data.queue.items = [...this.data.queue.items, ...added];
     this.persist();
     return added;
@@ -425,6 +439,12 @@ export class Store {
   recordSkip(item: QueueItem, reason: string): void {
     const { id, kind, target } = item;
     this.data.queue.skipped = [{ id, kind, target, reason, at: Date.now() }, ...this.data.queue.skipped].slice(0, MAX_SKIPPED);
+    this.persist();
+  }
+
+  /** Remembers a finished batch (newest first). */
+  recordBatchDone(done: QueueBatchDone): void {
+    this.data.queue.finished = [done, ...this.data.queue.finished.filter((b) => b.batch !== done.batch)].slice(0, MAX_SKIPPED);
     this.persist();
   }
 

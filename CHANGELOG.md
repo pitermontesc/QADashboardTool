@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.15.1] - 2026-11-24
+
+### Added
+- **Smarter queue order.** Within each site: tickets last BLOCKED by the environment go last; then the most urgent Jira priority, moving up one level for every 30 days since the ticket was created; then the shortest expected run; then the oldest. Tickets of the same epic go together, and a ticket "blocked by" another one in the list goes after it. Each ticket says why it is where it is.
+- **Estimates.** Each run is estimated from earlier ones (the median of runs on tickets of the same type, or of the same site for smoke and regression; BLOCKED runs do not count). **Validate all** shows the total and when each site would be free; the Run queue card shows when each run should start.
+- **The queue protects itself.** A queued ticket BLOCKED by the environment (site, login, browser, or Claude ending without a report) is retried once at the end. Two runs in a row BLOCKED by the environment pause that site, and Claude's usage limit pauses every site with runs waiting, each with the reason and a **Resume** button.
+- **Batch summary.** When everything queued with one click is done: **Queue finished: 4 PASSED · 1 FAILED · 1 BLOCKED · 2 h 10 min** (a retried ticket counts once).
+- Jira tickets now carry their epic (parent) and the tickets they are blocked by.
+
 ## [1.15.0] - 2026-11-24
 
 ### Added

@@ -88,7 +88,15 @@ export const fakeJira: typeof fetch = async (input, init) => {
     issues: [
       {
         key: 'AVM-101',
-        fields: { summary: 'Work order totals', status: { name: 'On QA' }, issuetype: { name: 'Story' }, priority: { name: 'High' }, created: '2026-11-10T09:00:00.000-0500' },
+        fields: {
+          summary: 'Work order totals', status: { name: 'On QA' }, issuetype: { name: 'Story' }, priority: { name: 'High' }, created: '2026-11-10T09:00:00.000-0500',
+          parent: { key: 'AVM-100' },
+          issuelinks: [
+            { type: { name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }, inwardIssue: { key: 'AVM-99' } },
+            { type: { name: 'Blocks', inward: 'is blocked by', outward: 'blocks' }, outwardIssue: { key: 'AVM-98' } },
+            { type: { name: 'Relates', inward: 'relates to', outward: 'relates to' }, inwardIssue: { key: 'AVM-97' } },
+          ],
+        },
       },
       { key: 'AVM-102', fields: { summary: 'Vendor <import> & export', status: { name: 'Test' }, issuetype: { name: 'Bug' } } },
       ...extraIssues.map(({ key, summary, status }) => ({ key, fields: { summary, status: { name: status }, issuetype: { name: 'Story' } } })),

@@ -11,7 +11,7 @@ import {
 } from './claudeRunner.js';
 import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
 import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
-import { laneOf, queuePosition, ticketsToValidate } from '../shared/queue.js';
+import { isEnvironmentBlock, isUsageLimit, laneOf, queuePosition, ticketsToValidate } from '../shared/queue.js';
 import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportBugsEditSchema, reportTranslationSchema, runInputSchema, settingsSchema,
@@ -311,6 +311,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const details = automation.dryRun && result.details ? { ...result.details, jiraComment: null } : result.details;
     const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
     const finished = store.finishAutomation(id, { verdict, summary, link, details }, runInput);
+    if (finished) afterFinish(finished);
     // Its lane is free: the next queued run starts after the pause.
     pump();
     return finished;
@@ -340,7 +341,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       throw new HttpError(409, `${key} is in "${ticket.status}"; the orchestrator is for tickets in ${orList(readyStatuses(qa))}`);
     }
     const title = automationTitle('orchestrator', key, lang(), ticket.summary);
-    return { input: { kind: 'orchestrator', target: key, env: site.env, title, site: site.id }, prompt: (extra) => orchestratorPrompt(key, qa, extra) };
+    return {
+      input: { kind: 'orchestrator', target: key, env: site.env, title, site: site.id, ticketType: ticket.type },
+      prompt: (extra) => orchestratorPrompt(key, qa, extra),
+    };
   };
 
   const smokeSpec = (siteId: unknown): LaunchSpec => {
@@ -447,7 +451,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
         return;
       }
       try {
-        await launchAutomation(spec);
+        await launchAutomation({ ...spec, input: { ...spec.input, queued: { batch: item.batch, retries: item.retries } } });
       } catch (err) {
         if (err instanceof HttpError && err.status < 500) store.recordSkip(item, message(err));
         else {
@@ -459,6 +463,58 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     } finally {
       starting.delete(item.site);
       pump();
+    }
+  };
+
+  /** When each lane was last resumed: earlier BLOCKED runs no longer count towards pausing it. */
+  const resumedAt = new Map<string, number>();
+  /** Two runs in a row BLOCKED by the environment on a site pause its queue. */
+  const PAUSE_AFTER_BLOCKS = 2;
+
+  /**
+   * What a finished run means for the queue: a ticket BLOCKED by the environment is retried once at
+   * the end of its site; a used-up Claude plan pauses every site with runs waiting; two runs in a row
+   * BLOCKED by the environment pause their site; and when a whole batch is done, its summary is kept.
+   */
+  const afterFinish = (a: Automation): void => {
+    const { automations, queue, settings } = store.getState();
+    const en = settings.language === 'en';
+    const site = laneOf(a, settings.qa);
+    if (a.queued && a.kind === 'orchestrator' && a.queued.retries < 1 && isEnvironmentBlock(a) && !isUsageLimit(a)) {
+      store.enqueue([{ kind: a.kind, target: a.target, site, dryRun: a.dryRun, batch: a.queued.batch, retries: a.queued.retries + 1 }]);
+    }
+    const waiting = new Set(store.getState().queue.items.map((q) => q.site));
+    if (isUsageLimit(a)) {
+      const why = en ? `Claude's usage limit was reached: ${a.summary}` : `Se alcanzó el límite de uso de Claude: ${a.summary}`;
+      for (const lane of waiting) if (queue.paused[lane] === undefined) store.setLanePaused(lane, why.slice(0, 500));
+    } else if (waiting.has(site) && queue.paused[site] === undefined) {
+      const since = resumedAt.get(site) ?? 0;
+      const recent = automations
+        .filter((x) => x.finishedAt !== null && x.finishedAt > since && laneOf(x, settings.qa) === site)
+        .sort((x, y) => y.finishedAt! - x.finishedAt!)
+        .slice(0, PAUSE_AFTER_BLOCKS);
+      if (recent.length === PAUSE_AFTER_BLOCKS && recent.every((x) => isEnvironmentBlock(x))) {
+        const why = en
+          ? `${PAUSE_AFTER_BLOCKS} runs in a row were BLOCKED by the environment (site, login or browser). Last one: ${a.summary}`
+          : `${PAUSE_AFTER_BLOCKS} ejecuciones seguidas quedaron BLOCKED por el ambiente (sitio, login o navegador). La última: ${a.summary}`;
+        store.setLanePaused(site, why.slice(0, 500));
+      }
+    }
+    // The batch is done when none of its runs is waiting or running.
+    if (a.queued) {
+      const { batch } = a.queued;
+      const state = store.getState();
+      const inBatch = state.automations.filter((x) => x.queued?.batch === batch);
+      if (!state.queue.items.some((q) => q.batch === batch) && inBatch.every((x) => x.finishedAt !== null)) {
+        // The last attempt of each run decides (a retried ticket counts once).
+        const last = new Map<string, Automation>();
+        for (const x of [...inBatch].sort((p, q) => p.startedAt - q.startedAt)) last.set(`${x.kind}:${x.target}`, x);
+        const verdicts: Partial<Record<NonNullable<Automation['verdict']>, number>> = {};
+        for (const x of last.values()) if (x.verdict) verdicts[x.verdict] = (verdicts[x.verdict] ?? 0) + 1;
+        const from = Math.min(...inBatch.map((x) => x.startedAt));
+        const to = Math.max(...inBatch.map((x) => x.finishedAt!));
+        store.recordBatchDone({ batch, at: Date.now(), verdicts, minutes: Math.max(1, Math.round((to - from) / 60_000)) });
+      }
     }
   };
 
@@ -525,7 +581,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   /** Answer to a launch: the run (200) or, if its site was busy, its place in the queue (202). */
   const sendLaunch = (res: express.Response, result: Awaited<ReturnType<typeof requestLaunch>>): void => {
-    res.status(result && 'queued' in result ? 202 : 200).json(result);
+    // `position` is only in the queued answer (an Automation has a `queued` field of its own).
+    res.status(result && 'position' in result ? 202 : 200).json(result);
   };
 
   api.post('/orchestrator/:key', async (req, res) => {
@@ -571,6 +628,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   api.post('/queue/resume', (req, res) => {
     const { site } = z.object({ site: z.string().max(100) }).parse(req.body);
     store.setLanePaused(site, null);
+    resumedAt.set(site, Date.now());
     pump();
     res.json(fullState());
   });

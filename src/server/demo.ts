@@ -216,15 +216,15 @@ const counts = (def: ReportDef) => {
 };
 
 /** Demo tickets; `created` is how many days before "now" each one was created. */
-const DEMO_TICKET_DEFS: Array<Omit<JiraTicket, 'created'> & { ageDays: number }> = [
-  { key: 'AVM-7057', summary: 'Multi-shop customers with accounting disabled are unable to edit customers', status: 'On QA', type: 'Bug', priority: 'High', ageDays: 9 },
-  { key: 'AVM-7061', summary: 'Work order totals ignore shop-level tax overrides', status: 'On QA', type: 'Story', priority: 'Medium', ageDays: 14 },
+const DEMO_TICKET_DEFS: Array<Omit<JiraTicket, 'created' | 'epic' | 'blockedBy'> & Partial<Pick<JiraTicket, 'epic' | 'blockedBy'>> & { ageDays: number }> = [
+  { key: 'AVM-7057', summary: 'Multi-shop customers with accounting disabled are unable to edit customers', status: 'On QA', type: 'Bug', priority: 'High', ageDays: 9, epic: 'AVM-7000' },
+  { key: 'AVM-7061', summary: 'Work order totals ignore shop-level tax overrides', status: 'On QA', type: 'Story', priority: 'Medium', ageDays: 14, epic: 'AVM-7000' },
   { key: 'AVM-7064', summary: 'Vendor import keeps duplicated contacts after mass update', status: 'On Staging', type: 'Story', priority: 'Medium', ageDays: 21 },
   { key: 'AVM-7068', summary: 'Purchase order PDF misses the vendor address', status: 'On QA', type: 'Bug', priority: 'Highest', ageDays: 3 },
   { key: 'AVM-7072', summary: 'PM schedule shows the wrong next due date for hour meters', status: 'Test', type: 'Bug', priority: 'Low', ageDays: 6 },
 ];
 const demoTickets = (now: number): JiraTicket[] =>
-  DEMO_TICKET_DEFS.map(({ ageDays, ...t }) => ({ ...t, created: now - ageDays * 24 * 60 * 60_000 }));
+  DEMO_TICKET_DEFS.map(({ ageDays, ...t }) => ({ epic: '', blockedBy: [], ...t, created: now - ageDays * 24 * 60 * 60_000 }));
 
 /** Manual runs from the last few weeks: [days ago, type, title, ticket, env, result, passed, failed, blocked, bugs, minutes]. */
 const MANUAL_RUNS: Array<[number, string, string, string, string, TestRun['result'], number, number, number, number, number]> = [
@@ -267,6 +267,8 @@ function seededAutomation(
     translations: { [other]: { summary: summary[other], details: def ? details(def, other) : null } satisfies ReportTranslation },
     dryRun: false,
     site: '',
+    ticketType: kind === 'orchestrator' ? (DEMO_TICKET_DEFS.find((t) => t.key === target)?.type ?? '') : '',
+    queued: null,
   };
   const c = def ? counts(def) : { passed: 0, failed: 0, blocked: 8, bugs: 0 };
   const run: TestRun = {
@@ -333,7 +335,11 @@ export const demoFetch: typeof fetch = async (input, init) => {
   }
   const issues = demoTickets(Date.now()).map((t) => ({
     key: t.key,
-    fields: { summary: t.summary, status: { name: t.status }, issuetype: { name: t.type }, priority: { name: t.priority }, created: new Date(t.created!).toISOString() },
+    fields: {
+      summary: t.summary, status: { name: t.status }, issuetype: { name: t.type }, priority: { name: t.priority }, created: new Date(t.created!).toISOString(),
+      parent: t.epic ? { key: t.epic } : null,
+      issuelinks: t.blockedBy.map((key) => ({ type: { name: 'Blocks', inward: 'is blocked by' }, inwardIssue: { key } })),
+    },
   }));
   return Response.json({ issues, total: issues.length });
 };

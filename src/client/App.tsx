@@ -12,6 +12,7 @@ import { canOrchestrate, findSite } from '../shared/orchestrator';
 import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
 import { ValidateAllDialog } from './components/Queue';
+import { formatMinutes } from '../shared/queue';
 import { AssistantPanel, type ChatMessage } from './components/AssistantPanel';
 import { ReportDialog } from './components/ReportDialog';
 import { RunForm } from './components/RunForm';
@@ -61,6 +62,7 @@ const TEXT = {
       [started === 1 ? '1 empezó' : started > 1 ? `${started} empezaron` : '', waiting > 0 ? `${waiting} en la cola` : ''].filter(Boolean).join(' · '),
     skipped: (what: string) => `${what} salió de la cola`,
     lanePaused: (site: string) => `Cola de ${site} en pausa`,
+    batchDone: 'Cola terminada',
     seeProgress: 'Ver el progreso',
     resultSaved: 'Resultado guardado en el dashboard',
     newRun: 'Nuevo registro',
@@ -98,6 +100,7 @@ const TEXT = {
     queuedMany: (started: number, waiting: number) => [started > 0 ? `${started} started` : '', waiting > 0 ? `${waiting} queued` : ''].filter(Boolean).join(' · '),
     skipped: (what: string) => `${what} left the queue`,
     lanePaused: (site: string) => `${site} queue paused`,
+    batchDone: 'Queue finished',
     seeProgress: 'See progress',
     resultSaved: 'Result saved to the dashboard',
     newRun: 'New run',
@@ -231,7 +234,14 @@ export function App() {
           const queueBefore = stateRef.current?.queue;
           setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating } : s));
           const current = stateRef.current?.settings.language ?? 'es';
-          // A queued run that was dropped when its turn came, or a site that stopped: say why.
+          for (const a of next.automations) {
+            if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
+              const what =
+                a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
+              announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
+            }
+          }
+          // After the results (a finished run can cause these). A queued run that was dropped when its turn came, or a site that stopped: say why.
           const seen = new Set(queueBefore?.skipped.map((q) => q.id));
           for (const skip of next.queue.skipped) {
             if (queueBefore && !seen.has(skip.id)) announce(TEXT[current].skipped(skip.kind === 'orchestrator' ? skip.target : `${skip.kind} ${skip.target}`), skip.reason);
@@ -241,11 +251,12 @@ export function App() {
               announce(TEXT[current].lanePaused(next.settings.qa.sites.find((x) => x.id === site)?.name ?? site), why);
             }
           }
-          for (const a of next.automations) {
-            if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
-              const what =
-                a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
-              announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
+          // Last, so it is the notice left on screen. A whole batch is done: "4 PASSED · 1 FAILED · 1 BLOCKED · 2 h 10 min".
+          const known = new Set(queueBefore?.finished.map((b) => b.batch));
+          for (const done of next.queue.finished) {
+            if (queueBefore && !known.has(done.batch)) {
+              const counts = Object.entries(done.verdicts).map(([verdict, n]) => `${n} ${verdict}`);
+              announce(TEXT[current].batchDone, [...counts, formatMinutes(done.minutes).replace('~', '')].join(' · '));
             }
           }
         })

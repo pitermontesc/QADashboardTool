@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatDmy, toYmd } from '../../shared/dates';
-import { laneOf, orderedSites, ticketReason, ticketsToValidate } from '../../shared/queue';
+import { candidateReason, formatMinutes, laneOf, laneSchedule, orderedSites, ticketReason, ticketsToValidate } from '../../shared/queue';
 import type { AppState, QaSite, QueueItem } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { KIND_LABEL } from './Automations';
@@ -23,6 +23,9 @@ const TEXT = {
     dialogTitle: 'Validar todos los tickets',
     dialogSub: 'Se encolan en su sitio según su estado de Jira y corren uno a la vez por sitio, del más urgente al más antiguo. Nada empieza hasta que confirmes.',
     laneHint: (busy: boolean): string => (busy ? 'El sitio está ocupado: el primero empieza cuando se libere.' : 'El primero empieza ahora.'),
+    laneTotal: (total: string, end: string) => `${total} en total · libre ~${end}`,
+    startsAt: (time: string) => `empieza ~${time}`,
+    freeAt: (time: string) => `libre ~${time}`,
     lastRun: (date: string, verdict: string) => `Validado el ${date}: ${verdict}`,
     none: 'No hay tickets listos para validar: los que están en un estado del orquestador ya corren o están en la cola.',
     cancel: 'Cancelar',
@@ -44,6 +47,9 @@ const TEXT = {
     dialogTitle: 'Validate all tickets',
     dialogSub: 'They are queued on their site according to their Jira status and run one at a time per site, most urgent first, then the oldest. Nothing starts until you confirm.',
     laneHint: (busy: boolean): string => (busy ? 'The site is busy: the first one starts when it is free.' : 'The first one starts now.'),
+    laneTotal: (total: string, end: string) => `${total} in all · free ~${end}`,
+    startsAt: (time: string) => `starts ~${time}`,
+    freeAt: (time: string) => `free ~${time}`,
     lastRun: (date: string, verdict: string) => `Validated on ${date}: ${verdict}`,
     none: 'No tickets are ready to validate: the ones in an orchestrator status are already running or queued.',
     cancel: 'Cancel',
@@ -52,6 +58,10 @@ const TEXT = {
     close: 'Close',
   },
 };
+
+/** "15:40": estimates are rough, so no seconds. */
+const clock = (at: number, lang: 'es' | 'en'): string =>
+  new Date(at).toLocaleTimeString(lang === 'en' ? 'en-US' : 'es-ES', { hour: '2-digit', minute: '2-digit' });
 
 /** "AVM-7057", "Smoke QA" or "Regression #b333fb92", as the run is shown elsewhere. */
 export function queueLabel(item: Pick<QueueItem, 'kind' | 'target'>, lang: 'es' | 'en'): string {
@@ -87,6 +97,7 @@ export function QueuePanel({ state, onMove, onRemove, onResume }: QueuePanelProp
         const lane = items.filter((q) => q.site === site.id);
         const now = state.automations.find((a) => a.finishedAt === null && laneOf(a, qa) === site.id);
         const why = paused[site.id];
+        const schedule = laneSchedule(state, site.id);
         return (
           <section key={site.id} className="queue-lane" aria-label={site.name}>
             <div className="queue-lane-head">
@@ -98,6 +109,7 @@ export function QueuePanel({ state, onMove, onRemove, onResume }: QueuePanelProp
               ) : (
                 <span className="status-pill tone-muted"><i />{t.free}</span>
               )}
+              {why === undefined && lane.length > 0 && <span className="hint">{t.freeAt(clock(schedule.freeAt, lang))}</span>}
             </div>
             {why !== undefined && (
               <div className="queue-paused">
@@ -115,7 +127,9 @@ export function QueuePanel({ state, onMove, onRemove, onResume }: QueuePanelProp
                     <span className="queue-what">
                       <b>{label}</b>
                       {item.kind === 'orchestrator' && <span className="queue-sum">{summaryOf(item.target)}</span>}
-                      {ticket && <span className="hint">{ticketReason(ticket, lang)}</span>}
+                      <span className="hint">
+                        {[ticket && ticketReason(ticket, lang), why === undefined && t.startsAt(clock(schedule.starts.get(item.id)!, lang))].filter(Boolean).join(' · ')}
+                      </span>
                     </span>
                     <span className="queue-actions">
                       <button className="icon-btn" disabled={i === 0} onClick={() => onMove(item, 'up')} title={t.up(label)} aria-label={t.up(label)}>
@@ -157,6 +171,13 @@ export function ValidateAllDialog({ state, onConfirm, onClose }: ValidateAllProp
   const [sending, setSending] = useState(false);
   const { qa } = state.settings;
   const lanes: QaSite[] = orderedSites(qa).filter((site) => candidates.some((c) => c.site.id === site.id));
+  // Expected end of each site if every ticket shown were queued (rough: from earlier runs).
+  const [now] = useState(() => Date.now());
+  const total = (site: string): { minutes: number; end: number } => {
+    const extra = candidates.filter((c) => c.site.id === site).map((c) => ({ id: c.ticket.key, kind: 'orchestrator' as const, target: c.ticket.key }));
+    const { freeAt } = laneSchedule(state, site, now, extra);
+    return { minutes: candidates.filter((c) => c.site.id === site).reduce((sum, c) => sum + c.estimate.minutes, 0), end: freeAt };
+  };
   const busy = (site: string): boolean =>
     state.automations.some((a) => a.finishedAt === null && laneOf(a, qa) === site) || state.queue.items.some((q) => q.site === site);
   const toggle = (key: string): void =>
@@ -191,11 +212,14 @@ export function ValidateAllDialog({ state, onConfirm, onClose }: ValidateAllProp
             <div className="queue-lane-head">
               <b>{site.name}</b>
               <span className="hint">{t.laneHint(busy(site.id))}</span>
+              <span className="hint">{(({ minutes, end }) => t.laneTotal(formatMinutes(minutes), clock(end, lang)))(total(site.id))}</span>
             </div>
             <ol className="queue-list">
               {candidates
                 .filter((c) => c.site.id === site.id)
-                .map(({ ticket, last }) => (
+                .map((candidate) => {
+                  const { ticket, last } = candidate;
+                  return (
                   <li key={ticket.key} className="queue-row">
                     <label className="check queue-check">
                       <input type="checkbox" checked={chosen.has(ticket.key)} onChange={() => toggle(ticket.key)} aria-label={ticket.key} />
@@ -203,14 +227,15 @@ export function ValidateAllDialog({ state, onConfirm, onClose }: ValidateAllProp
                         <b>{ticket.key}</b>
                         <span className="queue-sum">{ticket.summary}</span>
                         <span className="hint">
-                          {[ticketReason(ticket, lang), last?.finishedAt && t.lastRun(formatDmy(toYmd(new Date(last.finishedAt)), lang), last.verdict ?? '')]
+                          {[candidateReason(candidate, lang, now), last?.finishedAt && t.lastRun(formatDmy(toYmd(new Date(last.finishedAt)), lang), last.verdict ?? '')]
                             .filter(Boolean)
                             .join(' · ')}
                         </span>
                       </span>
                     </label>
                   </li>
-                ))}
+                  );
+                })}
             </ol>
           </section>
         ))}

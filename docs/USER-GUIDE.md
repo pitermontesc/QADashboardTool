@@ -212,16 +212,29 @@ Requirements and limits:
 
 To validate every ticket that is ready, click **▷ Validate all (N)** next to **Refresh from Jira**. The dialog lists the tickets in **On QA** or **On Staging** that are not running or queued already, grouped by site (**STG first**, since it is the release gate) and in the order they would run:
 
-1. **Within each site, the most urgent first**: by Jira priority (Highest, High, Medium, Low, Lowest), then the oldest ticket, so a low-priority ticket does not wait forever. Each one shows why (**Priority High · created 9 d ago**).
+1. **Within each site, this order**, and each ticket says why (**Priority High · created 9 d ago · ~25 min · epic AVM-7000**):
+   - **Tickets last BLOCKED by the environment** (the site, the login or the browser failed, not the ticket) go **last**: the site may still be failing.
+   - **The most urgent Jira priority first** (Highest, High, Medium, Low, Lowest). A ticket **moves up one level for every 30 days** since it was created (**Priority Low (moved up for its age)**), so a low-priority ticket does not wait forever.
+   - **With the same priority, the shortest first**: the app estimates each run from earlier ones (the median of runs on tickets of the same type, Bug or Story; BLOCKED runs do not count because they end early). Shorter ones first means more tickets validated sooner. Until there is history it assumes 30 min (**no history yet**).
+   - **Then the oldest ticket.**
+   - **Tickets of the same epic go together**, where the first of them is.
+   - **A ticket "blocked by" another one in the list goes after it** (**after AVM-7057 (blocked by it)**).
+   
+   Each site shows the estimated total and when it would be free (**~1 h 36 min in all · free ~15:47**).
 2. **Checked by default**: tickets never validated, and those whose last run was **BLOCKED** (nothing was really tested). A ticket already validated shows its last verdict (**Validated on 20/11/2026: PASSED**) and is unchecked; check it to run it again.
 3. Click **Queue N tickets**. Nothing starts before this. The first ticket of each free site starts at once; the rest wait their turn.
 
-The **Run queue** card on the dashboard shows each site with what is running there and what is waiting, in order. Use **↑ ↓** to change the order within a site and **✕** to take a run out of the queue. The header shows how many are queued (**Running · AVM-7057 · 12 min · 3 queued**).
+The **Run queue** card on the dashboard shows each site with what is running there and what is waiting, in order, with the estimated start of each one (**starts ~14:43**) and when the site would be free. Use **↑ ↓** to change the order within a site and **✕** to take a run out of the queue. The header shows how many are queued (**Running · AVM-7057 · 12 min · 3 queued**).
 
 - **Between runs on a site the app waits 30 seconds**, so Chrome and the site settle before the next one.
 - **The queue survives closing the app.** When you open it again, it goes on where it left off.
 - **When its turn comes, a ticket is checked again.** If it left its Jira status (for example, someone moved it to Passed QA), it is taken out of the queue and the app says why.
-- **If Claude Code cannot start** (for example, it is not installed), that site's queue is **paused** with the run first in line and the error. Fix it and click **Resume** on the Run queue card.
+- **A queued ticket BLOCKED by the environment is retried once**, at the end of its site's queue (the problem may have been passing). A second BLOCKED is left as it is.
+- **The queue pauses instead of burning through the tickets** (and says why), with a **Resume** button on the Run queue card:
+  - **two runs in a row on a site BLOCKED by the environment** pause that site (it is probably down or the login is failing). Runs BLOCKED before you click Resume no longer count;
+  - **Claude's usage limit** pauses every site with runs waiting: they would all fail the same way. Resume when the limit resets;
+  - **Claude Code could not start** (for example, it is not installed): that site pauses with the run first in line.
+- **When a batch is done** (everything you queued with one click), the app says how it went: **Queue finished: 4 PASSED · 1 FAILED · 1 BLOCKED · 2 h 10 min**. A retried ticket counts once, with its last result.
 - Smoke tests and the regression use the same queue: **Smoke on QA** while a ticket runs on QA waits behind it and its button shows **QA · Queued · #1**.
 
 ## 5. Log a test without a ticket (Smoke, Regression…)

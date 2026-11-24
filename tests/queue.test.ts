@@ -188,7 +188,9 @@ describe('Queue timing and restarts', () => {
 });
 
 describe('Which tickets "Validate all" offers', () => {
-  const ticket = (key: string, status: string, priority = '', created: number | null = null): JiraTicket => ({ key, summary: key, status, type: 'Story', priority, created });
+  const ticket = (key: string, status: string, priority = '', created: number | null = null): JiraTicket => ({
+    key, summary: key, status, type: 'Story', priority, created, epic: '', blockedBy: [],
+  });
   const settings = { qa: { sites: [
     { id: 'qa', name: 'QA', url: 'https://qa.example', env: 'QA', jiraStatus: 'On QA' },
     { id: 'stg', name: 'STG', url: 'https://stg.example', env: 'STG', jiraStatus: 'On Staging' },
@@ -200,7 +202,7 @@ describe('Which tickets "Validate all" offers', () => {
       settings,
       jira: { tickets: [ticket('AVM-1', 'On QA'), ticket('AVM-2', 'On QA'), ticket('AVM-3', 'On QA'), ticket('AVM-4', 'On Staging'), ticket('AVM-5', 'In Progress'), ticket('AVM-6', 'On QA')] } as never,
       automations: [finished('AVM-1', 'PASSED'), finished('AVM-2', 'BLOCKED'), { kind: 'orchestrator', target: 'AVM-3', finishedAt: null } as Automation],
-      queue: { items: [{ id: 'q', kind: 'orchestrator', target: 'AVM-6', site: 'qa', dryRun: false, addedAt: 0 }], paused: {}, skipped: [] },
+      queue: { items: [{ id: 'q', kind: 'orchestrator', target: 'AVM-6', site: 'qa', dryRun: false, addedAt: 0, batch: 'b', retries: 0 }], paused: {}, skipped: [], finished: [] },
     });
     expect(candidates.map((c) => [c.ticket.key, c.site.id, c.suggested])).toEqual([
       ['AVM-4', 'stg', true],

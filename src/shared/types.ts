@@ -82,6 +82,10 @@ export interface JiraTicket {
   priority: string;
   /** When the ticket was created (ms); null if unknown (tickets cached before v1.15.0). */
   created: number | null;
+  /** Key of its parent (the epic, usually); empty if none. */
+  epic: string;
+  /** Keys of the tickets it "is blocked by" in Jira. */
+  blockedBy: string[];
 }
 
 /** Jira state visible to the UI: never includes the token. */
@@ -213,6 +217,10 @@ export interface Automation {
    * v1.15.0 (their lane is worked out from the kind, target and environment).
    */
   site: string;
+  /** Jira issue type of an orchestrator run's ticket (Bug, Story…), for duration estimates; empty if unknown. */
+  ticketType: string;
+  /** Set when the run came from the queue: its batch ("Validate all" click or single launch) and automatic retries so far. */
+  queued: { batch: string; retries: number } | null;
 }
 
 /** A run waiting for its site's lane to be free. */
@@ -225,6 +233,20 @@ export interface QueueItem {
   site: string;
   dryRun: boolean;
   addedAt: number;
+  /** Runs queued together ("Validate all" or one launch): a summary is shown when the whole batch is done. */
+  batch: string;
+  /** Automatic retries so far (a run BLOCKED by the environment is retried once). */
+  retries: number;
+}
+
+/** Summary of a finished batch of queued runs. */
+export interface QueueBatchDone {
+  batch: string;
+  at: number;
+  /** Final verdict of each run (the last attempt), by verdict. */
+  verdicts: Partial<Record<Verdict, number>>;
+  /** From the first start to the last end. */
+  minutes: number;
 }
 
 /** A queued run that was dropped when its turn came (e.g. the ticket left its Jira status). */
@@ -243,6 +265,8 @@ export interface QueueState {
   paused: Record<string, string>;
   /** Last runs dropped from the queue, newest first. */
   skipped: QueueSkip[];
+  /** Last finished batches, newest first. */
+  finished: QueueBatchDone[];
 }
 
 /** One step of Claude's progress, read from its log. */
