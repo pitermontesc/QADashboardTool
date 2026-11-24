@@ -42,7 +42,8 @@ const TEXT = {
     openInJira: (key: string) => `Abrir ${key} en Jira`,
     orchestratorTitle: (cmd: string) => `Corre Claude Code en segundo plano: ${cmd}`,
     openingTerminal: 'Iniciando…',
-    runningFor: (what: string, min: number) => `Running · ${what} · ${min} min`,
+    running: 'En curso',
+    runningFor: (what: string, min: number) => `En curso · ${what} · ${min} min`,
     validating: 'validando',
     seeProgress: 'Ver el progreso de la ejecución',
     runOrchestrator: 'Ejecutar orquestador QA',
@@ -103,6 +104,7 @@ const TEXT = {
     openInJira: (key: string) => `Open ${key} in Jira`,
     orchestratorTitle: (cmd: string) => `Runs Claude Code in the background: ${cmd}`,
     openingTerminal: 'Starting…',
+    running: 'Running',
     runningFor: (what: string, min: number) => `Running · ${what} · ${min} min`,
     validating: 'validating',
     seeProgress: 'See the run progress',
@@ -497,7 +499,7 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                   <div className="name"><span className="star">★</span> {type.name}</div>
                   {busy ? (
                     <button className="status-pill tone-prog pulsing pill-btn" onClick={() => onOpenReport(busy)} title={t.seeProgress}>
-                      <i />Running
+                      <i />{t.running}
                     </button>
                   ) : last && <ResultPill result={last.result} />}
                 </div>

@@ -110,14 +110,15 @@ export function AssistantPanel({ state, messages, setMessages, onClose, onAction
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
 
-  const send = async (text: string): Promise<void> => {
+  /** Asks `text` after the conversation `before` (all of it, or without the failed turn on Retry). */
+  const send = async (text: string, before: ChatMessage[] = messages): Promise<void> => {
     const question = text.trim();
     if (!question || busy) return;
     const history: AssistantTurn[] = [
-      ...messages.filter((m) => !m.error).map(({ role, text: body }) => ({ role, text: body })),
+      ...before.filter((m) => !m.error).map(({ role, text: body }) => ({ role, text: body })),
       { role: 'user' as const, text: question },
     ].slice(-40);
-    setMessages((m) => [...m, { role: 'user', text: question }]);
+    setMessages(() => [...before, { role: 'user', text: question }]);
     setDraft('');
     setBusy(true);
     try {
@@ -175,7 +176,7 @@ export function AssistantPanel({ state, messages, setMessages, onClose, onAction
           <div key={i} className={`assistant-msg from-${m.role}${m.error ? ' error' : ''}`}>
             {m.role === 'assistant' ? <RichText text={m.text} /> : <p>{m.text}</p>}
             {m.error && lastUser && i === messages.length - 1 && (
-              <button className="link-btn" onClick={() => { setMessages((all) => all.slice(0, -2)); void send(lastUser.text); }}>{t.retry}</button>
+              <button className="link-btn" onClick={() => void send(lastUser.text, messages.slice(0, -2))}>{t.retry}</button>
             )}
             {m.actions?.map(({ action, state: s }, j) => (
               <div key={j} className={`assistant-action is-${s}`}>

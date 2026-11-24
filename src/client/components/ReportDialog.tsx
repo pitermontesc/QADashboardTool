@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { ActivityItem, Automation, JiraComment, ReportBug, ReportBugEdit, ReportModule, StepStatus, TestRun } from '../../shared/types';
 import { KIND_LABEL, VERDICT_TONE, elapsedMin, reportIn } from './Automations';
 import { Icon } from './icons';
+import { useModalDialog } from './ui';
 import { useLang, useText } from '../i18n';
 import { dateTime, shortLabel } from '../../shared/dates';
 
@@ -12,7 +13,8 @@ interface ReportDialogProps {
   /** Every run, to show which other reports list the same Jira bug. */
   automations: Automation[];
   onClose: () => void;
-  onStop: (automation: Automation) => Promise<void>;
+  /** Resolves false if the run could not be stopped (then the button can be used again). */
+  onStop: (automation: Automation) => Promise<boolean>;
   /** The automation changed (translation or posted comment). */
   onUpdate: (automation: Automation) => void;
   onError: (error: unknown) => void;
@@ -37,7 +39,7 @@ const TEXT = {
     duration: 'Duración', modules: 'Módulos y pasos',
     noDetails: 'Esta ejecución no envió el detalle de módulos y pasos; solo trae el resumen.',
     bugs: 'Bugs encontrados', openBug: 'Abrir el bug', openBugOf: (key: string) => `Abrir ${key}`,
-    bugsNoDetail: (n: number) => `${n} reportados, sin detalle.`, none: 'Ninguno.',
+    bugsNoDetail: (n: number) => (n === 1 ? '1 reportado, sin detalle.' : `${n} reportados, sin detalle.`), none: 'Ninguno.',
     notes: 'Observaciones', external: 'Abrir reporte externo',
     translating: 'Traduciendo el reporte al español con Claude… Mientras tanto se muestra el original.',
     translateFailed: 'No se pudo traducir el reporte; se muestra el original.', retry: 'Reintentar',
@@ -384,12 +386,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
   const { summary, details, pending } = reportIn(a, lang);
   const translation = useTranslation(a, onUpdate);
   const [stopState, setStopState] = useState<'idle' | 'armed' | 'stopping'>('idle');
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const el = dialog.current;
-    if (el && !el.open) el.showModal();
-  }, []);
-
+  const dialog = useModalDialog();
   const running = a.finishedAt === null;
   const minutes = run?.minutes ?? (a.finishedAt ? Math.max(1, Math.round((a.finishedAt - a.startedAt) / 60_000)) : null);
   const bugCount = details?.bugs.length || run?.bugs || 0;
@@ -427,7 +424,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
         {running ? (
           <>
             <div className="rep-live">
-              <span className="status-pill tone-prog pulsing"><i />Running · {t.elapsed(elapsedMin(a))}</span>
+              <span className="status-pill tone-prog pulsing"><i />{t.running} · {t.elapsed(elapsedMin(a))}</span>
               <span className="hint">{t.stillRunning}</span>
               <div className="spacer" />
               <button
@@ -436,7 +433,9 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
                 onClick={() => {
                   if (stopState === 'armed') {
                     setStopState('stopping');
-                    void onStop(a);
+                    void onStop(a).then((stopped) => {
+                      if (!stopped) setStopState('idle');
+                    });
                   } else setStopState('armed');
                 }}
               >

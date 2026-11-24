@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { REGRESSION_DRY_RUN, isTestRunRef } from '../../shared/orchestrator';
 import type { QaConfig } from '../../shared/types';
 import { Icon } from './icons';
+import { useModalDialog } from './ui';
 import { useText } from '../i18n';
 
 const TEXT = {
@@ -34,7 +35,7 @@ interface RegressionDialogProps {
 /** Asks for the test run (a link on the configured domains, or an ID) and launches the regression runner. */
 export function RegressionDialog({ qa, onLaunch, onClose }: RegressionDialogProps) {
   const t = useText(TEXT);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const [run, setRun] = useState('');
   const [dryRun, setDryRun] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -44,11 +45,6 @@ export function RegressionDialog({ qa, onLaunch, onClose }: RegressionDialogProp
   const site = qa.sites.find((s) => s.id === qa.regressionSiteId);
   const host = site ? site.url.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') : '';
   const siteLabel = site ? (host ? `${site.name || site.id} (${host})` : site.name || site.id) : qa.regressionSiteId;
-
-  useEffect(() => {
-    const el = dialog.current;
-    if (el && !el.open) el.showModal();
-  }, []);
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();

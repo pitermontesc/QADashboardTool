@@ -44,7 +44,7 @@ const TEXT = {
   es: {
     title: 'Ejecuciones de QA automatizadas',
     sub: 'Smoke, regresión y validación de tickets que corren solas con Claude. Cada una aparece en Registros al lanzarla y se completa con su veredicto. Pulsa una para ver su reporte QA.',
-    stale: 'Sin resultado', running: 'Running', launched: (min: number) => `Corriendo en segundo plano · ${min} min`,
+    stale: 'Sin resultado', running: 'En curso', launched: (min: number) => `Corriendo en segundo plano · ${min} min`,
     viewReport: 'Ver el reporte QA', viewReportOf: (what: string) => `Ver el reporte QA de ${what}`,
     openLink: 'Abrir el reporte', dismiss: 'Detener y descartar esta ejecución',
   },

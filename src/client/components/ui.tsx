@@ -2,7 +2,7 @@ import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy } from '../../shared/dates';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import type { JiraConnection, JiraState, Result, Settings, TestRun, TestType } from '../../shared/types';
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
 
@@ -155,5 +155,27 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 export const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
 export const MOD = isMac ? '⌘' : 'Ctrl+';
+
+/**
+ * Opens a <dialog> as a modal when it mounts. Dialogs close by unmounting, which the browser does not
+ * treat as a close, so focus would drop to the page: when it unmounts, focus goes back to whatever had
+ * it before it opened (the button that opened it), if that is still on the page.
+ */
+export function useModalDialog() {
+  const ref = useRef<HTMLDialogElement>(null);
+  // Read on the first render, before the dialog takes focus (StrictMode re-runs effects, not this).
+  const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !el.open) el.showModal();
+  }, []);
+  useEffect(
+    () => () => {
+      if (opener?.isConnected) opener.focus();
+    },
+    [opener],
+  );
+  return ref;
+}
 
 export { Icon };

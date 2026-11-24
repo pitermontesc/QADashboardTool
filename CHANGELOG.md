@@ -2,6 +2,18 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.14.1] - 2026-11-24
+
+Interface fixes from the code review.
+
+### Fixed
+- **Unsaved edits in Sites & skills are kept.** Saving any other setting (the theme, the language, a test type) wiped what you had typed in **Sites & skills** but not saved yet. Now the draft only follows the saved sites when those change.
+- **A background refresh can no longer undo what you just did.** While Claude runs something, the app refreshes every 10 s; an answer that arrived after you deleted a run could bring it back, and one that arrived late could undo a finished run and announce its result twice. Now a refresh that was asked before a change is dropped, and the next one brings the news. Posting the Jira comment or editing a report's bugs no longer overwrites a refresh that arrived meanwhile.
+- **Stop does not stay on "Stopping…".** If stopping failed (for example, the app could not be reached), the button stayed disabled until the report was reopened. Now it goes back to **Stop**, and the report always reloads, so a run that reported just before shows its result.
+- **Retry in the assistant asks once.** It sent the failed question twice in the conversation Claude received.
+- **Focus returns after a dialog.** Closing the run form, the regression dialog or a QA report (with the button or Esc) puts focus back on the button that opened it, instead of the top of the page.
+- **Spanish**: a run in progress says **En curso** in the header, the cards and the report (it said "Running"), and counts read naturally in the singular ("1 ticket cargado", "Respaldo importado: 1 registro", "1 reportado").
+
 ## [1.14.0] - 2026-11-24
 
 Security and data fixes from a code review.

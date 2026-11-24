@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { useLang, useText } from '../i18n';
 import { RESULTS, type Result, type Settings, type TestRunInput } from '../../shared/types';
 import { Icon } from './icons';
-import { Kbd, MOD } from './ui';
+import { Kbd, MOD, useModalDialog } from './ui';
 
 interface RunFormProps {
   heading: string;
@@ -60,7 +60,7 @@ function suggestedResult(counts: Record<CountField, string>): Result | null {
 export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFormProps) {
   const lang = useLang();
   const t = useText(TEXT);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog();
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState(initial);
   const [counts, setCounts] = useState<Record<CountField, string>>({
@@ -75,11 +75,6 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
     initial.passed !== null || initial.failed !== null || initial.blocked !== null,
   );
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const el = dialog.current;
-    if (el && !el.open) el.showModal();
-  }, []);
 
   const set = <K extends keyof TestRunInput>(key: K, value: TestRunInput[K]): void =>
     setDraft((d) => ({ ...d, [key]: value }));

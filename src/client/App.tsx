@@ -41,16 +41,17 @@ const TEXT = {
     loading: 'Cargando…',
     saved: 'Registro guardado',
     deleted: 'Registro borrado',
-    ticketsLoaded: (n: number) => `${n} tickets cargados`,
+    ticketsLoaded: (n: number) => (n === 1 ? '1 ticket cargado' : `${n} tickets cargados`),
     jiraConnected: 'Jira conectado',
-    ticketsFrom: (n: number, site: string) => `${n} tickets cargados desde ${site}`,
+    ticketsFrom: (n: number, site: string) => `${n === 1 ? '1 ticket cargado' : `${n} tickets cargados`} desde ${site}`,
     newTicketIn: (status: string) => `Nuevo ticket en ${status}`,
     newTickets: 'Nuevos tickets por probar',
-    imported: (n: number) => `Respaldo importado: ${n} registros`,
+    imported: (n: number) => `Respaldo importado: ${n} ${n === 1 ? 'registro' : 'registros'}`,
     orchestratorOpened: (key: string) => `Orquestador QA corriendo en segundo plano para ${key}`,
     regressionOpened: (run: string) => (run ? `Regresión corriendo en segundo plano para ${run}` : 'Regresión corriendo en segundo plano'),
     smokeOpened: (site: string) => `Smoke en ${site} corriendo en segundo plano`,
     running: (n: number) => `${n} ejecuciones en curso`,
+    runningOne: (what: string, min: number) => `En curso · ${what} · ${min} min`,
     seeProgress: 'Ver el progreso',
     resultSaved: 'Resultado guardado en el dashboard',
     newRun: 'Nuevo registro',
@@ -70,16 +71,17 @@ const TEXT = {
     loading: 'Loading…',
     saved: 'Run saved',
     deleted: 'Run deleted',
-    ticketsLoaded: (n: number) => `${n} tickets loaded`,
+    ticketsLoaded: (n: number) => (n === 1 ? '1 ticket loaded' : `${n} tickets loaded`),
     jiraConnected: 'Jira connected',
-    ticketsFrom: (n: number, site: string) => `${n} tickets loaded from ${site}`,
+    ticketsFrom: (n: number, site: string) => `${n === 1 ? '1 ticket loaded' : `${n} tickets loaded`} from ${site}`,
     newTicketIn: (status: string) => `New ticket in ${status}`,
     newTickets: 'New tickets to test',
-    imported: (n: number) => `Backup imported: ${n} runs`,
+    imported: (n: number) => `Backup imported: ${n} ${n === 1 ? 'run' : 'runs'}`,
     orchestratorOpened: (key: string) => `QA orchestrator running in the background for ${key}`,
     regressionOpened: (run: string) => (run ? `Regression running in the background for ${run}` : 'Regression running in the background'),
     smokeOpened: (site: string) => `Smoke on ${site} running in the background`,
     running: (n: number) => `${n} runs in progress`,
+    runningOne: (what: string, min: number) => `Running · ${what} · ${min} min`,
     seeProgress: 'See progress',
     resultSaved: 'Result saved to the dashboard',
     newRun: 'New run',
@@ -192,12 +194,21 @@ export function App() {
   const running = (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0;
   const stateRef = useRef(state);
   stateRef.current = state;
+  /**
+   * Goes up with every change made here and every server state applied. A background refresh asked
+   * before either is dropped (the next one brings the news), so a slow answer cannot bring back a run
+   * just deleted, undo a run that already finished, or announce the same result twice.
+   */
+  const generation = useRef(0);
   useEffect(() => {
     if (!running) return;
     const timer = setInterval(() => {
+      const asked = generation.current;
       api
         .getState()
         .then((next) => {
+          if (asked !== generation.current) return;
+          generation.current++;
           const before = new Map(stateRef.current?.automations.map((a) => [a.id, a]));
           setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, translating: next.translating } : s));
           for (const a of next.automations) {
@@ -270,16 +281,22 @@ export function App() {
   }
   if (!state) return <main><div className="loading"><span className="spinner" /> {t.loading}</div></main>;
 
-  const patch = (changes: Partial<AppState>): void => setState((s) => (s ? { ...s, ...changes } : s));
+  /** Every change to the state goes through here, so an older background refresh cannot overwrite it. */
+  const update = (change: (s: AppState) => AppState): void => {
+    generation.current++;
+    setState((s) => (s ? change(s) : s));
+  };
+  const patch = (changes: Partial<AppState>): void => update((s) => ({ ...s, ...changes }));
+  /** Replaces one automation in the current state (not in the state this render saw). */
+  const putAutomation = (updated: Automation): void =>
+    update((s) => ({ ...s, automations: s.automations.map((a) => (a.id === updated.id ? updated : a)) }));
   const openForm = (initial: TestRunInput, id?: string): void => setForm({ key: ++formKey.current, id, initial });
 
   const saveRun = async (input: TestRunInput): Promise<boolean> => {
     try {
       const editingId = form?.id;
       const saved = editingId ? await api.updateRun(editingId, input) : await api.createRun(input);
-      setState((s) =>
-        s ? { ...s, runs: editingId ? s.runs.map((r) => (r.id === saved.id ? saved : r)) : [...s.runs, saved] } : s,
-      );
+      update((s) => ({ ...s, runs: editingId ? s.runs.map((r) => (r.id === saved.id ? saved : r)) : [...s.runs, saved] }));
       notify(t.saved);
       return true;
     } catch (error) {
@@ -291,7 +308,7 @@ export function App() {
   const deleteRun = async (run: TestRun): Promise<void> => {
     try {
       await api.deleteRun(run.id);
-      setState((s) => (s ? { ...s, runs: s.runs.filter((r) => r.id !== run.id) } : s));
+      update((s) => ({ ...s, runs: s.runs.filter((r) => r.id !== run.id) }));
       notify(t.deleted);
     } catch (error) {
       fail(error);
@@ -371,7 +388,7 @@ export function App() {
   const importBackup = async (backup: Backup): Promise<void> => {
     try {
       const next = await api.importBackup(backup);
-      setState(next);
+      update(() => next);
       notify(t.imported(next.runs.length));
     } catch (error) {
       fail(error);
@@ -387,7 +404,7 @@ export function App() {
   const reloadRuns = async (automation: Automation): Promise<void> => {
     const next = await api.getState().catch(() => null);
     if (next) patch({ runs: next.runs, automations: next.automations });
-    else patch({ automations: [automation, ...state.automations] });
+    else update((s) => ({ ...s, automations: [automation, ...s.automations] }));
   };
 
   const runOrchestrator = async (ticket: JiraTicket): Promise<boolean> => {
@@ -466,14 +483,18 @@ export function App() {
 
   const report = reportId ? state.automations.find((a) => a.id === reportId) : undefined;
   const active = state.automations.filter((a) => a.finishedAt === null);
-  const stopAutomation = async (automation: Automation): Promise<void> => {
+  /** False if it could not be stopped (e.g. it reported just before). Either way the state is reloaded. */
+  const stopAutomation = async (automation: Automation): Promise<boolean> => {
+    let stopped = false;
     try {
       await api.stopAutomation(automation.id);
-      const next = await api.getState();
-      patch({ runs: next.runs, automations: next.automations });
+      stopped = true;
     } catch (err) {
       notify((err as Error).message, 'error');
     }
+    const next = await api.getState().catch(() => null);
+    if (next) patch({ runs: next.runs, automations: next.automations });
+    return stopped;
   };
 
   /** Assistant action, confirmed by the user: same logic as the app's buttons. */
@@ -490,14 +511,14 @@ export function App() {
         }
         case 'create_run': {
           const saved = await api.createRun(action.run);
-          setState((s) => (s ? { ...s, runs: [...s.runs, saved] } : s));
+          update((s) => ({ ...s, runs: [...s.runs, saved] }));
           notify(t.runCreated);
           return true;
         }
         case 'post_jira_comment': {
           const body = state.automations.find((a) => a.id === action.automationId)?.details?.jiraComment?.body ?? '';
           const updated = await api.postJiraComment(action.automationId, body);
-          patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) });
+          putAutomation(updated);
           notify(t.commentPosted);
           return true;
         }
@@ -543,7 +564,7 @@ export function App() {
           <button className="running-indicator" onClick={() => setReportId(active[0]!.id)} title={t.seeProgress}>
             <i className="run-dot" />
             {active.length === 1
-              ? `Running · ${KIND_LABEL[lang][active[0]!.kind]} ${active[0]!.target} · ${elapsedMin(active[0]!)} min`
+              ? t.runningOne(`${KIND_LABEL[lang][active[0]!.kind]} ${active[0]!.target}`.trim(), elapsedMin(active[0]!))
               : t.running(active.length)}
           </button>
         )}
@@ -639,9 +660,9 @@ export function App() {
           onClose={() => setReportId(null)}
           onStop={stopAutomation}
           onUpdate={(updated) => {
-            patch({ automations: state.automations.map((a) => (a.id === updated.id ? updated : a)) });
+            putAutomation(updated);
             // Editing the bugs can change the test run's bug count.
-            void api.getState().then((next) => setState((s) => (s ? { ...s, runs: next.runs } : s)), () => undefined);
+            void api.getState().then((next) => patch({ runs: next.runs }), () => undefined);
           }}
           onError={fail}
         />

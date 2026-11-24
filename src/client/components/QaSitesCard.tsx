@@ -44,14 +44,17 @@ export function QaSitesCard({ settings, onSave }: QaSitesCardProps) {
   const t = useText(TEXT);
   const [draft, setDraft] = useState<QaConfig>(settings.qa);
   const [hosts, setHosts] = useState(settings.qa.testRunHosts.join(', '));
-  // If settings change from elsewhere (another save), the draft follows them.
+  // When the saved sites and skills change (saved here, or a backup imported), the draft follows them.
+  // Saving any other setting returns the same sites in a new object: that must not wipe unsaved edits.
+  const saved = JSON.stringify(settings.qa);
   useEffect(() => {
-    setDraft(settings.qa);
-    setHosts(settings.qa.testRunHosts.join(', '));
-  }, [settings.qa]);
+    const qa = JSON.parse(saved) as QaConfig;
+    setDraft(qa);
+    setHosts(qa.testRunHosts.join(', '));
+  }, [saved]);
 
   const next: QaConfig = { ...draft, testRunHosts: hosts.split(',').map((h) => h.trim()).filter(Boolean) };
-  const dirty = JSON.stringify(next) !== JSON.stringify(settings.qa);
+  const dirty = JSON.stringify(next) !== saved;
   const setSite = (index: number, patch: Partial<QaSite>): void =>
     setDraft((d) => ({ ...d, sites: d.sites.map((s, i) => (i === index ? { ...s, ...patch } : s)) }));
 
