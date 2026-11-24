@@ -17,7 +17,7 @@ npm install     # first time only
 npm start       # builds and opens the app at http://127.0.0.1:8765
 ```
 
-On macOS you can also double-click `Start QA Dashboard.command` (the first time: right-click → Open).
+On macOS you can also double-click `Start QA Dashboard.command`. If you downloaded the repository as a ZIP instead of cloning it, macOS blocks the file the first time: allow it in **System Settings → Privacy & Security → Open Anyway**.
 
 The app opens in its own window. Keep the terminal open while you use it; `Ctrl+C` closes it.
 
@@ -39,7 +39,7 @@ Shortcuts (also in the app menu):
 | `⌘K` | Claude assistant |
 | `⌘↵` / `Esc` | Save / cancel the form |
 
-The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. It is not signed: the first time, right-click → Open. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
+The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. The build is for **Apple Silicon Macs only** (`arm64`, the architecture of the Mac that packs it) and is **not signed**. An app you packed yourself opens directly; one you received (Slack, AirDrop, a download) is blocked the first time: allow it in **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/QA Dashboard.app"`. On current macOS, right-click → Open no longer skips this check. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
@@ -90,9 +90,13 @@ Each ticket appears as a button on the dashboard; clicking it opens a new run wi
 ```bash
 npm run dev         # server with reload + Vite at http://localhost:5173
 npm test            # Vitest: logic, API and UI
+npm run test:coverage  # the same, with coverage (HTML report in coverage/); fails below the floor in vite.config.ts
 npm run typecheck   # strict TypeScript, client and server
+npm run lint        # Oxlint (rules in .oxlintrc.json): errors fail, warnings are reported
 npm run build       # builds to dist/
 ```
+
+**CI.** Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on GitHub Actions: lint, typecheck, tests with the coverage floor, and the build. The coverage report is attached to the run as an artifact. The desktop app is not packed in CI (it is packed on a Mac with `npm run desktop:pack`).
 
 ### Structure
 
@@ -119,10 +123,19 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | GET | `/api/state` | Settings, runs and Jira status |
 | POST | `/api/runs` | Creates a run |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
-| PUT | `/api/settings` | Saves types, environments and ticket URL |
+| PUT | `/api/settings` | Saves the settings: types, environments, ticket URL, language, theme, and sites & skills |
 | POST | `/api/import` | Replaces the data with a backup (and the QA reports, if the backup has them) |
 | PUT | `/api/jira/config` | Saves the Jira connection |
 | POST | `/api/jira/refresh` | Reloads the tickets from Jira |
+| POST | `/api/orchestrator/:key` | Launches the QA orchestrator on a loaded ticket, on the site its Jira status maps to (409 if the status is not ready or the ticket already has a run in progress) |
+| POST | `/api/smoke` | Launches the smoke test on a site (`{site}`, a site id from Sites & skills) |
+| POST | `/api/regression` | Launches the regression (`{run}` test run link, optional `{dryRun: true}` for test mode: nothing is created or marked) |
+| POST | `/api/automation/:id/result/:key` | Claude reports the run's result (verdict, summary, details). `:key` is the run's report key from its prompt; without it the result is refused (403) |
+| GET | `/api/automation/:id/activity` | What Claude is doing: steps read from the run's log, and the log path |
+| POST | `/api/automation/:id/stop` | Stops a run in progress; it is closed as BLOCKED (409 if it already has a result) |
+| DELETE | `/api/automation/:id` | Deletes a QA report (stopping its run and removing its "In progress" run first, if it had not finished) |
+| PUT | `/api/automation/:id/bugs` | Edits the bugs of a finished report (`{lang, bugs}`) |
 | POST | `/api/assistant` | Assistant: `{messages}` → `{reply, actions}`; actions are only proposed, and the app runs them if the user confirms |
 | POST | `/api/automation/:id/translate` | Translates Claude's report into the requested language (`{lang}`) |
 | POST | `/api/automation/:id/jira-comment` | Posts to Jira the QA comment Claude left (optional edited `{body}`) |
+| POST | `/api/automation/:id/jira-comment/dismiss` | Dismisses the Jira comment, or restores it with `{dismissed: false}` |

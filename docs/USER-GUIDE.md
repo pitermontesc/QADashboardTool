@@ -35,7 +35,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 **If someone gave you `QA Dashboard.app`:**
 
 1. Drag `QA Dashboard.app` to the **Applications** folder.
-2. The first time, **right-click → Open** and confirm with **Open**. macOS asks for this because the app is not signed; after that, a double-click is enough.
+2. The first time, macOS says it cannot verify the app, because the app is not signed. Click **Done**, open **System Settings → Privacy & Security**, scroll to the message about "QA Dashboard" and click **Open Anyway**, then confirm with your password. After that, a double-click is enough. (An app you packed yourself from the code opens directly.) The app runs on Apple Silicon Macs (M1 or later).
 3. To keep it at hand: with the app open, right-click its Dock icon → **Options → Keep in Dock**.
 
 **If you have the project code** (you need Node.js 20 or later):
@@ -455,5 +455,5 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A run ends in BLOCKED "without reporting a result"** | Open its report: **Live activity · Log** has Claude's last steps and the path to the full log in `~/qa-dashboard-runs/logs/`. |
 | **A report is still in its original language** | The translation failed (for example, with no connection). Open the report and click **Retry**. |
 | **"Post on AVM-…" fails** | Check in **Types & settings** that Jira is connected: the comment is posted with the same email and API token. |
-| **macOS says the app cannot be opened** | The first time, open it with **right-click → Open**. |
+| **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. On an Intel Mac the app does not run; use the code with `npm start`. |
 | **The app looks too big or too small** | `⌘0` goes back to actual size; `⌘+` / `⌘-` adjust the zoom. |

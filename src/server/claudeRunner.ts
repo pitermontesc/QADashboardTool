@@ -64,7 +64,7 @@ function findClaude(): string {
 function cleanEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (/^CLAUDE/.test(key) || key === 'ELECTRON_RUN_AS_NODE') continue;
+    if (key.startsWith('CLAUDE') || key === 'ELECTRON_RUN_AS_NODE') continue;
     env[key] = value;
   }
   const home = os.homedir();

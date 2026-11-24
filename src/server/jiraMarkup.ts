@@ -20,6 +20,8 @@ function inline(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
     .replace(/__(.+?)__/g, '*$1*')
     .replace(/~~(.+?)~~/g, '-$1-');
+  // NUL marks where each code span was set aside; no real text contains it.
+  // oxlint-disable-next-line no-control-regex
   return out.replace(/\u0000(\d+)\u0000/g, (_, i: string) => `{{${codes[Number(i)]}}}`);
 }
 

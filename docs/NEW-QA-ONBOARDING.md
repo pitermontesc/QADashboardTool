@@ -16,7 +16,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
 
 ### Installation
 
-- [ ] **App.** Drag `QA Dashboard.app` to **Applications** and open it the first time with **right-click → Open** (it is not signed).
+- [ ] **App.** Drag `QA Dashboard.app` to **Applications** and open it. It is not signed, so the first time macOS blocks it: in **System Settings → Privacy & Security**, click **Open Anyway**.
 - [ ] **Claude Code.** Install it, run `claude` once in Terminal and sign in with your account. Runs use **your** plan.
 - [ ] **Chrome and Claude in Chrome.** Install the extension, connect it to your Claude account and sign in with **your user** on `qa.alpinevm.com`, `staging.alpinevm.com` and `app.testomat.io`. Without this, runs end in BLOCKED.
 - [ ] **Skills.** Install the `avm-qa-skills` plugin from the organization library in one of these ways:

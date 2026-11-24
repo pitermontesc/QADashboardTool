@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Development
+- **CI on GitHub Actions**: every push to `main` and every pull request runs lint, typecheck, the tests with a coverage floor, and the build.
+- **Lint** with Oxlint (`npm run lint`, rules in `.oxlintrc.json`) and **coverage** with `npm run test:coverage` (floor just under today's 75% of statements).
+- **README**: the API table lists every route (9 were missing), and a test keeps it in sync with the server. The opening instructions say how to allow the unsigned app on current macOS (**Privacy & Security → Open Anyway**; right-click → Open no longer does it) and that it runs on Apple Silicon only.
+
 ## [1.14.1] - 2026-11-24
 
 Interface fixes from the code review.
