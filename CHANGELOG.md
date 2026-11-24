@@ -2,7 +2,14 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.15.0] - 2026-11-24
+
+### Added
+- **One run at a time per site.** Two Claude runs on the same site shared Chrome, the test users and the data, and got in each other's way. Now each QA site is a lane: a run asked for while its site is busy (another ticket, a smoke test or the regression) waits in that site's queue and starts on its own 30 s after the site is free. QA and STG still run in parallel. The ticket card or suite button shows **Queued · #N**, and the header how many are queued.
+- **Validate all.** A **Validate all (N)** button next to **Refresh from Jira** lists the tickets ready for the orchestrator, per site (STG first) and in the order they would run: most urgent Jira priority first, then the oldest ticket. Tickets never validated, or last BLOCKED, are checked by default; nothing starts until you confirm.
+- **Run queue card** on the dashboard: what is running and waiting on each site, with buttons to move a run up or down or take it out.
+- The queue is saved and survives closing the app. When its turn comes, a ticket that left its Jira status is taken out of the queue saying why; if Claude Code cannot start, that site's queue pauses with a **Resume** button.
+- Jira tickets now carry their priority and creation date (used to order the queue).
 
 ### Development
 - **CI on GitHub Actions**: every push to `main` and every pull request runs lint, typecheck, the tests with a coverage floor, and the build.

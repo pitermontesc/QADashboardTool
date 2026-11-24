@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
-import type { Automation, AutomationDetails, Lang } from '../shared/types.js';
+import type { Automation, AutomationDetails, Lang, QueueItem } from '../shared/types.js';
 import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import {
@@ -11,6 +11,7 @@ import {
 } from './claudeRunner.js';
 import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
 import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
+import { laneOf, queuePosition, ticketsToValidate } from '../shared/queue.js';
 import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportBugsEditSchema, reportTranslationSchema, runInputSchema, settingsSchema,
@@ -32,7 +33,12 @@ export interface AppOptions {
   demo?: boolean;
   /** Whether a saved pid is still a running Claude process; injectable to test runs left by an earlier session. */
   processAlive?: (pid: number) => boolean;
+  /** Pause between the end of a run and the start of the next queued one on the same site (default 30 s). */
+  laneGapMs?: number;
 }
+
+/** Default pause between runs on a site, so Chrome and the site settle before the next one. */
+const LANE_GAP_MS = 30_000;
 
 /** How often runs left by an earlier session are checked. */
 const ORPHAN_CHECK_MS = 30_000;
@@ -142,6 +148,17 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   app.use(securityHeaders);
 
   const api = express.Router();
+  /**
+   * Port the app answers on: Claude's report URL needs it. Queued runs start without a request, so
+   * it is taken from the requests; the first one also starts a queue left by an earlier session.
+   */
+  let port = 0;
+  api.use((req, _res, next) => {
+    const known = port !== 0;
+    port = req.socket.localPort ?? port;
+    if (!known && port !== 0) setImmediate(() => pump());
+    next();
+  });
   api.use(jsonWrites(lang));
   api.use(express.json({ limit: '5mb' }));
   api.use((_req, res, next) => {
@@ -293,7 +310,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     // In test mode nothing goes to Jira: a comment Claude prepared anyway is not offered for posting.
     const details = automation.dryRun && result.details ? { ...result.details, jiraComment: null } : result.details;
     const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
-    return store.finishAutomation(id, { verdict, summary, link, details }, runInput);
+    const finished = store.finishAutomation(id, { verdict, summary, link, details }, runInput);
+    // Its lane is free: the next queued run starts after the pause.
+    pump();
+    return finished;
   };
 
   /** Closes as BLOCKED a run whose process ended or was stopped without reporting. */
@@ -303,27 +323,50 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     complete(id, automationResultSchema.parse({ verdict: 'BLOCKED', summary: summary.slice(0, 4900) }));
   };
 
-  api.post('/orchestrator/:key', async (req, res) => {
-    const key = String(req.params.key);
+  /** What a launch needs: the run to record (with its lane) and the prompt for Claude. */
+  interface LaunchSpec {
+    input: Parameters<Store['startAutomation']>[0];
+    prompt: (extra: string) => string;
+  }
+
+  /** The orchestrator on a loaded ticket, on the site its Jira status maps to (On QA → QA, On Staging → STG). */
+  const orchestratorSpec = (key: string): LaunchSpec => {
     if (!isTicketKey(key)) throw new HttpError(400, `Invalid ticket: ${key}`);
     const ticket = store.getJiraState().tickets.find((t) => t.key === key);
     if (!ticket) throw new HttpError(404, `${key} is not among the loaded Jira tickets`);
     const { qa } = store.getState().settings;
-    // The Jira status decides which site is tested (On QA → QA, On Staging → STG, per the settings).
     const site = siteForStatus(ticket.status, qa);
     if (!site) {
       throw new HttpError(409, `${key} is in "${ticket.status}"; the orchestrator is for tickets in ${orList(readyStatuses(qa))}`);
     }
     const title = automationTitle('orchestrator', key, lang(), ticket.summary);
-    res.json(await launchAutomation(req, { kind: 'orchestrator', target: key, env: site.env, title }, (extra) => orchestratorPrompt(key, qa, extra)));
-  });
+    return { input: { kind: 'orchestrator', target: key, env: site.env, title, site: site.id }, prompt: (extra) => orchestratorPrompt(key, qa, extra) };
+  };
+
+  const smokeSpec = (siteId: unknown): LaunchSpec => {
+    const { qa } = store.getState().settings;
+    const site = findSite(siteId, qa);
+    if (!site) throw new HttpError(400, `That site does not exist: choose ${orList(qa.sites.map((s) => s.name))}`);
+    const title = automationTitle('smoke', site.name, lang());
+    return { input: { kind: 'smoke', target: site.name, env: site.env, title, site: site.id }, prompt: (extra) => smokePrompt(site.id, qa, extra) };
+  };
+
+  const regressionSpec = (run: string, dryRun: boolean): LaunchSpec => {
+    const { qa } = store.getState().settings;
+    const env = findSite(qa.regressionSiteId, qa)?.env ?? '';
+    const title = automationTitle('regression', run, lang(), '', dryRun);
+    return {
+      input: { kind: 'regression', target: run, env, title, dryRun, site: qa.regressionSiteId },
+      prompt: (extra) => regressionPrompt(run, qa, extra, dryRun),
+    };
+  };
+
+  /** The spec of a queued run, read again when its turn comes (the ticket or the settings may have changed). */
+  const specFor = (item: QueueItem): LaunchSpec =>
+    item.kind === 'orchestrator' ? orchestratorSpec(item.target) : item.kind === 'smoke' ? smokeSpec(item.site) : regressionSpec(item.target, item.dryRun);
 
   /** Launches Claude Code in the background and leaves the run "in progress" until it reports the result. */
-  const launchAutomation = async (
-    req: express.Request,
-    input: Parameters<Store['startAutomation']>[0],
-    prompt: (extra: string) => string,
-  ) => {
+  const launchAutomation = async ({ input, prompt }: LaunchSpec) => {
     prompt(''); // Validate before recording anything.
     // A double click does not launch two Claude processes on the same target; another site or ticket can run at the same time.
     const busy = store.getState().automations.find((a) => a.finishedAt === null && a.kind === input.kind && a.target === input.target);
@@ -336,7 +379,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     try {
       const handle = await launch({
         id: automation.id,
-        prompt: prompt(reportInstruction(input.kind, req.socket.localPort ?? 0, automation.id, settings.language, reportKey)),
+        prompt: prompt(reportInstruction(input.kind, port, automation.id, settings.language, reportKey)),
         onExit: ({ code, lastMessage }) => {
           running.delete(automation.id);
           // Claude reports with a POST before exiting; if it did not, the run must not stay "in progress" forever.
@@ -355,6 +398,92 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       launching.delete(automation.id);
     }
     return store.getAutomation(automation.id);
+  };
+
+  // ── Queue: one run at a time per site ───────────────────────────────────────────────────────────
+  const laneGapMs = options.laneGapMs ?? LANE_GAP_MS;
+  /** Lanes whose next queued run is being started. */
+  const starting = new Set<string>();
+  const laneBusy = (site: string): boolean => {
+    const { automations, settings } = store.getState();
+    return starting.has(site) || automations.some((a) => a.finishedAt === null && laneOf(a, settings.qa) === site);
+  };
+  const runLabel = (kind: Automation['kind'], target: string): string => (kind === 'orchestrator' ? target : `${kind} ${target}`.trim());
+
+  /**
+   * A launch from a button or the assistant: it starts now if its site's lane is free, or waits in
+   * the queue behind the runs already there (HTTP 202 with its position).
+   */
+  const requestLaunch = async (spec: LaunchSpec): Promise<Automation | null | { queued: QueueItem; position: number }> => {
+    spec.prompt(''); // Validate before recording anything.
+    const { kind, target, site } = spec.input;
+    const { automations, queue } = store.getState();
+    // A double click does not launch or queue the same run twice.
+    if (automations.some((a) => a.finishedAt === null && a.kind === kind && a.target === target)) {
+      throw new HttpError(409, `There is already a run in progress for ${runLabel(kind, target)}`);
+    }
+    if (queue.items.some((q) => q.kind === kind && q.target === target)) throw new HttpError(409, `${runLabel(kind, target)} is already queued`);
+    if (laneBusy(site) || queue.items.some((q) => q.site === site)) {
+      const [queued] = store.enqueue([{ kind, target, site, dryRun: spec.input.dryRun ?? false }]);
+      return { queued: queued!, position: queuePosition(store.getState().queue.items, queued!) };
+    }
+    return launchAutomation(spec);
+  };
+
+  /** Starts a queued run. If it no longer applies it is dropped saying why; if Claude cannot start, its lane stops. */
+  const startQueued = async (item: QueueItem): Promise<void> => {
+    starting.add(item.site);
+    store.dequeue(item.id);
+    const message = (err: unknown): string => translateError(err instanceof Error ? err.message : String(err), lang());
+    try {
+      let spec: LaunchSpec;
+      try {
+        spec = specFor(item);
+        if (spec.input.site !== item.site) {
+          throw new HttpError(409, `${item.target} moved to another site's status; launch it again from its card`);
+        }
+      } catch (err) {
+        store.recordSkip(item, message(err));
+        return;
+      }
+      try {
+        await launchAutomation(spec);
+      } catch (err) {
+        if (err instanceof HttpError && err.status < 500) store.recordSkip(item, message(err));
+        else {
+          // Claude Code could not start: the run waits at the head of its lane until the user resumes it.
+          store.requeueFirst(item);
+          store.setLanePaused(item.site, message(err));
+        }
+      }
+    } finally {
+      starting.delete(item.site);
+      pump();
+    }
+  };
+
+  let gapTimer: NodeJS.Timeout | null = null;
+  /** Starts the next queued run on every free lane, once the pause after its last run is over. */
+  const pump = (): void => {
+    if (port === 0) return; // The report URL needs the port: the first request brings it.
+    const { automations, queue, settings } = store.getState();
+    let soonest = Infinity;
+    for (const site of new Set(queue.items.map((q) => q.site))) {
+      if (queue.paused[site] !== undefined || laneBusy(site)) continue;
+      const lastEnd = Math.max(0, ...automations.filter((a) => a.finishedAt !== null && laneOf(a, settings.qa) === site).map((a) => a.finishedAt!));
+      const wait = lastEnd + laneGapMs - Date.now();
+      if (wait > 0) soonest = Math.min(soonest, wait);
+      else void startQueued(queue.items.find((q) => q.site === site)!);
+    }
+    if (gapTimer) clearTimeout(gapTimer);
+    gapTimer = null;
+    if (soonest !== Infinity) {
+      gapTimer = setTimeout(() => {
+        gapTimer = null;
+        pump();
+      }, soonest);
+      gapTimer.unref();
+    }
   };
 
   /** Stops a run's process, whether this server or a previous one launched it. */
@@ -394,23 +523,56 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   checkOrphans();
   setInterval(checkOrphans, ORPHAN_CHECK_MS).unref();
 
+  /** Answer to a launch: the run (200) or, if its site was busy, its place in the queue (202). */
+  const sendLaunch = (res: express.Response, result: Awaited<ReturnType<typeof requestLaunch>>): void => {
+    res.status(result && 'queued' in result ? 202 : 200).json(result);
+  };
+
+  api.post('/orchestrator/:key', async (req, res) => {
+    sendLaunch(res, await requestLaunch(orchestratorSpec(String(req.params.key))));
+  });
+
   api.post('/regression', async (req, res) => {
     const body = (req.body ?? {}) as { run?: unknown; dryRun?: unknown };
     const run = typeof body.run === 'string' ? body.run.trim() : '';
-    const dryRun = body.dryRun === true;
-    const { qa } = store.getState().settings;
-    const env = findSite(qa.regressionSiteId, qa)?.env ?? '';
-    const title = automationTitle('regression', run, lang(), '', dryRun);
-    res.json(await launchAutomation(req, { kind: 'regression', target: run, env, title, dryRun }, (extra) => regressionPrompt(run, qa, extra, dryRun)));
+    sendLaunch(res, await requestLaunch(regressionSpec(run, body.dryRun === true)));
   });
 
   api.post('/smoke', async (req, res) => {
-    const { site: siteId } = (req.body ?? {}) as { site?: unknown };
-    const { qa } = store.getState().settings;
-    const site = findSite(siteId, qa);
-    if (!site) throw new HttpError(400, `That site does not exist: choose ${orList(qa.sites.map((s) => s.name))}`);
-    const title = automationTitle('smoke', site.name, lang());
-    res.json(await launchAutomation(req, { kind: 'smoke', target: site.name, env: site.env, title }, (extra) => smokePrompt(site.id, qa, extra)));
+    const { site } = (req.body ?? {}) as { site?: unknown };
+    sendLaunch(res, await requestLaunch(smokeSpec(site)));
+  });
+
+  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true });
+
+  /** "Validate all": queues the chosen tickets, each on its site's lane, in the app's order. */
+  api.post('/queue', (req, res) => {
+    const { keys } = z.object({ keys: z.array(z.string().trim().max(50)).min(1).max(100) }).parse(req.body);
+    const wanted = new Set(keys);
+    const chosen = ticketsToValidate(store.getState()).filter((c) => wanted.has(c.ticket.key));
+    if (chosen.length === 0) throw new HttpError(409, 'None of those tickets can be queued (not ready, already running or already queued)');
+    store.enqueue(chosen.map((c) => ({ kind: 'orchestrator', target: c.ticket.key, site: c.site.id, dryRun: false })));
+    pump();
+    res.json(fullState());
+  });
+
+  api.delete('/queue/:id', (req, res) => {
+    if (!store.dequeue(String(req.params.id))) throw new HttpError(404, 'That run is no longer queued');
+    res.json(fullState());
+  });
+
+  api.post('/queue/:id/move', (req, res) => {
+    const { direction } = z.object({ direction: z.enum(['up', 'down']) }).parse(req.body);
+    if (!store.moveQueued(String(req.params.id), direction)) throw new HttpError(404, 'That run is no longer queued');
+    res.json(fullState());
+  });
+
+  /** Lets a stopped lane go on (after fixing what kept Claude from starting). */
+  api.post('/queue/resume', (req, res) => {
+    const { site } = z.object({ site: z.string().max(100) }).parse(req.body);
+    store.setLanePaused(site, null);
+    pump();
+    res.json(fullState());
   });
 
   api.post(['/automation/:id/result', '/automation/:id/result/:key'], (req, res) => {
@@ -520,6 +682,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const id = String(req.params.id);
     if (store.getAutomation(id)?.finishedAt === null) stopProcess(id);
     if (!store.deleteAutomation(id)) throw new HttpError(404, 'That run no longer exists');
+    pump();
     res.status(204).end();
   });
 

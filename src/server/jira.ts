@@ -11,6 +11,8 @@ interface JiraIssue {
     summary?: string | null;
     status?: { name?: string } | null;
     issuetype?: { name?: string } | null;
+    priority?: { name?: string } | null;
+    created?: string | null;
   };
 }
 
@@ -22,7 +24,7 @@ interface JiraSearchResponse {
 
 const TIMEOUT_MS = 25_000;
 const MAX_TICKETS = 100;
-const FIELDS = 'summary,status,issuetype';
+const FIELDS = 'summary,status,issuetype,priority,created';
 
 /** JQL to fetch a board's tickets: its quick filter + the extra JQL, excluding finished ones. */
 export function boardJql(board: JiraBoardRef, extraJql: string): string {
@@ -110,7 +112,17 @@ const toTicket = (issue: JiraIssue): JiraTicket => ({
   summary: issue.fields?.summary ?? '',
   status: issue.fields?.status?.name ?? '',
   type: issue.fields?.issuetype?.name ?? '',
+  priority: issue.fields?.priority?.name ?? '',
+  created: toTime(issue.fields?.created),
 });
+
+/** Jira date ("2026-11-20T10:31:00.000-0500") in ms; null if missing or unreadable. */
+function toTime(value: string | null | undefined): number | null {
+  if (!value) return null;
+  // Jira writes the offset without a colon (-0500), which some engines do not parse.
+  const time = Date.parse(value.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  return Number.isNaN(time) ? null : time;
+}
 
 /**
  * Posts a comment on a ticket with the REST API v2 (accepts wiki markup) and returns

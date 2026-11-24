@@ -83,8 +83,9 @@ describe('API', () => {
     const refreshed = await srv.call('POST', '/api/jira/refresh', {});
     expect(refreshed.body).toMatchObject({ connection: 'connected', error: null });
     expect(refreshed.body.tickets).toEqual([
-      { key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story' },
-      { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug' },
+      // Priority and creation date order the queue (v1.15.0); Jira writes the offset without a colon.
+      { key: 'AVM-101', summary: 'Work order totals', status: 'On QA', type: 'Story', priority: 'High', created: Date.parse('2026-11-10T09:00:00.000-05:00') },
+      { key: 'AVM-102', summary: 'Vendor <import> & export', status: 'Test', type: 'Bug', priority: '', created: null },
     ]);
 
     // Saving without a token keeps the previous one; an invalid JQL returns Jira's detail.
@@ -141,12 +142,8 @@ describe('QA orchestrator', () => {
     await srv.call('POST', '/api/jira/refresh', {});
   });
   afterAll(() => srv.close());
-  // The same thing cannot be launched twice while running: each test stops what it left running.
-  afterEach(async () => {
-    for (const a of (await srv.call('GET', '/api/state')).body.automations) {
-      if (a.finishedAt === null) await srv.call('POST', `/api/automation/${a.id}/stop`, {});
-    }
-  });
+  // One run at a time per site: each test leaves nothing queued or running.
+  afterEach(() => srv.reset());
 
   it('only launches for loaded tickets in On QA or On Staging', async () => {
     expect(await srv.call('POST', '/api/orchestrator/AVM-101', {})).toMatchObject({ status: 200, body: { kind: 'orchestrator', target: 'AVM-101', env: 'QA' } });
@@ -159,9 +156,11 @@ describe('QA orchestrator', () => {
   });
 
   it('launches the regression with or without a testomat.io test run', async () => {
-    expect((await srv.call('POST', '/api/regression', { run: '#b333fb92' })).status).toBe(200);
-    expect((await srv.call('POST', '/api/regression', { run: 'https://app.testomat.io/projects/avm/runs/b333fb92' })).status).toBe(200);
-    expect((await srv.call('POST', '/api/regression', {})).status).toBe(200);
+    // One at a time: all three run on the regression site, so each one is stopped before the next.
+    for (const body of [{ run: '#b333fb92' }, { run: 'https://app.testomat.io/projects/avm/runs/b333fb92' }, {}]) {
+      expect((await srv.call('POST', '/api/regression', body)).status).toBe(200);
+      await srv.reset();
+    }
     expect((await srv.call('POST', '/api/regression', { run: "#abc'; rm -rf ~" })).status).toBe(400);
     expect((await srv.call('POST', '/api/regression', { run: 'https://evil.example/runs/1' })).status).toBe(400);
     expect(launched.map(withoutReport)).toEqual([

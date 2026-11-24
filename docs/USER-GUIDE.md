@@ -16,6 +16,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 3. [Connect Jira](#3-connect-jira)
 4. [Log a test from a ticket](#4-log-a-test-from-a-ticket)
    - [Validate a ticket with the QA orchestrator](#validate-a-ticket-with-the-qa-orchestrator)
+   - [Validate all tickets: the run queue](#validate-all-tickets-the-run-queue)
 5. [Log a test without a ticket (Smoke, Regression…)](#5-log-a-test-without-a-ticket-smoke-regression)
    - [Run the smoke test with Claude Code](#run-the-smoke-test-with-claude-code)
    - [Run the regression with Claude Code](#run-the-regression-with-claude-code)
@@ -205,7 +206,23 @@ Requirements and limits:
 
 - **Claude Code installed** and signed in, with the `avm-qa-orchestrator` skill available. The app looks for the `claude` command in `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
 - The button appears only on **On QA** or **On Staging** tickets. If the ticket changed status in Jira, click **Refresh from Jira** first; the app does not launch the orchestrator for a ticket that is no longer in those statuses.
-- You can launch the orchestrator for several tickets at once: each one runs in its own process.
+- **One run at a time per site.** Two runs on the same site share Chrome, the test users and the data, so they would get in each other's way. If the site is busy (another ticket, a smoke test or the regression is running there), the ticket waits in that site's queue: the app says **AVM-7057 queued on its site (position 1)**, the card shows **Queued · #1**, and it starts on its own when the site is free. QA and STG are separate: a ticket on QA and one on STG run at the same time.
+
+### Validate all tickets: the run queue
+
+To validate every ticket that is ready, click **▷ Validate all (N)** next to **Refresh from Jira**. The dialog lists the tickets in **On QA** or **On Staging** that are not running or queued already, grouped by site (**STG first**, since it is the release gate) and in the order they would run:
+
+1. **Within each site, the most urgent first**: by Jira priority (Highest, High, Medium, Low, Lowest), then the oldest ticket, so a low-priority ticket does not wait forever. Each one shows why (**Priority High · created 9 d ago**).
+2. **Checked by default**: tickets never validated, and those whose last run was **BLOCKED** (nothing was really tested). A ticket already validated shows its last verdict (**Validated on 20/11/2026: PASSED**) and is unchecked; check it to run it again.
+3. Click **Queue N tickets**. Nothing starts before this. The first ticket of each free site starts at once; the rest wait their turn.
+
+The **Run queue** card on the dashboard shows each site with what is running there and what is waiting, in order. Use **↑ ↓** to change the order within a site and **✕** to take a run out of the queue. The header shows how many are queued (**Running · AVM-7057 · 12 min · 3 queued**).
+
+- **Between runs on a site the app waits 30 seconds**, so Chrome and the site settle before the next one.
+- **The queue survives closing the app.** When you open it again, it goes on where it left off.
+- **When its turn comes, a ticket is checked again.** If it left its Jira status (for example, someone moved it to Passed QA), it is taken out of the queue and the app says why.
+- **If Claude Code cannot start** (for example, it is not installed), that site's queue is **paused** with the run first in line and the error. Fix it and click **Resume** on the Run queue card.
+- Smoke tests and the regression use the same queue: **Smoke on QA** while a ticket runs on QA waits behind it and its button shows **QA · Queued · #1**.
 
 ## 5. Log a test without a ticket (Smoke, Regression…)
 
@@ -227,7 +244,7 @@ The dashboard's **★ Smoke** card has two buttons, one per site: **▷ Smoke on
 2. The smoke test walks the happy path of login, navigation, Work Orders, Reports, the Mass Upload/Update wizards, Purchase Orders, Vendors/Customers and Admin, without creating data. It ends with a **GO / NO-GO** verdict and a markdown summary; you decide where to post it.
 3. When it finishes, **Claude reports the result to the app** and the smoke test is logged automatically (see [Automated QA runs in Runs and on the dashboard](#automated-qa-runs-in-runs-and-on-the-dashboard)).
 
-If you need both sites, click both buttons: each smoke test runs separately. The buttons appear on any test type whose name contains "Smoke" and that is marked with ★. The sites are configured in **Types & settings → Sites & skills** (section 8).
+If you need both sites, click both buttons: QA and STG run at the same time. If a ticket, the regression or another run is already running on that site, the smoke test waits in the site's queue (see [the run queue](#validate-all-tickets-the-run-queue)). The buttons appear on any test type whose name contains "Smoke" and that is marked with ★. The sites are configured in **Types & settings → Sites & skills** (section 8).
 
 ### Run the regression with Claude Code
 

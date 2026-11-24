@@ -86,15 +86,12 @@ describe('Result reported by Claude', () => {
     await srv.call('POST', '/api/jira/refresh', {});
   });
   afterAll(() => srv.close());
-  // The same thing cannot be launched twice while running: each test stops what it left running.
-  afterEach(async () => {
-    for (const a of (await srv.call('GET', '/api/state')).body.automations) {
-      if (a.finishedAt === null) await srv.call('POST', `/api/automation/${a.id}/stop`, {});
-    }
-  });
+  // One run at a time per site: each test leaves nothing queued or running.
+  afterEach(() => srv.reset());
 
   it('only accepts the verdicts of that kind of run', async () => {
-    const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'qa' });
+    // STG and QA are separate lanes: the smoke on STG and the orchestrator on an On QA ticket run together.
+    const { body: smoke } = await srv.call('POST', '/api/smoke', { site: 'stg' });
     expect((await srv.call('POST', `/api/automation/${smoke.id}/result`, { verdict: 'PASSED' })).status).toBe(400);
     const { body: orch } = await srv.call('POST', '/api/orchestrator/AVM-101', {});
     expect((await srv.call('POST', `/api/automation/${orch.id}/result`, { verdict: 'GO' })).status).toBe(400);
@@ -107,9 +104,10 @@ describe('Result reported by Claude', () => {
     const [a, b] = await Promise.all([srv.call('POST', '/api/smoke', { site: 'stg' }), srv.call('POST', '/api/smoke', { site: 'stg' })]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);
     const first = a.status === 200 ? a.body : b.body;
-    // Another site or another ticket can be launched at the same time.
+    // Another site can run at the same time; another run on a busy site waits in its queue (v1.15.0).
     expect((await srv.call('POST', '/api/smoke', { site: 'qa' })).status).toBe(200);
-    expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(200);
+    expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(202);
+    // Queued is not launched twice either.
     expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(409);
     // Once finished, it can be launched again.
     await srv.call('POST', `/api/automation/${first.id}/result`, { verdict: 'GO' });

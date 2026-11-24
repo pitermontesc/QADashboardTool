@@ -215,13 +215,16 @@ const counts = (def: ReportDef) => {
   return { passed: of('passed'), failed: of('failed'), blocked: of('blocked'), bugs: def.bugs.length };
 };
 
-export const DEMO_TICKETS: JiraTicket[] = [
-  { key: 'AVM-7057', summary: 'Multi-shop customers with accounting disabled are unable to edit customers', status: 'On QA', type: 'Bug' },
-  { key: 'AVM-7061', summary: 'Work order totals ignore shop-level tax overrides', status: 'On QA', type: 'Story' },
-  { key: 'AVM-7064', summary: 'Vendor import keeps duplicated contacts after mass update', status: 'On Staging', type: 'Story' },
-  { key: 'AVM-7068', summary: 'Purchase order PDF misses the vendor address', status: 'On QA', type: 'Bug' },
-  { key: 'AVM-7072', summary: 'PM schedule shows the wrong next due date for hour meters', status: 'Test', type: 'Bug' },
+/** Demo tickets; `created` is how many days before "now" each one was created. */
+const DEMO_TICKET_DEFS: Array<Omit<JiraTicket, 'created'> & { ageDays: number }> = [
+  { key: 'AVM-7057', summary: 'Multi-shop customers with accounting disabled are unable to edit customers', status: 'On QA', type: 'Bug', priority: 'High', ageDays: 9 },
+  { key: 'AVM-7061', summary: 'Work order totals ignore shop-level tax overrides', status: 'On QA', type: 'Story', priority: 'Medium', ageDays: 14 },
+  { key: 'AVM-7064', summary: 'Vendor import keeps duplicated contacts after mass update', status: 'On Staging', type: 'Story', priority: 'Medium', ageDays: 21 },
+  { key: 'AVM-7068', summary: 'Purchase order PDF misses the vendor address', status: 'On QA', type: 'Bug', priority: 'Highest', ageDays: 3 },
+  { key: 'AVM-7072', summary: 'PM schedule shows the wrong next due date for hour meters', status: 'Test', type: 'Bug', priority: 'Low', ageDays: 6 },
 ];
+const demoTickets = (now: number): JiraTicket[] =>
+  DEMO_TICKET_DEFS.map(({ ageDays, ...t }) => ({ ...t, created: now - ageDays * 24 * 60 * 60_000 }));
 
 /** Manual runs from the last few weeks: [days ago, type, title, ticket, env, result, passed, failed, blocked, bugs, minutes]. */
 const MANUAL_RUNS: Array<[number, string, string, string, string, TestRun['result'], number, number, number, number, number]> = [
@@ -263,6 +266,7 @@ function seededAutomation(
     details: def ? details(def, lang, extra.jiraComment ?? null) : null, runId: null, pid: null, logFile: '', lang,
     translations: { [other]: { summary: summary[other], details: def ? details(def, other) : null } satisfies ReportTranslation },
     dryRun: false,
+    site: '',
   };
   const c = def ? counts(def) : { passed: 0, failed: 0, blocked: 8, bugs: 0 };
   const run: TestRun = {
@@ -293,7 +297,7 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
   }));
   const seeded = [
     seededAutomation(lang, 'orchestrator', 'AVM-7057', 'QA', 'PASSED W/F', ORCHESTRATOR_WF, now - 75 * 60_000, 32, {
-      subject: DEMO_TICKETS[0]!.summary, link: `${DEMO_SITE}/browse/AVM-7057`, typeId: 't2',
+      subject: DEMO_TICKET_DEFS[0]!.summary, link: `${DEMO_SITE}/browse/AVM-7057`, typeId: 't2',
       jiraComment: { key: 'AVM-7057', body: JIRA_COMMENT, posted: false, url: '', dismissed: false },
     }),
     seededAutomation(lang, 'smoke', 'STG', 'STG', 'GO', SMOKE_GO, at(2, 8), 6, { typeId: 't0' }),
@@ -313,7 +317,7 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
     settings,
     runs: [...runs, ...seeded.map((s) => s.run)].sort((a, b) => a.createdAt - b.createdAt),
     jira: { site: DEMO_SITE, email: 'qa@example.com', board: '', jql: 'status in ("On QA", "On Staging", "Test")', token: 'demo' },
-    jiraCache: { tickets: DEMO_TICKETS, fetchedAt: now, ok: true, error: null },
+    jiraCache: { tickets: demoTickets(now), fetchedAt: now, ok: true, error: null },
     automations: seeded.map((s) => s.automation),
   };
   const file = path.join(dataDir, 'qa-tests.json');
@@ -327,7 +331,10 @@ export const demoFetch: typeof fetch = async (input, init) => {
   if (init?.method === 'POST' && /\/rest\/api\/2\/issue\/[^/]+\/comment$/.test(url.pathname)) {
     return Response.json({ id: String(Math.floor(Math.random() * 90000) + 10000) }, { status: 201 });
   }
-  const issues = DEMO_TICKETS.map((t) => ({ key: t.key, fields: { summary: t.summary, status: { name: t.status }, issuetype: { name: t.type } } }));
+  const issues = demoTickets(Date.now()).map((t) => ({
+    key: t.key,
+    fields: { summary: t.summary, status: { name: t.status }, issuetype: { name: t.type }, priority: { name: t.priority }, created: new Date(t.created!).toISOString() },
+  }));
   return Response.json({ issues, total: issues.length });
 };
 
@@ -527,6 +534,7 @@ export const demoAssistant: AssistantRunner = async ({ context, messages, lang }
 };
 
 /** API options for demo mode: everything external is simulated. */
-export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo'> {
-  return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true };
+export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo' | 'laneGapMs'> {
+  // A short pause between queued runs, so the queue can be shown in a few minutes.
+  return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true, laneGapMs: 5_000 };
 }

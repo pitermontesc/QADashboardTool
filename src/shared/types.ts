@@ -78,6 +78,10 @@ export interface JiraTicket {
   summary: string;
   status: string;
   type: string;
+  /** Jira priority name (Highest, High, Medium…); empty if Jira did not send one. */
+  priority: string;
+  /** When the ticket was created (ms); null if unknown (tickets cached before v1.15.0). */
+  created: number | null;
 }
 
 /** Jira state visible to the UI: never includes the token. */
@@ -204,6 +208,41 @@ export interface Automation {
   translations: Partial<Record<Lang, ReportTranslation>>;
   /** Test mode: Claude only reads Jira and testomat.io; it creates, marks and posts nothing there. */
   dryRun: boolean;
+  /**
+   * Id of the QA site it runs on: its lane, where runs go one at a time. Empty in runs from before
+   * v1.15.0 (their lane is worked out from the kind, target and environment).
+   */
+  site: string;
+}
+
+/** A run waiting for its site's lane to be free. */
+export interface QueueItem {
+  id: string;
+  kind: AutomationKind;
+  /** Ticket key, site name (smoke) or test run link (regression), as in Automation.target. */
+  target: string;
+  /** Lane: id of the QA site it runs on. */
+  site: string;
+  dryRun: boolean;
+  addedAt: number;
+}
+
+/** A queued run that was dropped when its turn came (e.g. the ticket left its Jira status). */
+export interface QueueSkip {
+  id: string;
+  kind: AutomationKind;
+  target: string;
+  reason: string;
+  at: number;
+}
+
+export interface QueueState {
+  /** In order: within each lane, the first one starts when the lane is free. */
+  items: QueueItem[];
+  /** Lanes that stopped because a run could not start (site id → error); "Resume" clears it. */
+  paused: Record<string, string>;
+  /** Last runs dropped from the queue, newest first. */
+  skipped: QueueSkip[];
 }
 
 /** One step of Claude's progress, read from its log. */
@@ -236,6 +275,8 @@ export interface AppState {
   runs: TestRun[];
   jira: JiraState;
   automations: Automation[];
+  /** Runs waiting for their site's lane. */
+  queue: QueueState;
   /** Reports currently being translated to the app language. */
   translating: number;
   /** Demo mode: sample data and simulated Jira/Claude. */

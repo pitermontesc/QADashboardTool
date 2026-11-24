@@ -22,10 +22,23 @@ export async function startServer(options: AppOptions = {}) {
         return fake(job);
       }
     : undefined;
-  const server = createApp(new Store(file), { translateReport, ...options, launchClaude }).listen(0, '127.0.0.1');
+  // No pause between queued runs unless a test asks for one.
+  const server = createApp(new Store(file), { translateReport, laneGapMs: 0, ...options, launchClaude }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const json = { 'Content-Type': 'application/json' };
+  const get = async () => (await fetch(`${base}/api/state`)).json() as Promise<any>;
   return {
+    /**
+     * Leaves nothing queued or in progress, so the next test starts with free lanes. The queue is
+     * emptied first: stopping a run starts the next queued one on its site.
+     */
+    reset: async () => {
+      for (const q of (await get()).queue.items) await fetch(`${base}/api/queue/${q.id}`, { method: 'DELETE', headers: json });
+      for (const a of (await get()).automations) {
+        if (a.finishedAt === null) await fetch(`${base}/api/automation/${a.id}/stop`, { method: 'POST', headers: json, body: '{}' });
+      }
+    },
     base,
     file,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
@@ -73,7 +86,10 @@ export const fakeJira: typeof fetch = async (input, init) => {
   }
   return Response.json({
     issues: [
-      { key: 'AVM-101', fields: { summary: 'Work order totals', status: { name: 'On QA' }, issuetype: { name: 'Story' } } },
+      {
+        key: 'AVM-101',
+        fields: { summary: 'Work order totals', status: { name: 'On QA' }, issuetype: { name: 'Story' }, priority: { name: 'High' }, created: '2026-11-10T09:00:00.000-0500' },
+      },
       { key: 'AVM-102', fields: { summary: 'Vendor <import> & export', status: { name: 'Test' }, issuetype: { name: 'Bug' } } },
       ...extraIssues.map(({ key, summary, status }) => ({ key, fields: { summary, status: { name: status }, issuetype: { name: 'Story' } } })),
     ],

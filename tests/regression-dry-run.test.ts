@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { startServer } from './helpers';
 
 /**
@@ -18,6 +18,8 @@ describe('Regression in test mode', () => {
     });
   });
   afterAll(() => srv.close());
+  // The regressions run on the same site, one at a time: each test leaves it free.
+  afterEach(() => srv.reset());
   const runOf = async (runId: string) => (await srv.call('GET', '/api/state')).body.runs.find((r: { id: string }) => r.id === runId);
 
   it('tells Claude to write nothing to Jira or testomat.io, and labels the run as test mode', async () => {

@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, Settings, TestRun, TestRunInput, Theme,
+  AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, QueueItem, Settings, TestRun, TestRunInput, Theme,
 } from '../shared/types';
 import { applyTheme, nextTheme } from './theme';
 import { LANGUAGES } from '../shared/types';
 import { LangProvider, systemLang } from './i18n';
-import { api } from './api';
+import { api, isQueued, type LaunchResult } from './api';
 import { Dashboard } from './components/Dashboard';
 import { canOrchestrate, findSite } from '../shared/orchestrator';
 import { JIRA_AUTO_REFRESH_MIN } from './components/Dashboard';
 import { RegressionDialog } from './components/RegressionDialog';
+import { ValidateAllDialog } from './components/Queue';
 import { AssistantPanel, type ChatMessage } from './components/AssistantPanel';
 import { ReportDialog } from './components/ReportDialog';
 import { RunForm } from './components/RunForm';
@@ -51,7 +52,15 @@ const TEXT = {
     regressionOpened: (run: string) => (run ? `Regresión corriendo en segundo plano para ${run}` : 'Regresión corriendo en segundo plano'),
     smokeOpened: (site: string) => `Smoke en ${site} corriendo en segundo plano`,
     running: (n: number) => `${n} ejecuciones en curso`,
+    runningShort: (n: number) => `${n} en curso`,
     runningOne: (what: string, min: number) => `En curso · ${what} · ${min} min`,
+    inQueue: (n: number) => `${n} en cola`,
+    queueOnly: (n: number) => (n === 1 ? '1 en cola' : `${n} en cola`),
+    queuedAt: (what: string, n: number) => `${what} en la cola de su sitio (posición ${n}): empieza cuando el sitio se libere`,
+    queuedMany: (started: number, waiting: number) =>
+      [started === 1 ? '1 empezó' : started > 1 ? `${started} empezaron` : '', waiting > 0 ? `${waiting} en la cola` : ''].filter(Boolean).join(' · '),
+    skipped: (what: string) => `${what} salió de la cola`,
+    lanePaused: (site: string) => `Cola de ${site} en pausa`,
     seeProgress: 'Ver el progreso',
     resultSaved: 'Resultado guardado en el dashboard',
     newRun: 'Nuevo registro',
@@ -81,7 +90,14 @@ const TEXT = {
     regressionOpened: (run: string) => (run ? `Regression running in the background for ${run}` : 'Regression running in the background'),
     smokeOpened: (site: string) => `Smoke on ${site} running in the background`,
     running: (n: number) => `${n} runs in progress`,
+    runningShort: (n: number) => `${n} running`,
     runningOne: (what: string, min: number) => `Running · ${what} · ${min} min`,
+    inQueue: (n: number) => `${n} queued`,
+    queueOnly: (n: number) => `${n} queued`,
+    queuedAt: (what: string, n: number) => `${what} queued on its site (position ${n}): it starts when the site is free`,
+    queuedMany: (started: number, waiting: number) => [started > 0 ? `${started} started` : '', waiting > 0 ? `${waiting} queued` : ''].filter(Boolean).join(' · '),
+    skipped: (what: string) => `${what} left the queue`,
+    lanePaused: (site: string) => `${site} queue paused`,
     seeProgress: 'See progress',
     resultSaved: 'Result saved to the dashboard',
     newRun: 'New run',
@@ -138,6 +154,7 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
   const [regressionOpen, setRegressionOpen] = useState(false);
+  const [validateOpen, setValidateOpen] = useState(false);
   /** Automation whose QA report is open (read from state so it updates live). */
   const [reportId, setReportId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dash');
@@ -191,7 +208,8 @@ export function App() {
   }, []);
 
   // While Claude runs an automation or reports are being translated, state is polled every few seconds.
-  const running = (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0;
+  const running =
+    (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0 || (state?.queue.items.length ?? 0) > 0;
   const stateRef = useRef(state);
   stateRef.current = state;
   /**
@@ -210,12 +228,23 @@ export function App() {
           if (asked !== generation.current) return;
           generation.current++;
           const before = new Map(stateRef.current?.automations.map((a) => [a.id, a]));
-          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, translating: next.translating } : s));
+          const queueBefore = stateRef.current?.queue;
+          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating } : s));
+          const current = stateRef.current?.settings.language ?? 'es';
+          // A queued run that was dropped when its turn came, or a site that stopped: say why.
+          const seen = new Set(queueBefore?.skipped.map((q) => q.id));
+          for (const skip of next.queue.skipped) {
+            if (queueBefore && !seen.has(skip.id)) announce(TEXT[current].skipped(skip.kind === 'orchestrator' ? skip.target : `${skip.kind} ${skip.target}`), skip.reason);
+          }
+          for (const [site, why] of Object.entries(next.queue.paused)) {
+            if (queueBefore && queueBefore.paused[site] === undefined) {
+              announce(TEXT[current].lanePaused(next.settings.qa.sites.find((x) => x.id === site)?.name ?? site), why);
+            }
+          }
           for (const a of next.automations) {
             if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
               const what =
                 a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
-              const current = stateRef.current?.settings.language ?? 'es';
               announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
             }
           }
@@ -400,19 +429,45 @@ export function App() {
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
   };
 
-  /** After launching an automation, its "In progress" run is already in Runs. */
-  const reloadRuns = async (automation: Automation): Promise<void> => {
+  /**
+   * After a launch: its "In progress" run is already in Runs, or it waits in its site's queue.
+   * `started` is the notice for a run that started; `what` names it for the queued notice.
+   */
+  const afterLaunch = async (result: LaunchResult, started: string, what: string): Promise<void> => {
     const next = await api.getState().catch(() => null);
-    if (next) patch({ runs: next.runs, automations: next.automations });
-    else update((s) => ({ ...s, automations: [automation, ...s.automations] }));
+    if (next) patch({ runs: next.runs, automations: next.automations, queue: next.queue });
+    else if (!isQueued(result)) update((s) => ({ ...s, automations: [result, ...s.automations] }));
+    notify(isQueued(result) ? t.queuedAt(what, result.position) : started, 'info');
+  };
+
+  /** Queue changes answer with the whole state: what started, what is waiting. */
+  const applyQueue = async (call: () => Promise<AppState>): Promise<boolean> => {
+    try {
+      const next = await call();
+      patch({ runs: next.runs, automations: next.automations, queue: next.queue });
+      return true;
+    } catch (error) {
+      fail(error);
+      return false;
+    }
+  };
+  const queueTickets = async (keys: string[]): Promise<boolean> => {
+    let next: AppState | null = null;
+    const ok = await applyQueue(async () => (next = await api.queueTickets(keys)));
+    if (ok && next) {
+      // The first ticket of each free site starts at once: say how many started and how many wait.
+      const { automations, queue } = next as AppState;
+      const started = keys.filter((k) => automations.some((a) => a.kind === 'orchestrator' && a.target === k && a.finishedAt === null)).length;
+      const waiting = keys.filter((k) => queue.items.some((q) => q.kind === 'orchestrator' && q.target === k)).length;
+      notify(t.queuedMany(started, waiting), 'info');
+    }
+    return ok;
   };
 
   const runOrchestrator = async (ticket: JiraTicket): Promise<boolean> => {
     setLaunching(ticket.key);
     try {
-      const automation = await api.runOrchestrator(ticket.key);
-      await reloadRuns(automation);
-      notify(t.orchestratorOpened(ticket.key), 'info');
+      await afterLaunch(await api.runOrchestrator(ticket.key), t.orchestratorOpened(ticket.key), ticket.key);
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -424,9 +479,7 @@ export function App() {
 
   const runRegression = async (run: string, dryRun = false): Promise<boolean> => {
     try {
-      const automation = await api.runRegression(run, dryRun);
-      await reloadRuns(automation);
-      notify(t.regressionOpened(run), 'info');
+      await afterLaunch(await api.runRegression(run, dryRun), t.regressionOpened(run), `${KIND_LABEL[lang].regression} ${run}`.trim());
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -437,9 +490,8 @@ export function App() {
   const runSmoke = async (siteId: string): Promise<boolean> => {
     setLaunching(`smoke:${siteId}`);
     try {
-      const automation = await api.runSmoke(siteId);
-      await reloadRuns(automation);
-      notify(t.smokeOpened(findSite(siteId, state.settings.qa)?.name ?? automation.target), 'info');
+      const name = findSite(siteId, state.settings.qa)?.name ?? siteId;
+      await afterLaunch(await api.runSmoke(siteId), t.smokeOpened(name), `Smoke ${name}`);
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');
@@ -483,6 +535,7 @@ export function App() {
 
   const report = reportId ? state.automations.find((a) => a.id === reportId) : undefined;
   const active = state.automations.filter((a) => a.finishedAt === null);
+  const queued = state.queue.items.length;
   /** False if it could not be stopped (e.g. it reported just before). Either way the state is reloaded. */
   const stopAutomation = async (automation: Automation): Promise<boolean> => {
     let stopped = false;
@@ -560,12 +613,15 @@ export function App() {
           ))}
         </nav>
         <div className="spacer" />
-        {active.length > 0 && (
-          <button className="running-indicator" onClick={() => setReportId(active[0]!.id)} title={t.seeProgress}>
+        {(active.length > 0 || queued > 0) && (
+          <button className="running-indicator" onClick={() => (active[0] ? setReportId(active[0].id) : setTab('dash'))} title={t.seeProgress}>
             <i className="run-dot" />
             {active.length === 1
               ? t.runningOne(`${KIND_LABEL[lang][active[0]!.kind]} ${active[0]!.target}`.trim(), elapsedMin(active[0]!))
-              : t.running(active.length)}
+              : active.length > 1
+                ? (queued > 0 ? t.runningShort(active.length) : t.running(active.length))
+                : t.queueOnly(queued)}
+            {active.length > 0 && queued > 0 && ` · ${t.inQueue(queued)}`}
           </button>
         )}
         <button
@@ -609,6 +665,10 @@ export function App() {
             onOrchestrate={runOrchestrator}
             launching={launching}
             onRegression={() => setRegressionOpen(true)}
+            onValidateAll={() => setValidateOpen(true)}
+            onQueueMove={(item: QueueItem, direction: 'up' | 'down') => void applyQueue(() => api.moveQueued(item.id, direction))}
+            onQueueRemove={(item: QueueItem) => void applyQueue(() => api.removeQueued(item.id))}
+            onQueueResume={(site: string) => void applyQueue(() => api.resumeLane(site))}
             onSmoke={runSmoke}
             onDismissAutomation={dismissAutomation}
             onOpenReport={(a) => setReportId(a.id)}
@@ -650,6 +710,7 @@ export function App() {
       {assistantOpen && (
         <AssistantPanel state={state} messages={chat} setMessages={setChat} onClose={() => setAssistantOpen(false)} onAction={doAssistantAction} />
       )}
+      {validateOpen && <ValidateAllDialog state={state} onConfirm={queueTickets} onClose={() => setValidateOpen(false)} />}
       {regressionOpen && <RegressionDialog qa={state.settings.qa} onLaunch={runRegression} onClose={() => setRegressionOpen(false)} />}
       {report && (
         <ReportDialog

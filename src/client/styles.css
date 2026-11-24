@@ -386,7 +386,12 @@ dialog.report-dialog{width:min(820px,94vw);max-height:90vh;overflow:auto}
 /* Header: nothing wraps onto two lines; when narrow, the assistant shows only its icon. */
 header h1,nav button{white-space:nowrap}
 .running-indicator{min-width:0;flex-shrink:1}
-@media (max-width:1440px){.assistant-btn .assistant-label{display:none}}
+@media (max-width:1440px){
+  .assistant-btn .assistant-label{display:none}
+  /* Room for "Running · … · 2 queued": the shortcut stays in the button's tooltip. */
+  header{gap:12px}
+  .new-run-btn .kbd{display:none}
+}
 .qa-sites{margin-top:12px}
 .qa-sites-table{width:100%;border-collapse:collapse;margin-bottom:8px}
 .qa-sites-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:0 6px 6px 0}
@@ -447,3 +452,20 @@ td .tag{white-space:normal}
 @media (max-width:1240px){.tablewrap th,.tablewrap td{padding:9px 8px}}
 td.acts>.icon-btn{width:26px;height:26px;margin-left:0}
 @media (max-width:1240px){.tablewrap td.acts{padding-left:4px;padding-right:4px}}
+
+/* Run queue (v1.15.0): one run at a time per site */
+.queue{margin-bottom:14px}
+.queue-lane+.queue-lane{margin-top:14px}
+.queue-lane-head{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-size:13.5px}
+.queue-list{list-style:none;margin:0;padding:0}
+.queue-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.queue-n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--prog-bg);color:var(--prog);font-size:12px;font-weight:700;flex:none}
+.queue-what{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;font-size:13.5px}
+.queue-sum{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-actions{display:flex;gap:4px;flex:none}
+.queue-paused{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 12px;margin-bottom:6px;border-radius:var(--radius-sm);background:var(--warn-bg);font-size:13px}
+.tk-run.queued,.btn.queued{color:var(--muted);background:var(--muted-bg);cursor:default;gap:6px}
+dialog.validate-all{width:min(640px,94vw)}
+.validate-body{padding:22px 24px 20px;max-height:86vh;overflow:auto}
+label.check.queue-check{margin:0;flex:1;min-width:0;font-weight:400}
+label.check.queue-check b{font-weight:700}

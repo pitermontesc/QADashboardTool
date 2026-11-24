@@ -6,7 +6,9 @@ import {
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
 import { canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
-import { RESULTS, type AppState, type Automation, type JiraTicket } from '../../shared/types';
+import { RESULTS, type AppState, type Automation, type JiraTicket, type QueueItem } from '../../shared/types';
+import { queuePosition, queuedOf, ticketsToValidate } from '../../shared/queue';
+import { QueuePanel } from './Queue';
 import { Automations, elapsedMin, runningOf } from './Automations';
 import { useLang, useText } from '../i18n';
 import { Icon } from './icons';
@@ -72,6 +74,10 @@ const TEXT = {
     runRegression: 'Ejecutar regresión',
     smokeTitle: (url: string) => `Corre Claude Code en segundo plano con el smoke en ${url}`,
     smokeOn: (site: string) => `Smoke en ${site}`,
+    queuedAt: (n: number) => `En cola · #${n}`,
+    queuedTitle: 'Espera en la cola de su sitio: empieza cuando el sitio se libere',
+    validateAll: (n: number) => `Validar todos (${n})`,
+    validateAllTitle: 'Encola los tickets listos y los corre uno a la vez por sitio',
     activity: (daily: boolean, weeks: number) => `Actividad ${daily ? 'por día' : `por semana (últimas ${weeks})`}`,
     byType: 'Por tipo de test',
     noneInPeriodRuns: 'Sin ejecuciones en el período.',
@@ -134,6 +140,10 @@ const TEXT = {
     runRegression: 'Run regression',
     smokeTitle: (url: string) => `Runs Claude Code in the background with the smoke on ${url}`,
     smokeOn: (site: string) => `Smoke on ${site}`,
+    queuedAt: (n: number) => `Queued · #${n}`,
+    queuedTitle: 'Waiting in its site queue: it starts when the site is free',
+    validateAll: (n: number) => `Validate all (${n})`,
+    validateAllTitle: 'Queues the ready tickets and runs them one at a time per site',
     activity: (daily: boolean, weeks: number) => `Activity ${daily ? 'per day' : `per week (last ${weeks})`}`,
     byType: 'By test type',
     noneInPeriodRuns: 'No runs in the period.',
@@ -156,6 +166,11 @@ interface DashboardProps {
   /** Ticket whose orchestrator is being launched. */
   launching: string | null;
   onRegression: () => void;
+  /** Opens "Validate all" (queue every ready ticket). */
+  onValidateAll: () => void;
+  onQueueMove: (item: QueueItem, direction: 'up' | 'down') => void;
+  onQueueRemove: (item: QueueItem) => void;
+  onQueueResume: (site: string) => void;
   /** Launches the smoke on one of the configured sites (by its id). */
   onSmoke: (siteId: string) => void;
   onDismissAutomation: (automation: Automation) => void;
@@ -221,11 +236,17 @@ interface TicketsProps {
   automations: Automation[];
   onOpenReport: (automation: Automation) => void;
   qa: AppState['settings']['qa'];
+  queue: QueueItem[];
+  /** Tickets "Validate all" would offer (0 hides the button). */
+  validateCount: number;
+  onValidateAll: () => void;
   t: Text;
 }
 
 /** Jira tickets as cards: the usual starting point for logging a test. */
-function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, t }: TicketsProps) {
+function JiraTickets({
+  jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, queue, validateCount, onValidateAll, t,
+}: TicketsProps) {
   const lang = useLang();
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
@@ -281,6 +302,11 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
             <input placeholder={t.filterTickets} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.filterTicketsLabel} />
           </label>
         )}
+        {validateCount > 0 && (
+          <button className="btn" onClick={onValidateAll} title={t.validateAllTitle}>
+            <Icon name="play" /> {t.validateAll(validateCount)}
+          </button>
+        )}
         {jira.connection !== 'none' && (
           <button className="btn" onClick={onRefresh} disabled={loading} title={`${t.refreshJira} (${MOD}R)`}>
             <span className={loading ? 'spin' : ''}><Icon name="refresh" /></span>
@@ -299,6 +325,7 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
             const logged = perTicket.get(ticket.key) ?? 0;
             const ready = canOrchestrate(ticket.status, qa);
             const active = runningOf(automations, 'orchestrator', ticket.key);
+            const waiting = queuedOf(queue, 'orchestrator', ticket.key);
             return (
               <div key={ticket.key} className={`tk${ready || active ? ' has-run' : ''}${active ? ' is-running' : ''}`}>
                 <button
@@ -337,6 +364,11 @@ function JiraTickets({ jira, loading, ticketBase, perTicket, onRefresh, onTicket
                     <i className="run-dot" />
                     {t.runningFor(t.validating, elapsedMin(active))}
                   </button>
+                ) : waiting ? (
+                  <span className="tk-run queued" title={t.queuedTitle}>
+                    <Icon name="clock" size={13} />
+                    {t.queuedAt(queuePosition(queue, waiting))}
+                  </span>
                 ) : ready && (
                   <button
                     className="tk-run"
@@ -384,7 +416,10 @@ function Onboarding({ jiraConnected, onOpenSettings, onNewRun, t }: { jiraConnec
   );
 }
 
-export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onSmoke, onDismissAutomation, onOpenReport, onNewRun, onOpenSettings }: DashboardProps) {
+export function Dashboard({
+  state, jiraLoading, onRefreshJira, onTicket, onOrchestrate, launching, onRegression, onValidateAll, onQueueMove, onQueueRemove, onQueueResume, onSmoke,
+  onDismissAutomation, onOpenReport, onNewRun, onOpenSettings,
+}: DashboardProps) {
   const [period, setPeriod] = useState<Period>(30);
   const lang = useLang();
   const t = useText(TEXT);
@@ -462,8 +497,13 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
         automations={state.automations}
         onOpenReport={onOpenReport}
         qa={settings.qa}
+        queue={state.queue.items}
+        validateCount={ticketsToValidate(state).length}
+        onValidateAll={onValidateAll}
         t={t}
       />
+
+      <QueuePanel state={state} onMove={onQueueMove} onRemove={onQueueRemove} onResume={onQueueResume} />
 
       <div className="row section-head">
         <h2>{t.summary}</h2>
@@ -515,10 +555,15 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                 <div className="meta">{t.countInPeriod(view.inPeriod.filter((r) => r.typeId === type.id).length)}</div>
                 {isRegressionType(type.name) && (() => {
                   const active = runningOf(state.automations, 'regression');
+                  const waiting = queuedOf(state.queue.items, 'regression');
                   return active ? (
                     <button className="btn small major-run running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
                       <i className="run-dot" /> {t.runningFor(active.target || 'testomat.io', elapsedMin(active))}
                     </button>
+                  ) : waiting ? (
+                    <span className="btn small major-run queued" title={t.queuedTitle}>
+                      <Icon name="clock" size={13} /> {t.queuedAt(queuePosition(state.queue.items, waiting))}
+                    </span>
                   ) : (
                     <button className="btn small major-run" onClick={onRegression} title={t.regressionTitle}>
                       <Icon name="play" size={13} /> {t.runRegression}
@@ -529,10 +574,15 @@ export function Dashboard({ state, jiraLoading, onRefreshJira, onTicket, onOrche
                   <div className="major-run btn-row">
                     {settings.qa.sites.map((site) => {
                       const active = runningOf(state.automations, 'smoke', site.name);
+                      const waiting = queuedOf(state.queue.items, 'smoke', site.name);
                       return active ? (
                         <button key={site.id} className="btn small running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
                           <i className="run-dot" /> {t.runningFor(site.name, elapsedMin(active))}
                         </button>
+                      ) : waiting ? (
+                        <span key={site.id} className="btn small queued" title={t.queuedTitle}>
+                          <Icon name="clock" size={13} /> {`${site.name} · ${t.queuedAt(queuePosition(state.queue.items, waiting))}`}
+                        </span>
                       ) : (
                       <button
                         key={site.id}

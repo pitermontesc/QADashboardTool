@@ -6,7 +6,7 @@ import { automationTitle, runText, titleSubject } from './automation.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import {
   LANGUAGES, type AppState, type Automation, type Backup, type JiraConnection, type JiraState, type JiraTicket, type Lang,
-  type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
+  type QueueItem, type QueueState, type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
 } from '../shared/types.js';
 
 export interface JiraCredentials {
@@ -29,7 +29,12 @@ interface StoreData {
    * its result. Kept on the server only (never in the state the UI receives).
    */
   reportKeys: Record<string, string>;
+  /** Runs waiting for their site's lane (kept across restarts). */
+  queue: QueueState;
 }
+
+/** How many dropped runs are remembered to show why. */
+const MAX_SKIPPED = 20;
 
 const emptyData = (): StoreData => ({
   version: 1,
@@ -39,6 +44,7 @@ const emptyData = (): StoreData => ({
   jiraCache: { tickets: [], fetchedAt: null, ok: null, error: null },
   automations: [],
   reportKeys: {},
+  queue: { items: [], paused: {}, skipped: [] },
 });
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -75,7 +81,8 @@ export class Store {
       // Settings from before v1.9.0 have no language.
       settings: { ...base.settings, ...saved.settings },
       jira: { ...base.jira, ...saved.jira },
-      jiraCache: { ...base.jiraCache, ...saved.jiraCache },
+      // Tickets cached before v1.15.0 have no priority or creation date.
+      jiraCache: { ...base.jiraCache, ...saved.jiraCache, tickets: (saved.jiraCache?.tickets ?? []).map((t) => ({ ...t, priority: t.priority ?? '', created: t.created ?? null })) },
       // Runs from v1.7.0 had no title.
       automations: (saved.automations ?? []).map((a) => ({
         ...a,
@@ -90,9 +97,12 @@ export class Store {
         lang: a.lang ?? guessLang([a.title, a.summary, a.details?.notes, ...(a.details?.modules ?? []).map((m) => m.name)].join(' ')),
         translations: a.translations ?? {},
         dryRun: a.dryRun ?? false,
+        // Before v1.15.0 the lane was not saved (laneOf works it out).
+        site: a.site ?? '',
       })),
       // Before v1.14.0 runs had no report key.
       reportKeys: saved.reportKeys ?? {},
+      queue: { ...base.queue, ...saved.queue },
     };
     } catch (cause) {
       // An unreadable file is not overwritten: it could contain recoverable data.
@@ -109,7 +119,10 @@ export class Store {
   }
 
   getState(): AppState {
-    return { settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, translating: 0, demo: false };
+    return {
+      settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, queue: this.data.queue,
+      translating: 0, demo: false,
+    };
   }
 
   getJiraState(): JiraState {
@@ -129,7 +142,7 @@ export class Store {
    * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
    */
   startAutomation(
-    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title'> & { dryRun?: boolean },
+    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title' | 'site'> & { dryRun?: boolean },
     runFor: (a: Automation) => TestRunInput,
   ): Automation {
     const automation: Automation = {
@@ -367,6 +380,58 @@ export class Store {
     };
     // The configuration changed: the connection must be tested again.
     this.data.jiraCache = { ...this.data.jiraCache, ok: null, error: null };
+    this.persist();
+  }
+
+  /** Adds runs to the end of the queue, in the order given. */
+  enqueue(items: Array<Pick<QueueItem, 'kind' | 'target' | 'site' | 'dryRun'>>): QueueItem[] {
+    const added = items.map((item) => ({ ...item, id: randomUUID(), addedAt: Date.now() }));
+    this.data.queue.items = [...this.data.queue.items, ...added];
+    this.persist();
+    return added;
+  }
+
+  /** Puts a run back at the head of the queue (it could not start). */
+  requeueFirst(item: QueueItem): void {
+    this.data.queue.items = [item, ...this.data.queue.items.filter((q) => q.id !== item.id)];
+    this.persist();
+  }
+
+  /** Takes a run out of the queue; null if it was not there. */
+  dequeue(id: string): QueueItem | null {
+    const item = this.data.queue.items.find((q) => q.id === id) ?? null;
+    if (!item) return null;
+    this.data.queue.items = this.data.queue.items.filter((q) => q.id !== id);
+    this.persist();
+    return item;
+  }
+
+  /** Moves a queued run one place up or down within its lane. */
+  moveQueued(id: string, direction: 'up' | 'down'): boolean {
+    const items = this.data.queue.items;
+    const index = items.findIndex((q) => q.id === id);
+    if (index === -1) return false;
+    const site = items[index]!.site;
+    const step = direction === 'up' ? -1 : 1;
+    let other = index + step;
+    while (other >= 0 && other < items.length && items[other]!.site !== site) other += step;
+    if (other < 0 || other >= items.length) return true; // Already first or last in its lane.
+    [items[index], items[other]] = [items[other]!, items[index]!];
+    this.persist();
+    return true;
+  }
+
+  /** Remembers a run dropped from the queue and why. */
+  recordSkip(item: QueueItem, reason: string): void {
+    const { id, kind, target } = item;
+    this.data.queue.skipped = [{ id, kind, target, reason, at: Date.now() }, ...this.data.queue.skipped].slice(0, MAX_SKIPPED);
+    this.persist();
+  }
+
+  /** Stops a lane (a run could not start) or lets it go on (`error` null). */
+  setLanePaused(site: string, error: string | null): void {
+    const { [site]: _was, ...rest } = this.data.queue.paused;
+    this.data.queue.paused = error === null ? rest : { ...rest, [site]: error };
     this.persist();
   }
 
