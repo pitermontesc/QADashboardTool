@@ -154,7 +154,7 @@ describe('QA orchestrator', () => {
     expect((await srv.call('POST', '/api/orchestrator/AVM-102', {})).status).toBe(409); // status "Test"
     expect((await srv.call('POST', '/api/orchestrator/AVM-999', {})).status).toBe(404);
     expect((await srv.call('POST', `/api/orchestrator/${encodeURIComponent("AVM-1'; rm -rf ~")}`, {})).status).toBe(400);
-    expect(launched.map(withoutReport)).toEqual(['/avm-qa-orchestrator AVM-101']);
+    expect(launched.map(withoutReport)).toEqual(['/avm-qa-skills:avm-qa-orchestrator AVM-101']);
     expect(launched[0]).toContain('verdict (PASSED, PASSED W/F, FAILED o BLOCKED;');
     launched.length = 0;
   });
@@ -300,7 +300,7 @@ describe('QA orchestrator', () => {
 
   it('builds the Claude Code prompt with the skill', () => {
     const qa = defaultQaConfig();
-    expect(orchestratorPrompt('AVM-7057', qa)).toBe('/avm-qa-orchestrator AVM-7057');
+    expect(orchestratorPrompt('AVM-7057', qa)).toBe('/avm-qa-skills:avm-qa-orchestrator AVM-7057');
     expect(() => orchestratorPrompt("x'y", qa)).toThrow();
     expect(regressionPrompt('', qa)).toBe('/avm-qa-skills:avm-regression-runner');
     expect(() => regressionPrompt("#a b'c", qa)).toThrow();

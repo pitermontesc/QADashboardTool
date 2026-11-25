@@ -130,4 +130,42 @@ describe('Data saved before this version', () => {
     writeFileSync(file, JSON.stringify({ version: 1, settings: { types: [{ id: 't0', name: 'Smoke', major: true, color: '#000000' }], envs: ['QA'], ticketBase: '', language: 'es' }, runs: [] }));
     expect(new Store(file).getState().settings.qa).toEqual(defaultQaConfig());
   });
+
+  // Without the prefix Claude Code may load the organization's older copy of the orchestrator instead of the plugin's.
+  const legacySettings = (orchestrator: string) => ({
+    types: [{ id: 't0', name: 'Smoke', major: true, color: '#000000' }], envs: ['QA'], ticketBase: '', language: 'es',
+    qa: { ...defaultQaConfig(), skills: { ...defaultQaConfig().skills, orchestrator } },
+  });
+
+  it('the orchestrator skill saved without its prefix gets the plugin prefix', () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
+    writeFileSync(file, JSON.stringify({ version: 1, settings: legacySettings('/avm-qa-orchestrator'), runs: [] }));
+    expect(new Store(file).getState().settings.qa.skills.orchestrator).toBe('/avm-qa-skills:avm-qa-orchestrator');
+  });
+
+  it('a skill name the QA chose is kept as is', () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), 'qa-dash-')), 'qa-tests.json');
+    writeFileSync(file, JSON.stringify({ version: 1, settings: legacySettings('/team:validate'), runs: [] }));
+    expect(new Store(file).getState().settings.qa.skills).toEqual({ ...defaultQaConfig().skills, orchestrator: '/team:validate' });
+  });
+
+  it('importing a backup with the unprefixed orchestrator skill launches the plugin one', async () => {
+    const prompts: string[] = [];
+    const srv = await startServer({
+      fetchImpl: fakeJira,
+      launchClaude: async (job) => {
+        prompts.push(job.prompt);
+        return { pid: null, logFile: '', stop: () => undefined };
+      },
+    });
+    try {
+      expect((await srv.call('POST', '/api/import', { ...legacySettings('/avm-qa-orchestrator'), runs: [] })).status).toBe(200);
+      await srv.call('PUT', '/api/jira/config', { site: 'https://example.atlassian.net', email: 'qa@example.com', jql: '', token: 'good' });
+      await srv.call('POST', '/api/jira/refresh', {});
+      expect((await srv.call('POST', '/api/orchestrator/AVM-101', {})).status).toBe(200);
+      expect(prompts[0]).toMatch(/^\/avm-qa-skills:avm-qa-orchestrator AVM-101 /);
+    } finally {
+      await srv.close();
+    }
+  });
 });

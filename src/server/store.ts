@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_JQL, defaultSettings, guessLang, localizeTypes } from '../shared/defaults.js';
+import { withCurrentSkills } from '../shared/orchestrator.js';
 import { automationTitle, runText, titleSubject } from './automation.js';
 import { AppLog, appLog } from './log.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
@@ -107,8 +108,8 @@ export class Store {
     return {
       ...base,
       ...saved,
-      // Settings from before v1.9.0 have no language.
-      settings: { ...base.settings, ...saved.settings },
+      // Settings from before v1.9.0 have no language; before v1.17.2 the orchestrator skill had no prefix.
+      settings: withCurrentSkills({ ...base.settings, ...saved.settings }),
       jira: { ...base.jira, ...saved.jira },
       // Tickets cached before v1.15.0 have no priority or creation date.
       jiraCache: {
@@ -481,7 +482,7 @@ export class Store {
    */
   importBackup({ runs, automations, ...settings }: BackupInput, reason: 'before-import' | 'before-restore' = 'before-import'): string | null {
     const saved = this.backupNow(reason);
-    this.data.settings = settings;
+    this.data.settings = withCurrentSkills(settings);
     if (automations) {
       // A report still "in progress" in the backup has no process here: it is kept as it is, without a pid.
       this.data.automations = automations.map((a) => ({ ...a, pid: null }));

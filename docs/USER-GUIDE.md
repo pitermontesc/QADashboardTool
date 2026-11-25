@@ -194,7 +194,7 @@ Test types you renamed and environments are not translated: they are your data. 
 >
 > **Before launching a run**, have Chrome open with the **Claude in Chrome** extension connected and be signed in to the site that will be tested. Without a browser, the run ends as **BLOCKED**.
 
-Tickets in **On QA** or **On Staging** have the **▷ Run QA orchestrator** button below them. It launches the Claude Code `/avm-qa-orchestrator` skill on that ticket:
+Tickets in **On QA** or **On Staging** have the **▷ Run QA orchestrator** button below them. It launches the Claude Code `/avm-qa-skills:avm-qa-orchestrator` skill on that ticket:
 
 ![On QA and On Staging ticket cards, each with the "Run QA orchestrator" button below](img/17-orchestrator.png)
 

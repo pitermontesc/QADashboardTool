@@ -13,12 +13,30 @@ export function defaultQaConfig(): QaConfig {
     ],
     regressionSiteId: 'stg',
     skills: {
-      orchestrator: '/avm-qa-orchestrator',
+      orchestrator: '/avm-qa-skills:avm-qa-orchestrator',
       smoke: '/avm-qa-skills:avm-smoke-tester',
       regression: '/avm-qa-skills:avm-regression-runner',
     },
     testRunHosts: ['testomat.io'],
   };
+}
+
+/**
+ * Skill names earlier versions saved. Without the plugin prefix the name is ambiguous when the
+ * organization also syncs its own older copy of the skill (`anthropic-skills:avm-qa-orchestrator`),
+ * so Claude Code may load either one; the prefixed name always loads the `avm-qa-skills` plugin.
+ */
+const LEGACY_SKILLS: Partial<Record<keyof QaConfig['skills'], Record<string, string>>> = {
+  orchestrator: { '/avm-qa-orchestrator': '/avm-qa-skills:avm-qa-orchestrator' },
+};
+
+/** The QA config with the skill names earlier versions saved replaced by their current names. */
+export function withCurrentSkills<T extends { qa: QaConfig }>(settings: T): T {
+  const skills = { ...settings.qa.skills };
+  for (const [kind, renames] of Object.entries(LEGACY_SKILLS) as [keyof QaConfig['skills'], Record<string, string>][]) {
+    skills[kind] = renames[skills[kind]] ?? skills[kind];
+  }
+  return { ...settings, qa: { ...settings.qa, skills } };
 }
 
 const sameStatus = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();

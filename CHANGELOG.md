@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.17.2] - 2026-11-25
+
+### Fixed
+- **The orchestrator always uses the `avm-qa-skills` plugin's skill.** The app launched it as `/avm-qa-orchestrator`, with no prefix, while Claude Code has two different skills with that name: the plugin's and an older copy the organization syncs (`anthropic-skills:avm-qa-orchestrator`). It now launches `/avm-qa-skills:avm-qa-orchestrator`, like the smoke and the regression. The old name, whether saved in the settings or in a backup you import, changes by itself; a skill name you chose is left alone.
+
 ## [1.17.1] - 2026-11-25
 
 ### Changed
