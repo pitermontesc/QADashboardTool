@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import { BackupsCard } from './BackupsCard';
@@ -102,10 +102,18 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
     });
   };
 
-  useEffect(() => setTicketBase(settings.ticketBase), [settings.ticketBase]);
-  useEffect(() => {
+  // When the saved values change (saved here, or a backup imported), the forms follow them.
+  const [syncedBase, setSyncedBase] = useState(settings.ticketBase);
+  if (settings.ticketBase !== syncedBase) {
+    setSyncedBase(settings.ticketBase);
+    setTicketBase(settings.ticketBase);
+  }
+  const savedJira = JSON.stringify([jira.site, jira.email, jira.board, jira.jql, jira.hasToken]);
+  const [syncedJira, setSyncedJira] = useState(savedJira);
+  if (savedJira !== syncedJira) {
+    setSyncedJira(savedJira);
     setJiraForm({ site: jira.site, email: jira.email, board: jira.board, jql: jira.jql, token: '' });
-  }, [jira.site, jira.email, jira.board, jira.jql, jira.hasToken]);
+  }
 
   const usage = useMemo(() => {
     const counts = new Map<string, number>();

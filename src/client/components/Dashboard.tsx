@@ -11,6 +11,7 @@ import { queuePosition, queuedOf, ticketsToValidate } from '../../shared/queue';
 import { QueuePanel } from './Queue';
 import { Automations, elapsedMin, runningOf } from './Automations';
 import { useLang, useText } from '../i18n';
+import { useNow } from '../useNow';
 import { Icon } from './icons';
 import { findType, JiraStatus, MOD, ResultPill, RunsTable, ticketTone } from './ui';
 
@@ -256,6 +257,7 @@ function JiraTickets({
   jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, queue, validateCount, onValidateAll, t,
 }: TicketsProps) {
   const lang = useLang();
+  const now = useNow();
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const tickets = q
@@ -298,7 +300,7 @@ function JiraTickets({
             <JiraStatus jira={jira} loading={loading} />
             {jira.connection === 'connected' && jira.fetchedAt !== null && (
               <span className="hint">
-                {t.ticketsMeta(jira.tickets.length, relativeTime(jira.fetchedAt, Date.now(), lang), JIRA_AUTO_REFRESH_MIN)}
+                {t.ticketsMeta(jira.tickets.length, relativeTime(jira.fetchedAt, now, lang), JIRA_AUTO_REFRESH_MIN)}
               </span>
             )}
           </div>
@@ -370,7 +372,7 @@ function JiraTickets({
                 {active ? (
                   <button className="tk-run running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
                     <i className="run-dot" />
-                    {t.runningFor(t.validating, elapsedMin(active))}
+                    {t.runningFor(t.validating, elapsedMin(active, now))}
                   </button>
                 ) : waiting ? (
                   <span className="tk-run queued" title={t.queuedTitle}>
@@ -431,9 +433,10 @@ export function Dashboard({
   const [period, setPeriod] = useState<Period>(30);
   const lang = useLang();
   const t = useText(TEXT);
+  const now = useNow();
   const { settings, runs, jira, automations } = state;
   // Memoized by value so stats are only recomputed when the day changes.
-  const todayYmd = toYmd(new Date());
+  const todayYmd = toYmd(new Date(now));
   const today = useMemo(() => parseYmd(todayYmd), [todayYmd]);
 
   // The same Jira bug found by several runs (for example, on QA and on STG) counts once.
@@ -480,8 +483,8 @@ export function Dashboard({
     <section className="dashboard">
       <div className="hero">
         <div>
-          <h2>{greeting(new Date(), lang)}</h2>
-          <p className="hint cap">{longDate(new Date(), lang)}</p>
+          <h2>{greeting(new Date(now), lang)}</h2>
+          <p className="hint cap">{longDate(new Date(now), lang)}</p>
         </div>
         <div className="spacer" />
         <div className="today">
@@ -570,7 +573,7 @@ export function Dashboard({
                   const waiting = queuedOf(state.queue.items, 'regression');
                   return active ? (
                     <button className="btn small major-run running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
-                      <i className="run-dot" /> {t.runningFor(active.target || 'testomat.io', elapsedMin(active))}
+                      <i className="run-dot" /> {t.runningFor(active.target || 'testomat.io', elapsedMin(active, now))}
                     </button>
                   ) : waiting ? (
                     <span className="btn small major-run queued" title={t.queuedTitle}>
@@ -589,7 +592,7 @@ export function Dashboard({
                       const waiting = queuedOf(state.queue.items, 'smoke', site.name);
                       return active ? (
                         <button key={site.id} className="btn small running" onClick={() => onOpenReport(active)} title={t.seeProgress}>
-                          <i className="run-dot" /> {t.runningFor(site.name, elapsedMin(active))}
+                          <i className="run-dot" /> {t.runningFor(site.name, elapsedMin(active, now))}
                         </button>
                       ) : waiting ? (
                         <span key={site.id} className="btn small queued" title={t.queuedTitle}>

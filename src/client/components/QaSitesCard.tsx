@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { QaConfig, QaSite, Settings } from '../../shared/types';
 import { defaultQaConfig } from '../../shared/orchestrator';
 import { useText } from '../i18n';
@@ -47,11 +47,12 @@ export function QaSitesCard({ settings, onSave }: QaSitesCardProps) {
   // When the saved sites and skills change (saved here, or a backup imported), the draft follows them.
   // Saving any other setting returns the same sites in a new object: that must not wipe unsaved edits.
   const saved = JSON.stringify(settings.qa);
-  useEffect(() => {
-    const qa = JSON.parse(saved) as QaConfig;
-    setDraft(qa);
-    setHosts(qa.testRunHosts.join(', '));
-  }, [saved]);
+  const [synced, setSynced] = useState(saved);
+  if (saved !== synced) {
+    setSynced(saved);
+    setDraft(settings.qa);
+    setHosts(settings.qa.testRunHosts.join(', '));
+  }
 
   const next: QaConfig = { ...draft, testRunHosts: hosts.split(',').map((h) => h.trim()).filter(Boolean) };
   const dirty = JSON.stringify(next) !== saved;

@@ -2,6 +2,7 @@ import { relativeTime } from '../../shared/dates';
 import type { Automation, AutomationKind, Lang, TestRun, Verdict } from '../../shared/types';
 import { Icon } from './icons';
 import { useLang, useText } from '../i18n';
+import { useNow } from '../useNow';
 
 interface AutomationsProps {
   automations: Automation[];
@@ -76,8 +77,8 @@ function counts(run: TestRun | undefined): string {
 export function Automations({ automations, runs, onDismiss, onOpen }: AutomationsProps) {
   const lang = useLang();
   const t = useText(TEXT);
+  const now = useNow();
   if (automations.length === 0) return null;
-  const now = Date.now();
   const byId = new Map(runs.map((r) => [r.id, r]));
 
   return (

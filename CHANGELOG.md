@@ -2,6 +2,12 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.17.1] - 2026-11-25
+
+### Changed
+- **No lint warnings left, and none can come back.** The 13 React warnings are fixed (`npm run lint` now fails on any warning, in CI too). What you may notice: "5 min ago", the minutes a run has been going and the dashboard's "today" now move on by themselves (every 30 seconds) instead of only when something else changed.
+- Internal: the time comes from one `useNow` hook instead of being read while drawing; the settings forms follow restored data without an extra render; the report translation and the app's refresh read the current state through `useEffectEvent`. Tests now cover the forms following restored data, the Jira token box, retrying a failed translation and the notice when a run finishes.
+
 ## [1.17.0] - 2026-11-25
 
 ### Changed

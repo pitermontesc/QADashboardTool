@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { api } from '../api';
 import type { ActivityItem, Automation, JiraComment, ReportBug, ReportBugEdit, ReportModule, StepStatus, TestRun } from '../../shared/types';
 import { KIND_LABEL, VERDICT_TONE, elapsedMin, reportIn } from './Automations';
@@ -339,24 +339,24 @@ function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError 
 /** Requests the report's translation if Claude wrote it in another language. */
 function useTranslation(a: Automation, onUpdate: (a: Automation) => void): { failed: boolean; retry: () => void } {
   const lang = useLang();
-  const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // The attempt that failed: a new attempt, report or language starts without the error.
+  const [failedOn, setFailedOn] = useState('');
+  const current = `${a.id} ${lang} ${attempt}`;
   const pending = reportIn(a, lang).pending;
-  const update = useRef(onUpdate);
-  update.current = onUpdate;
+  const translated = useEffectEvent((next: Automation) => onUpdate(next));
   useEffect(() => {
     if (!pending) return;
     let alive = true;
-    setFailed(false);
     api.translateAutomation(a.id, lang).then(
-      (next) => alive && update.current(next),
-      () => alive && setFailed(true),
+      (next) => alive && translated(next),
+      () => alive && setFailedOn(`${a.id} ${lang} ${attempt}`),
     );
     return () => {
       alive = false;
     };
   }, [a.id, lang, pending, attempt]);
-  return { failed: pending && failed, retry: () => setAttempt((n) => n + 1) };
+  return { failed: pending && failedOn === current, retry: () => setAttempt((n) => n + 1) };
 }
 
 function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: boolean }) {

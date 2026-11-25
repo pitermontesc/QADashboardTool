@@ -1,6 +1,6 @@
 {
   "name": "qa-dashboard-tool",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "private": true,
   "description": "Local dashboard to log QA tests (daily, Smoke, Regression) with Jira tickets",
   "type": "module",
@@ -13,7 +13,7 @@
     "start": "npm run build && node dist/server/index.js --open",
     "serve": "node dist/server/index.js --open",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "lint": "oxlint",
+    "lint": "oxlint --deny-warnings",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "desktop": "npm run build && env -u ELECTRON_RUN_AS_NODE electron .",

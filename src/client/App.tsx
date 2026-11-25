@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
   AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, QueueItem, Settings, TestRun, TestRunInput, Theme,
@@ -216,14 +216,44 @@ export function App() {
   // While Claude runs an automation or reports are being translated, state is polled every few seconds.
   const running =
     (state?.automations.some((a) => a.finishedAt === null) ?? false) || (state?.translating ?? 0) > 0 || (state?.queue.items.length ?? 0) > 0;
-  const stateRef = useRef(state);
-  stateRef.current = state;
   /**
    * Goes up with every change made here and every server state applied. A background refresh asked
    * before either is dropped (the next one brings the news), so a slow answer cannot bring back a run
    * just deleted, undo a run that already finished, or announce the same result twice.
    */
   const generation = useRef(0);
+  /** Applies a polled state and announces what changed since the state shown now. */
+  const applyPolled = useEffectEvent((next: AppState) => {
+    const before = new Map(state?.automations.map((a) => [a.id, a]));
+    const queueBefore = state?.queue;
+    setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating } : s));
+    const current = state?.settings.language ?? 'es';
+    for (const a of next.automations) {
+      if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
+        const what =
+          a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
+        announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
+      }
+    }
+    // After the results (a finished run can cause these). A queued run that was dropped when its turn came, or a site that stopped: say why.
+    const seen = new Set(queueBefore?.skipped.map((q) => q.id));
+    for (const skip of next.queue.skipped) {
+      if (queueBefore && !seen.has(skip.id)) announce(TEXT[current].skipped(skip.kind === 'orchestrator' ? skip.target : `${skip.kind} ${skip.target}`), skip.reason);
+    }
+    for (const [site, why] of Object.entries(next.queue.paused)) {
+      if (queueBefore && queueBefore.paused[site] === undefined) {
+        announce(TEXT[current].lanePaused(next.settings.qa.sites.find((x) => x.id === site)?.name ?? site), why);
+      }
+    }
+    // Last, so it is the notice left on screen. A whole batch is done: "4 PASSED · 1 FAILED · 1 BLOCKED · 2 h 10 min".
+    const known = new Set(queueBefore?.finished.map((b) => b.batch));
+    for (const done of next.queue.finished) {
+      if (queueBefore && !known.has(done.batch)) {
+        const counts = Object.entries(done.verdicts).map(([verdict, n]) => `${n} ${verdict}`);
+        announce(TEXT[current].batchDone, [...counts, formatMinutes(done.minutes).replace('~', '')].join(' · '));
+      }
+    }
+  });
   useEffect(() => {
     if (!running) return;
     const timer = setInterval(() => {
@@ -233,40 +263,12 @@ export function App() {
         .then((next) => {
           if (asked !== generation.current) return;
           generation.current++;
-          const before = new Map(stateRef.current?.automations.map((a) => [a.id, a]));
-          const queueBefore = stateRef.current?.queue;
-          setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating } : s));
-          const current = stateRef.current?.settings.language ?? 'es';
-          for (const a of next.automations) {
-            if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
-              const what =
-                a.kind === 'smoke' ? `Smoke ${a.target}` : a.kind === 'orchestrator' ? a.target : `Regression ${a.target}`.trim();
-              announce(`${what}: ${a.verdict}`, reportIn(a, current).summary || TEXT[current].resultSaved);
-            }
-          }
-          // After the results (a finished run can cause these). A queued run that was dropped when its turn came, or a site that stopped: say why.
-          const seen = new Set(queueBefore?.skipped.map((q) => q.id));
-          for (const skip of next.queue.skipped) {
-            if (queueBefore && !seen.has(skip.id)) announce(TEXT[current].skipped(skip.kind === 'orchestrator' ? skip.target : `${skip.kind} ${skip.target}`), skip.reason);
-          }
-          for (const [site, why] of Object.entries(next.queue.paused)) {
-            if (queueBefore && queueBefore.paused[site] === undefined) {
-              announce(TEXT[current].lanePaused(next.settings.qa.sites.find((x) => x.id === site)?.name ?? site), why);
-            }
-          }
-          // Last, so it is the notice left on screen. A whole batch is done: "4 PASSED · 1 FAILED · 1 BLOCKED · 2 h 10 min".
-          const known = new Set(queueBefore?.finished.map((b) => b.batch));
-          for (const done of next.queue.finished) {
-            if (queueBefore && !known.has(done.batch)) {
-              const counts = Object.entries(done.verdicts).map(([verdict, n]) => `${n} ${verdict}`);
-              announce(TEXT[current].batchDone, [...counts, formatMinutes(done.minutes).replace('~', '')].join(' · '));
-            }
-          }
+          applyPolled(next);
         })
         .catch(() => undefined);
     }, AUTOMATION_POLL_MS);
     return () => clearInterval(timer);
-  }, [running, announce]);
+  }, [running]);
 
   useEffect(() => {
     if (!toast) return;
@@ -394,7 +396,12 @@ export function App() {
     }
   };
 
-  /** Automatic refresh: silent except for new tickets in On QA / On Staging. */
+  /**
+   * Automatic refresh: silent except for new tickets in On QA / On Staging.
+   * Kept in a ref, not a hook: it needs the loaded state and the handlers defined after the loading
+   * return. The timer above calls it from an event, never while rendering.
+   */
+  // oxlint-disable-next-line react/refs
   autoRefresh.current = () => {
     const { jira } = state;
     if (jiraLoading || !jira.hasToken || jira.connection === 'none') return;
@@ -536,6 +543,8 @@ export function App() {
   const toInput = ({ id: _id, createdAt: _createdAt, ...input }: TestRun): TestRunInput => input;
   const newRun = (): void => openForm(blankRun(state.settings));
 
+  // Like autoRefresh: set here, after the loading return, and only called from the listener above.
+  // oxlint-disable-next-line react/refs
   commands.current = (command) => {
     if (command === 'new-run') {
       if (!form) newRun();
