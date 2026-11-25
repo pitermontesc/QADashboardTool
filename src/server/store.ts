@@ -61,6 +61,17 @@ const emptyData = (): StoreData => ({
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 
+/** A run as saved before v1.17.0, which did not say whether it was a rehearsal. */
+type SavedRun = Omit<TestRun, 'testMode'> & { testMode?: boolean };
+/** A backup to import: its runs may come from before v1.17.0. */
+export type BackupInput = Omit<Backup, 'runs'> & { runs: SavedRun[] };
+
+/** Runs from before v1.17.0 get `testMode`: the record of a run in test mode is a rehearsal; a mark already there is kept. */
+function withTestMode(runs: readonly SavedRun[], automations: readonly Pick<Automation, 'dryRun' | 'runId'>[]): TestRun[] {
+  const rehearsals = new Set(automations.filter((a) => a.dryRun && a.runId).map((a) => a.runId));
+  return runs.map((r) => ({ ...r, testMode: r.testMode ?? rehearsals.has(r.id) }));
+}
+
 /**
  * Persistence in a single JSON file. The data volume (a few test runs per day)
  * does not justify a database: everything is kept in memory and every change is
@@ -124,6 +135,7 @@ export class Store {
         ticketType: a.ticketType ?? '',
         queued: a.queued ?? null,
       })),
+      runs: withTestMode(saved.runs ?? [], saved.automations ?? []),
       // Before v1.14.0 runs had no report key.
       reportKeys: saved.reportKeys ?? {},
       // v1.15.1 added batches and retries to queued runs.
@@ -467,15 +479,15 @@ export class Store {
    * Replaces settings and runs; a backup that includes QA reports (v1.14.0 and later) also replaces them.
    * The data as it was is copied to `backups/` first, so an import or a restore can be undone.
    */
-  importBackup({ runs, automations, ...settings }: Backup, reason: 'before-import' | 'before-restore' = 'before-import'): string | null {
+  importBackup({ runs, automations, ...settings }: BackupInput, reason: 'before-import' | 'before-restore' = 'before-import'): string | null {
     const saved = this.backupNow(reason);
     this.data.settings = settings;
-    this.data.runs = runs;
     if (automations) {
       // A report still "in progress" in the backup has no process here: it is kept as it is, without a pid.
       this.data.automations = automations.map((a) => ({ ...a, pid: null }));
       this.data.reportKeys = {};
     }
+    this.data.runs = withTestMode(runs, this.data.automations);
     this.localizeAll();
     this.persist();
     return saved;

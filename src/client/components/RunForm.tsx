@@ -30,6 +30,8 @@ const TEXT = {
     autoHint: 'Se ajusta solo según los casos; elígelo a mano si hace falta.',
     notes: 'Notas', notesPh: 'Pasos, hallazgos, links a bugs…', save: 'guardar', cancelKey: 'cancelar',
     cancel: 'Cancelar', saving: 'Guardando…', saveRun: 'Guardar registro',
+    testMode: 'Ejecución de prueba',
+    testModeHint: 'Un ensayo (como una regresión en modo prueba): queda en Registros, pero no cuenta en los números ni en los gráficos del dashboard.',
   },
   en: {
     counts: { passed: 'Cases passed', failed: 'Cases failed', blocked: 'Cases blocked', bugs: 'Bugs', minutes: 'Minutes' },
@@ -39,6 +41,8 @@ const TEXT = {
     autoHint: 'Set automatically from the cases; pick it by hand if needed.',
     notes: 'Notes', notesPh: 'Steps, findings, bug links…', save: 'save', cancelKey: 'cancel',
     cancel: 'Cancel', saving: 'Saving…', saveRun: 'Save run',
+    testMode: 'Test run',
+    testModeHint: 'A rehearsal (like a regression in test mode): it stays in Runs, but the dashboard numbers and charts leave it out.',
   },
 };
 type CountField = (typeof COUNT_FIELDS)[number][0];
@@ -220,6 +224,14 @@ export function RunForm({ heading, initial, settings, onSubmit, onClose }: RunFo
         <label className="f" style={{ marginTop: 14 }}>
           {t.notes}
           <textarea rows={3} placeholder={t.notesPh} value={draft.notes} onChange={(e) => set('notes', e.target.value)} />
+        </label>
+
+        <label className="check">
+          <input type="checkbox" checked={draft.testMode} onChange={(e) => set('testMode', e.target.checked)} />
+          <span>
+            {t.testMode}
+            <span className="hint">{t.testModeHint}</span>
+          </span>
         </label>
 
         <div className="actions">

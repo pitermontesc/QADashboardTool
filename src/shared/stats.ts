@@ -15,6 +15,9 @@ export function sortRuns(runs: readonly TestRun[]): TestRun[] {
   );
 }
 
+/** The runs the dashboard's numbers and charts count: rehearsals (runs in test mode) stay out. */
+export const countedRuns = (runs: readonly TestRun[]): TestRun[] => runs.filter((r) => !r.testMode);
+
 export function filterByPeriod(runs: readonly TestRun[], period: Period, today: Date): TestRun[] {
   if (period === 0) return [...runs];
   const from = toYmd(addDays(startOfDay(today), -(period - 1)));

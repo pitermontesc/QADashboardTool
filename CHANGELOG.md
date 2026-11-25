@@ -2,6 +2,14 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] - 2026-11-25
+
+### Changed
+- **Runs in test mode do not count in the dashboard.** A regression in test mode is a rehearsal: the cases it did not run counted as blocked and pulled the pass rate down (one rehearsal took it from 87% to 13%), and its bugs, cases and time were added too. Its run now stays in **Runs** with a **Test mode** tag and its report, but no KPI, chart or highlighted suite counts it; a line under the KPIs says how many were left out. Runs from earlier regressions in test mode are marked when the app opens or a backup is imported.
+
+### Added
+- **Test run** in the run form, to mark any run as a rehearsal (or unmark one so it counts). The CSV export has a **Test mode** column.
+
 ## [1.16.1] - 2026-11-25
 
 ### Changed

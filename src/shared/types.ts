@@ -33,6 +33,11 @@ export interface TestRunInput {
   bugs: number | null;
   minutes: number | null;
   notes: string;
+  /**
+   * A rehearsal (a regression in test mode, or one marked by hand): it stays in Runs with its report,
+   * but the dashboard's numbers and charts leave it out.
+   */
+  testMode: boolean;
 }
 
 export interface TestRun extends TestRunInput {

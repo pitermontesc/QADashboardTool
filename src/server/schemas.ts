@@ -65,6 +65,7 @@ export const runInputSchema = z.object({
   bugs: count,
   minutes: count,
   notes: z.string().trim().max(5000).default(''),
+  testMode: z.boolean().default(false),
 });
 
 export const runSchema = runInputSchema.extend({
@@ -121,7 +122,8 @@ export const settingsSchema = z.object({
 });
 
 export const backupSchema = settingsSchema
-  .extend({ runs: z.array(runSchema), automations: z.lazy(() => z.array(storedAutomationSchema)).optional() })
+  // Runs from before v1.17.0 have no `testMode`: the import works it out from their reports.
+  .extend({ runs: z.array(runSchema.extend({ testMode: z.boolean().optional() })), automations: z.lazy(() => z.array(storedAutomationSchema)).optional() })
   .refine((b) => b.runs.every((r) => b.types.some((t) => t.id === r.typeId)), 'The backup has runs of test types that do not exist')
   .refine((b) => new Set(b.runs.map((r) => r.id)).size === b.runs.length, 'The backup has two runs with the same id');
 

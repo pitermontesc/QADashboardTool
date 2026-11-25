@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy, greeting, longDate, parseYmd, relativeDay, relativeTime, toYmd } from '../../shared/dates';
 import {
-  bugKeysByRun, buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
+  bugKeysByRun, countedRuns, buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
 import { canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
@@ -65,6 +65,10 @@ const TEXT = {
     inPeriod: 'en el período',
     noneInPeriod: 'ninguno en el período',
     kpiTime: 'Tiempo',
+    rehearsals: (n: number) =>
+      n === 1
+        ? 'Una ejecución en modo prueba no cuenta en estos números: sigue en Registros con su reporte.'
+        : `${n} ejecuciones en modo prueba no cuentan en estos números: siguen en Registros con sus reportes.`,
     todayRuns: (n: number): string => (n === 1 ? 'registro hoy' : 'registros hoy'),
     cases: 'casos',
     summary: 'Resumen',
@@ -131,6 +135,10 @@ const TEXT = {
     inPeriod: 'in the period',
     noneInPeriod: 'none in the period',
     kpiTime: 'Time',
+    rehearsals: (n: number) =>
+      n === 1
+        ? 'One run in test mode does not count in these numbers: it stays in Runs with its report.'
+        : `${n} runs in test mode do not count in these numbers: they stay in Runs with their reports.`,
     todayRuns: (n: number): string => (n === 1 ? 'run today' : 'runs today'),
     cases: 'cases',
     summary: 'Summary',
@@ -431,15 +439,18 @@ export function Dashboard({
   // The same Jira bug found by several runs (for example, on QA and on STG) counts once.
   const bugKeys = useMemo(() => bugKeysByRun(automations), [automations]);
   const view = useMemo(() => {
-    const inPeriod = filterByPeriod(runs, period, today);
-    const todayRuns = runs.filter((r) => r.date === todayYmd);
+    // Runs in test mode are rehearsals: listed in Recent runs and Runs, but not in the numbers or charts.
+    const counted = countedRuns(runs);
+    const inPeriod = filterByPeriod(counted, period, today);
+    const todayRuns = counted.filter((r) => r.date === todayYmd);
     return {
       inPeriod,
+      rehearsals: filterByPeriod(runs, period, today).length - inPeriod.length,
       summary: summarize(inPeriod, bugKeys),
       today: summarize(todayRuns, bugKeys),
-      buckets: buildBuckets(runs, period, today, lang),
+      buckets: buildBuckets(counted, period, today, lang),
       byType: countByType(inPeriod),
-      lastByType: lastRunByType(runs),
+      lastByType: lastRunByType(counted),
       perTicket: countByTicket(runs),
       recent: sortRuns(runs).slice(0, 8),
       todayCount: todayRuns.length,
@@ -526,6 +537,7 @@ export function Dashboard({
           </div>
         ))}
       </div>
+      {view.rehearsals > 0 && <p className="hint rehearsals">{t.rehearsals(view.rehearsals)}</p>}
 
       {majors.length > 0 && (
         <div className="majors">

@@ -33,11 +33,12 @@ export function exportCsv({ settings, runs }: AppState): void {
   const typeName = new Map(settings.types.map((t) => [t.id, t.name]));
   const rows: Array<Array<string | number | null>> = [
     settings.language === 'en'
-      ? ['Date', 'Type', 'Title', 'Ticket', 'Environment', 'Result', 'Passed', 'Failed', 'Blocked', 'Bugs', 'Minutes', 'Notes']
-      : ['Fecha', 'Tipo', 'Titulo', 'Ticket', 'Ambiente', 'Resultado', 'Passed', 'Failed', 'Blocked', 'Bugs', 'Minutos', 'Notas'],
+      ? ['Date', 'Type', 'Title', 'Ticket', 'Environment', 'Result', 'Passed', 'Failed', 'Blocked', 'Bugs', 'Minutes', 'Notes', 'Test mode']
+      : ['Fecha', 'Tipo', 'Titulo', 'Ticket', 'Ambiente', 'Resultado', 'Passed', 'Failed', 'Blocked', 'Bugs', 'Minutos', 'Notas', 'Modo prueba'],
     ...sortRuns(runs).map((r) => [
       r.date, typeName.get(r.typeId) ?? '', r.title, r.ticket, r.env, resultLabel(r.result, settings.language),
       r.passed, r.failed, r.blocked, r.bugs, r.minutes, r.notes,
+      r.testMode ? (settings.language === 'en' ? 'Yes' : 'Sí') : '',
     ]),
   ];
   // BOM so Excel opens the file as UTF-8.

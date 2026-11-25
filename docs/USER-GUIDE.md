@@ -175,6 +175,7 @@ When you save, the **Run saved** notice appears and the ticket card adds the run
 | **Minutes** | Time spent; added to the **Time** KPI. |
 | **Result** | Passed, Failed, Blocked or In progress. |
 | **Notes** | Free text. Shown under the title in the runs list. |
+| **Test run** | A rehearsal: the run stays in **Runs** with a **Test mode** tag, but the dashboard's numbers and charts leave it out. A regression in test mode is marked on its own; uncheck it to count it after all. |
 
 `Esc` or **Cancel** closes the form without saving.
 
@@ -271,7 +272,7 @@ The dashboard's **★ Regression** card has the **▷ Run regression** button. I
 4. The skill validates each TC in the browser, marks the results in testomat.io, documents the bugs, creates the Jira epic with its work items and ends with a **GO / NO-GO** verdict.
 5. When it finishes, **Claude reports the result to the app** and the regression is logged automatically (see below).
 
-> **Test mode.** Check **Test mode: read-only in Jira and testomat.io** in the dialog to try a regression without leaving anything behind: Claude validates the test cases in the browser as usual, but does not create the epic, suite tasks, bugs or summary comment in Jira, and does not mark results in testomat.io. The run is titled **Regression … (test mode)**, its report says so, lists the bugs without Jira keys and notes what it would have created; the app never offers a Jira comment for it.
+> **Test mode.** Check **Test mode: read-only in Jira and testomat.io** in the dialog to try a regression without leaving anything behind: Claude validates the test cases in the browser as usual, but does not create the epic, suite tasks, bugs or summary comment in Jira, and does not mark results in testomat.io. The run is titled **Regression … (test mode)**, its report says so, lists the bugs without Jira keys and notes what it would have created; the app never offers a Jira comment for it. Its run is tagged **Test mode** in **Runs** and does not count in the dashboard's numbers: cases it did not run would otherwise pull the pass rate down.
 
 !["Run regression" dialog with test run #b333fb92 and the command that will run](img/19-regression-dialog.png)
 
@@ -374,6 +375,8 @@ From top to bottom:
 | **Pass rate** | Passed cases ÷ executed cases. If no run has cases, it is calculated with runs: Passed ÷ finished runs (not counting "In progress"). Green from 90%, amber from 70%, red below. |
 | **Bugs found** | Sum of the Bugs field; a bug that several reports list with the same Jira key counts once. |
 | **Time** | Sum of minutes, in hours. |
+
+Runs in test mode (tagged **Test mode** in Runs) are rehearsals: no KPI, chart or highlighted suite counts them, and a line under the KPIs says how many of the period were left out.
 
 Below the KPIs:
 

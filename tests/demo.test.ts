@@ -39,7 +39,12 @@ describe('Demo mode', () => {
     expect(s.jira.tickets.map((t) => t.key)).toContain('AVM-7057');
     expect(s.runs.length).toBeGreaterThan(20);
     for (const run of s.runs) runInputSchema.parse(run);
-    expect(s.automations.map((a) => `${a.kind} ${a.verdict}`)).toEqual(['orchestrator PASSED W/F', 'smoke GO', 'regression NO-GO', 'smoke BLOCKED']);
+    expect(s.automations.map((a) => `${a.kind} ${a.verdict}${a.dryRun ? ' (test mode)' : ''}`)).toEqual([
+      'orchestrator PASSED W/F', 'smoke GO', 'regression NO-GO', 'regression NO-GO (test mode)', 'smoke BLOCKED',
+    ]);
+    // The rehearsal's record is listed, but marked so the dashboard leaves it out.
+    const rehearsal = s.automations.find((a) => a.dryRun)!;
+    expect(s.runs.filter((r) => r.testMode).map((r) => r.id)).toEqual([rehearsal.runId]);
     for (const a of s.automations) {
       if (a.details) automationDetailsSchema.parse(a.details);
       expect(a.translations.en?.summary).toBeTruthy();

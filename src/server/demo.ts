@@ -256,27 +256,31 @@ const MANUAL_RUNS: Array<[number, string, string, string, string, TestRun['resul
 /** A finished Claude run, with its test run record and its report in both languages. */
 function seededAutomation(
   lang: Lang, kind: AutomationKind, target: string, env: string, verdict: Verdict, def: ReportDef | null, startedAt: number, minutes: number,
-  extra: { subject?: string; link?: string; summary?: Bi; jiraComment?: AutomationDetails['jiraComment']; typeId: string },
+  extra: {
+    subject?: string; link?: string; summary?: Bi; jiraComment?: AutomationDetails['jiraComment']; typeId: string;
+    dryRun?: boolean; counts?: { passed: number; failed: number; blocked: number; bugs: number };
+  },
 ): { automation: Automation; run: TestRun } {
   const other: Lang = lang === 'es' ? 'en' : 'es';
   const summary = def?.summary ?? extra.summary ?? bi('', '');
   const automation: Automation = {
-    id: randomUUID(), kind, target, env, title: automationTitle(kind, target, lang, extra.subject), startedAt,
+    id: randomUUID(), kind, target, env, title: automationTitle(kind, target, lang, extra.subject, extra.dryRun), startedAt,
     finishedAt: startedAt + minutes * 60_000, verdict, summary: summary[lang], link: extra.link ?? '',
     details: def ? details(def, lang, extra.jiraComment ?? null) : null, runId: null, pid: null, logFile: '', lang,
     translations: { [other]: { summary: summary[other], details: def ? details(def, other) : null } satisfies ReportTranslation },
-    dryRun: false,
+    dryRun: extra.dryRun ?? false,
     site: '',
     ticketType: kind === 'orchestrator' ? (DEMO_TICKET_DEFS.find((t) => t.key === target)?.type ?? '') : '',
     queued: null,
   };
-  const c = def ? counts(def) : { passed: 0, failed: 0, blocked: 8, bugs: 0 };
+  const c = extra.counts ?? (def ? counts(def) : { passed: 0, failed: 0, blocked: 8, bugs: 0 });
   const run: TestRun = {
     id: randomUUID(), createdAt: startedAt, date: toYmd(new Date(startedAt)), typeId: extra.typeId,
     ticket: kind === 'orchestrator' ? target : '', env,
     result: verdict === 'GO' || verdict === 'PASSED' || verdict === 'PASSED W/F' ? 'passed' : verdict === 'BLOCKED' ? 'blocked' : 'failed',
     ...c, minutes,
     ...runText(automation, lang, summary[lang], true),
+    testMode: automation.dryRun,
   };
   automation.runId = run.id;
   return { automation, run };
@@ -295,7 +299,7 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
   const settings = { ...defaultSettings(lang), ticketBase: `${DEMO_SITE}/browse/` };
   const runs: TestRun[] = MANUAL_RUNS.map(([ago, typeId, title, ticket, env, result, passed, failed, blocked, bugs, minutes], i) => ({
     id: randomUUID(), createdAt: at(ago, 9 + (i % 7)), date: toYmd(new Date(at(ago, 9 + (i % 7)))), typeId, title, ticket, env, result,
-    passed, failed, blocked, bugs, minutes, notes: '',
+    passed, failed, blocked, bugs, minutes, notes: '', testMode: false,
   }));
   const seeded = [
     seededAutomation(lang, 'orchestrator', 'AVM-7057', 'QA', 'PASSED W/F', ORCHESTRATOR_WF, now - 75 * 60_000, 32, {
@@ -305,6 +309,15 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
     seededAutomation(lang, 'smoke', 'STG', 'STG', 'GO', SMOKE_GO, at(2, 8), 6, { typeId: 't0' }),
     seededAutomation(lang, 'regression', '#b333fb92', 'STG', 'NO-GO', REGRESSION_NOGO, at(5, 10), 74, {
       link: 'https://app.testomat.io/projects/avm/runs/b333fb92', typeId: 't1',
+    }),
+    // A rehearsal: listed with its report, but left out of the dashboard's numbers.
+    seededAutomation(lang, 'regression', '#c41d2e07', 'STG', 'NO-GO', null, at(3, 14), 41, {
+      link: 'https://app.testomat.io/projects/avm/runs/c41d2e07', typeId: 't1', dryRun: true,
+      counts: { passed: 38, failed: 2, blocked: 112, bugs: 2 },
+      summary: remember(bi(
+        'Regresión del test run #c41d2e07 en STG en modo prueba: NO-GO. 38 casos pasan y 2 fallan; los otros 112 no se ejecutaron (la prueba cubrió solo Work Orders). No se creó ni se marcó nada en Jira ni en testomat.io.',
+        'Regression of test run #c41d2e07 on STG in test mode: NO-GO. 38 cases pass and 2 fail; the other 112 were not run (the rehearsal only covered Work Orders). Nothing was created or marked in Jira or testomat.io.',
+      )),
     }),
     seededAutomation(lang, 'smoke', 'QA', 'QA', 'BLOCKED', null, at(11, 8), 2, {
       typeId: 't0',

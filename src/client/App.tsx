@@ -150,6 +150,7 @@ function blankRun(settings: Settings, overrides: Partial<TestRunInput> = {}): Te
     bugs: null,
     minutes: null,
     notes: '',
+    testMode: false,
     ...overrides,
   };
 }

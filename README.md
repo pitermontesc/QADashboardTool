@@ -123,7 +123,7 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/state` | Settings, runs and Jira status |
-| POST | `/api/runs` | Creates a run |
+| POST | `/api/runs` | Creates a run (`testMode: true` marks a rehearsal: listed, but left out of the dashboard's numbers) |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
 | PUT | `/api/settings` | Saves the settings: types, environments, ticket URL, language, theme, and sites & skills |
 | POST | `/api/import` | Replaces the data with a backup (and the QA reports, if the backup has them). A copy of the current data is kept first; 409 while a run is in progress or queued |

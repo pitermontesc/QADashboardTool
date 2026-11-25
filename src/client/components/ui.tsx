@@ -71,10 +71,14 @@ const TABLE_TEXT = {
   es: {
     empty: 'No hay registros todavía. Pulsa un ticket de Jira o “Nuevo registro” para empezar.',
     head: ['Fecha', 'Tipo', 'Título', 'Ticket', 'Amb.', 'Resultado', 'Casos P/F/B', 'Bugs', 'Min'],
+    testMode: 'Modo prueba',
+    testModeHint: 'Ensayo: no cuenta en los números ni en los gráficos del dashboard',
   },
   en: {
     empty: 'No runs yet. Click a Jira ticket or “New run” to get started.',
     head: ['Date', 'Type', 'Title', 'Ticket', 'Env.', 'Result', 'Cases P/F/B', 'Bugs', 'Min'],
+    testMode: 'Test mode',
+    testModeHint: 'Rehearsal: not counted in the dashboard numbers or charts',
   },
 };
 
@@ -101,6 +105,7 @@ export function RunsTable({ runs, settings, actions, empty }: RunsTableProps) {
             <td><TypeTag type={findType(settings, run.typeId)} /></td>
             <td>
               {run.title}
+              {run.testMode && <span className="test-mode" title={t.testModeHint}>{t.testMode}</span>}
               {run.notes && <div className="notes">{run.notes}</div>}
             </td>
             <td className="num"><TicketLink ticket={run.ticket} base={settings.ticketBase} /></td>

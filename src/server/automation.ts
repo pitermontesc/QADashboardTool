@@ -111,6 +111,8 @@ export function runForAutomation(automation: Automation, settings: Settings, res
     typeId: typeFor(automation.kind, settings),
     ticket: automation.kind === 'orchestrator' ? automation.target : '',
     env: automation.env,
+    // A regression in test mode is a rehearsal: its record stays out of the dashboard's numbers.
+    testMode: automation.dryRun,
   };
   if (!result) {
     return {

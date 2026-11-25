@@ -11,7 +11,7 @@ function run(overrides: Partial<TestRun>): TestRun {
   seq++;
   return {
     id: `r${seq}`, createdAt: seq, date: '2026-11-17', typeId: 't0', title: `Run ${seq}`, ticket: '', env: 'QA',
-    result: 'passed', passed: null, failed: null, blocked: null, bugs: null, minutes: null, notes: '', ...overrides,
+    result: 'passed', passed: null, failed: null, blocked: null, bugs: null, minutes: null, notes: '', testMode: false, ...overrides,
   };
 }
 
