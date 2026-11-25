@@ -1,6 +1,6 @@
 {
   "name": "qa-dashboard-tool",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "private": true,
   "description": "Local dashboard to log QA tests (daily, Smoke, Regression) with Jira tickets",
   "type": "module",
@@ -34,7 +34,7 @@
     "@vitejs/plugin-react": "^6.3.0",
     "@vitest/coverage-v8": "5.1.0",
     "concurrently": "^10.0.7",
-    "electron": "^45.3.4",
+    "electron": "^45.5.0",
     "electron-builder": "^26.18.0",
     "jsdom": "^31.0.1",
     "oxlint": "1.93.0",

@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.16.1] - 2026-11-25
+
+### Changed
+- **Electron 45.5.0** (was 45.3.4): Chromium 156.0.8078.109 with the latest security fixes from Chromium, V8, ANGLE, Dawn, FFmpeg and PDFium, plus Electron's own crash fixes. Nothing changes in how the app works.
+
 ## [1.16.0] - 2026-11-24
 
 ### Added
