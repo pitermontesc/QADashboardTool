@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
+import { BackupsCard } from './BackupsCard';
 import { QaSitesCard } from './QaSitesCard';
 import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
@@ -14,6 +15,8 @@ interface SettingsViewProps {
   onSaveSettings: (settings: Settings) => void;
   onSaveJira: (config: JiraConfigInput) => void;
   onImport: (backup: Backup) => void;
+  onRestore: (name: string, when: string) => Promise<void>;
+  onNotice: (message: string) => void;
   onError: (message: string) => void;
 }
 
@@ -42,7 +45,7 @@ const TEXT = {
     connecting: 'Conectando…', saveReload: 'Guardar y recargar tickets', connectLoad: 'Conectar y cargar tickets',
     ticketLink: 'Enlace de tickets', baseUrl: 'URL base (el ticket se agrega al final)', baseUrlPh: 'https://tu-sitio.atlassian.net/browse/',
     backup: 'Respaldo de datos',
-    backupHint: 'Los datos se guardan en qa-tests.json, en la carpeta de datos de usuario del sistema (en macOS: ~/Library/Application Support/QA Dashboard). Importar un respaldo reemplaza los datos actuales.',
+    backupHint: 'Los datos se guardan en qa-tests.json, en la carpeta de datos de usuario del sistema (en macOS: ~/Library/Application Support/QA Dashboard). Importar un respaldo reemplaza los datos actuales (antes se guarda una copia automática).',
     exportJson: 'Exportar respaldo (JSON)', exportCsv: 'Exportar CSV', import: 'Importar respaldo',
   },
   en: {
@@ -67,7 +70,7 @@ const TEXT = {
     connecting: 'Connecting…', saveReload: 'Save and reload tickets', connectLoad: 'Connect and load tickets',
     ticketLink: 'Ticket links', baseUrl: 'Base URL (the ticket key is appended)', baseUrlPh: 'https://your-site.atlassian.net/browse/',
     backup: 'Data backup',
-    backupHint: 'Data is stored in qa-tests.json, in the system user data folder (on macOS: ~/Library/Application Support/QA Dashboard). Importing a backup replaces the current data.',
+    backupHint: 'Data is stored in qa-tests.json, in the system user data folder (on macOS: ~/Library/Application Support/QA Dashboard). Importing a backup replaces the current data (an automatic copy is kept first).',
     exportJson: 'Export backup (JSON)', exportCsv: 'Export CSV', import: 'Import backup',
   },
 };
@@ -76,7 +79,7 @@ const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
   if (event.key === 'Enter') action();
 };
 
-export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onError }: SettingsViewProps) {
+export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onNotice, onError }: SettingsViewProps) {
   const { settings, runs, jira } = state;
   const lang = useLang();
   const t = useText(TEXT);
@@ -356,6 +359,12 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
                 <input type="file" accept=".json,application/json" hidden onChange={importFile} />
               </label>
             </div>
+            <BackupsCard
+              busy={state.automations.some((a) => a.finishedAt === null) || state.queue.items.length > 0}
+              onRestore={onRestore}
+              onNotice={onNotice}
+              onError={onError}
+            />
           </div>
         </div>
       </div>

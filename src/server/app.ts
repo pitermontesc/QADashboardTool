@@ -1,3 +1,4 @@
+import os from 'node:os';
 import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
 import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
@@ -16,6 +17,7 @@ import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation 
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportBugsEditSchema, reportTranslationSchema, runInputSchema, settingsSchema,
 } from './schemas.js';
+import type { AppLog } from './log.js';
 import type { Store } from './store.js';
 
 export interface AppOptions {
@@ -118,7 +120,7 @@ const securityHeaders: RequestHandler = (_req, res, next) => {
   next();
 };
 
-const errorHandler = (lang: () => Lang): ErrorRequestHandler => (err, _req, res, _next) => {
+const errorHandler = (lang: () => Lang, log: AppLog): ErrorRequestHandler => (err, req, res, _next) => {
   const send = (status: number, error: string): void => {
     res.status(status).json({ error: translateError(error, lang()) });
   };
@@ -129,6 +131,8 @@ const errorHandler = (lang: () => Lang): ErrorRequestHandler => (err, _req, res,
     return;
   }
   if (err instanceof HttpError) {
+    // Jira or Claude failing is worth tracing; a refused request (4xx) is the user's to read in the app.
+    if (err.status >= 500) log.warn('request.failed', { route: `${req.method} ${req.path}`, status: err.status, error: err.message });
     send(err.status, err.message);
     return;
   }
@@ -136,12 +140,13 @@ const errorHandler = (lang: () => Lang): ErrorRequestHandler => (err, _req, res,
     send(400, 'Invalid JSON');
     return;
   }
-  console.error(err);
+  log.error('request.error', err, { route: `${req.method} ${req.path}` });
   send(500, 'Internal app error');
 };
 
 export function createApp(store: Store, options: AppOptions = {}): Express {
   const lang = (): Lang => store.getState().settings.language;
+  const { log } = store;
   const app = express();
   app.disable('x-powered-by');
   app.use(localOnly(lang));
@@ -188,7 +193,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.delete('/runs/:id', (req, res) => {
+    const run = store.getState().runs.find((r) => r.id === String(req.params.id));
     if (!store.deleteRun(String(req.params.id))) throw new HttpError(404, 'That test run no longer exists');
+    // A run that disappeared can be found here, with the copy to restore it from.
+    log.info('record.delete', { id: run?.id, date: run?.date, title: run?.title, ticket: run?.ticket });
     res.status(204).end();
   });
 
@@ -236,6 +244,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       })
       .catch((err: unknown) => {
         failedTranslations.add(key);
+        log.warn('report.translate-failed', { run: id, to, error: err instanceof Error ? err.message : String(err) });
         throw err instanceof HttpError ? err : new HttpError(502, `Could not translate the report: ${err instanceof Error ? err.message : String(err)}`);
       })
       .finally(() => translating.delete(key));
@@ -268,11 +277,70 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
   translateAll(lang());
 
-  api.post('/import', (req, res) => {
+  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true });
+
+  /** Nothing may be running or queued while the data is replaced: their results would land in the other data. */
+  const assertIdle = (): void => {
+    const { automations, queue } = store.getState();
+    if (automations.some((a) => a.finishedAt === null) || queue.items.length > 0) {
+      throw new HttpError(409, 'Wait until no run is in progress or queued (or stop them) before replacing the data');
+    }
+  };
+
+  const replaceData = (backup: ReturnType<typeof backupSchema.parse>, reason: 'before-import' | 'before-restore') => {
     const before = lang();
-    store.importBackup(backupSchema.parse(req.body));
+    const saved = store.importBackup(backup, reason);
     if (lang() !== before) translateAll(lang());
-    res.json({ ...store.getState(), translating: translating.size, demo: options.demo === true });
+    return { saved, runs: backup.runs.length, reports: backup.automations?.length };
+  };
+
+  api.post('/import', (req, res) => {
+    const backup = backupSchema.parse(req.body);
+    assertIdle();
+    const { saved, runs, reports } = replaceData(backup, 'before-import');
+    log.info('data.import', { runs, reports, previous: saved });
+    res.json(fullState());
+  });
+
+  /** A folder as the user reads it: "~/Library/…" instead of the full home path. */
+  const shown = (dir: string): string => {
+    const home = os.homedir();
+    return dir === home || dir.startsWith(`${home}/`) ? `~${dir.slice(home.length)}` : dir;
+  };
+
+  /** Automatic copies of the data file (one a day, and before every import or restore). */
+  api.get('/backups', (_req, res) => {
+    res.json({ dir: shown(store.backupsDir), items: store.listBackups() });
+  });
+
+  /** A copy of the data as it is now. */
+  api.post('/backups', (_req, res) => {
+    const name = store.backupNow('manual');
+    if (!name) throw new HttpError(409, 'There is no data to back up yet');
+    res.json({ dir: shown(store.backupsDir), items: store.listBackups(), created: name });
+  });
+
+  /** Brings back the runs, reports and settings of a backup (the Jira connection stays as it is). */
+  api.post('/backups/:name/restore', (req, res) => {
+    const name = String(req.params.name);
+    let saved;
+    try {
+      saved = store.readBackup(name);
+    } catch {
+      throw new HttpError(422, 'That backup cannot be read');
+    }
+    if (!saved) throw new HttpError(404, 'That backup does not exist');
+    const backup = backupSchema.safeParse({ ...saved.settings, runs: saved.runs, automations: saved.automations });
+    if (!backup.success) throw new HttpError(422, 'That backup cannot be read');
+    assertIdle();
+    const { saved: previous, runs, reports } = replaceData(backup.data, 'before-restore');
+    log.info('data.restore', { from: name, runs, reports, previous });
+    res.json(fullState());
+  });
+
+  /** The end of the app's log, to copy it when something went wrong. */
+  api.get('/log', (_req, res) => {
+    res.json({ file: shown(log.file), lines: log.tail(300) });
   });
 
   api.put('/jira/config', (req, res) => {
@@ -282,10 +350,17 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   api.post('/jira/refresh', async (_req, res) => {
     try {
-      store.saveJiraTickets(await fetchJiraTickets(store.getJiraCredentials(), options.fetchImpl));
+      const tickets = await fetchJiraTickets(store.getJiraCredentials(), options.fetchImpl);
+      const before = store.getJiraState();
+      store.saveJiraTickets(tickets);
+      // Only when something changed: the app refreshes every few minutes.
+      if (before.connection !== 'connected' || before.tickets.length !== tickets.length) log.info('jira.refresh', { tickets: tickets.length });
     } catch (err) {
       // Only Jira failures change the connection state; "not configured yet" is not a failed connection.
-      if (err instanceof HttpError && err.status === 502) store.saveJiraError(translateError(err.message, lang()));
+      if (err instanceof HttpError && err.status === 502) {
+        store.saveJiraError(translateError(err.message, lang()));
+        log.warn('jira.refresh-failed', { error: err.message });
+      }
       throw err;
     }
     res.json(store.getJiraState());
@@ -311,7 +386,13 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const details = automation.dryRun && result.details ? { ...result.details, jiraComment: null } : result.details;
     const runInput = runInputSchema.parse(runForAutomation(automation, store.getState().settings, result));
     const finished = store.finishAutomation(id, { verdict, summary, link, details }, runInput);
-    if (finished) afterFinish(finished);
+    if (finished) {
+      log[verdict === 'FAILED' || verdict === 'BLOCKED' || verdict === 'NO-GO' ? 'warn' : 'info']('claude.finish', {
+        id, kind: automation.kind, target: automation.target, site: automation.site, verdict,
+        minutes: Math.round((Date.now() - automation.startedAt) / 60_000), summary: summary.split('\n')[0]?.slice(0, 200),
+      });
+      afterFinish(finished);
+    }
     // Its lane is free: the next queued run starts after the pause.
     pump();
     return finished;
@@ -395,8 +476,13 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       });
       running.set(automation.id, handle);
       store.setAutomationProcess(automation.id, handle.pid, handle.logFile);
+      log.info('claude.start', {
+        id: automation.id, kind: input.kind, target: input.target, site: input.site, dryRun: input.dryRun || undefined,
+        queued: input.queued ? `batch ${input.queued.batch}${input.queued.retries ? ' retry' : ''}` : undefined, pid: handle.pid, claudeLog: handle.logFile,
+      });
     } catch (err) {
       store.deleteAutomation(automation.id);
+      log.error('claude.launch-failed', err, { kind: input.kind, target: input.target, site: input.site });
       throw err;
     } finally {
       launching.delete(automation.id);
@@ -429,7 +515,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (queue.items.some((q) => q.kind === kind && q.target === target)) throw new HttpError(409, `${runLabel(kind, target)} is already queued`);
     if (laneBusy(site) || queue.items.some((q) => q.site === site)) {
       const [queued] = store.enqueue([{ kind, target, site, dryRun: spec.input.dryRun ?? false }]);
-      return { queued: queued!, position: queuePosition(store.getState().queue.items, queued!) };
+      const position = queuePosition(store.getState().queue.items, queued!);
+      log.info('queue.add', { kind, target, site, position });
+      return { queued: queued!, position };
     }
     return launchAutomation(spec);
   };
@@ -448,16 +536,20 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
         }
       } catch (err) {
         store.recordSkip(item, message(err));
+        log.warn('queue.skip', { kind: item.kind, target: item.target, site: item.site, reason: message(err) });
         return;
       }
       try {
         await launchAutomation({ ...spec, input: { ...spec.input, queued: { batch: item.batch, retries: item.retries } } });
       } catch (err) {
-        if (err instanceof HttpError && err.status < 500) store.recordSkip(item, message(err));
-        else {
+        if (err instanceof HttpError && err.status < 500) {
+          store.recordSkip(item, message(err));
+          log.warn('queue.skip', { kind: item.kind, target: item.target, site: item.site, reason: message(err) });
+        } else {
           // Claude Code could not start: the run waits at the head of its lane until the user resumes it.
           store.requeueFirst(item);
           store.setLanePaused(item.site, message(err));
+          log.warn('queue.pause', { site: item.site, reason: message(err) });
         }
       }
     } finally {
@@ -482,11 +574,16 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const site = laneOf(a, settings.qa);
     if (a.queued && a.kind === 'orchestrator' && a.queued.retries < 1 && isEnvironmentBlock(a) && !isUsageLimit(a)) {
       store.enqueue([{ kind: a.kind, target: a.target, site, dryRun: a.dryRun, batch: a.queued.batch, retries: a.queued.retries + 1 }]);
+      log.info('queue.retry', { target: a.target, site, reason: 'BLOCKED by the environment' });
     }
     const waiting = new Set(store.getState().queue.items.map((q) => q.site));
     if (isUsageLimit(a)) {
       const why = en ? `Claude's usage limit was reached: ${a.summary}` : `Se alcanzó el límite de uso de Claude: ${a.summary}`;
-      for (const lane of waiting) if (queue.paused[lane] === undefined) store.setLanePaused(lane, why.slice(0, 500));
+      for (const lane of waiting) {
+        if (queue.paused[lane] !== undefined) continue;
+        store.setLanePaused(lane, why.slice(0, 500));
+        log.warn('queue.pause', { site: lane, reason: 'Claude usage limit' });
+      }
     } else if (waiting.has(site) && queue.paused[site] === undefined) {
       const since = resumedAt.get(site) ?? 0;
       const recent = automations
@@ -498,6 +595,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
           ? `${PAUSE_AFTER_BLOCKS} runs in a row were BLOCKED by the environment (site, login or browser). Last one: ${a.summary}`
           : `${PAUSE_AFTER_BLOCKS} ejecuciones seguidas quedaron BLOCKED por el ambiente (sitio, login o navegador). La última: ${a.summary}`;
         store.setLanePaused(site, why.slice(0, 500));
+        log.warn('queue.pause', { site, reason: `${PAUSE_AFTER_BLOCKS} runs in a row BLOCKED by the environment` });
       }
     }
     // The batch is done when none of its runs is waiting or running.
@@ -513,7 +611,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
         for (const x of last.values()) if (x.verdict) verdicts[x.verdict] = (verdicts[x.verdict] ?? 0) + 1;
         const from = Math.min(...inBatch.map((x) => x.startedAt));
         const to = Math.max(...inBatch.map((x) => x.finishedAt!));
-        store.recordBatchDone({ batch, at: Date.now(), verdicts, minutes: Math.max(1, Math.round((to - from) / 60_000)) });
+        const minutes = Math.max(1, Math.round((to - from) / 60_000));
+        store.recordBatchDone({ batch, at: Date.now(), verdicts, minutes });
+        log.info('queue.batch-done', { batch, minutes, ...verdicts });
       }
     }
   };
@@ -569,9 +669,11 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
         const why = en
           ? 'Claude stopped without reporting a result (the app was closed or restarted while it ran).'
           : 'Claude se detuvo sin reportar el resultado (la app se cerró o reinició mientras corría).';
+        log.warn('claude.orphan', { id: a.id, target: a.target, pid: a.pid, reason: 'process gone' });
         closeUnreported(a.id, [why, tail].filter(Boolean).join('\n'));
       } else if (Date.now() - a.startedAt > MAX_RUN_MS) {
         stopPid(a.pid);
+        log.warn('claude.orphan', { id: a.id, target: a.target, pid: a.pid, reason: 'time limit' });
         closeUnreported(a.id, en ? 'Stopped: it ran longer than the time limit.' : 'Detenida: superó el tiempo máximo.');
       }
     }
@@ -600,7 +702,6 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     sendLaunch(res, await requestLaunch(smokeSpec(site)));
   });
 
-  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true });
 
   /** "Validate all": queues the chosen tickets, each on its site's lane, in the app's order. */
   api.post('/queue', (req, res) => {
@@ -608,13 +709,16 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const wanted = new Set(keys);
     const chosen = ticketsToValidate(store.getState()).filter((c) => wanted.has(c.ticket.key));
     if (chosen.length === 0) throw new HttpError(409, 'None of those tickets can be queued (not ready, already running or already queued)');
-    store.enqueue(chosen.map((c) => ({ kind: 'orchestrator', target: c.ticket.key, site: c.site.id, dryRun: false })));
+    const [first] = store.enqueue(chosen.map((c) => ({ kind: 'orchestrator', target: c.ticket.key, site: c.site.id, dryRun: false })));
+    log.info('queue.add', { batch: first?.batch, tickets: chosen.map((c) => `${c.ticket.key}@${c.site.id}`).join(',') });
     pump();
     res.json(fullState());
   });
 
   api.delete('/queue/:id', (req, res) => {
+    const item = store.getState().queue.items.find((q) => q.id === String(req.params.id));
     if (!store.dequeue(String(req.params.id))) throw new HttpError(404, 'That run is no longer queued');
+    log.info('queue.remove', { kind: item?.kind, target: item?.target, site: item?.site });
     res.json(fullState());
   });
 
@@ -629,6 +733,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const { site } = z.object({ site: z.string().max(100) }).parse(req.body);
     store.setLanePaused(site, null);
     resumedAt.set(site, Date.now());
+    log.info('queue.resume', { site });
     pump();
     res.json(fullState());
   });
@@ -673,6 +778,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     posting.add(id);
     try {
       const url = await postJiraComment(store.getJiraCredentials(), comment.key, text, options.fetchImpl);
+      log.info('jira.comment', { key: comment.key, run: id });
       res.json(store.saveJiraCommentPosted(id, text, url));
     } finally {
       posting.delete(id);
@@ -732,14 +838,17 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     if (!automation) throw new HttpError(404, 'That run no longer exists');
     if (automation.finishedAt !== null) throw new HttpError(409, 'That run already has a result');
     stopProcess(id);
+    log.info('claude.stop', { id, target: automation.target });
     closeUnreported(id, lang() === 'en' ? 'Stopped from QA Dashboard.' : 'Detenida desde QA Dashboard.');
     res.json(store.getAutomation(id));
   });
 
   api.delete('/automation/:id', (req, res) => {
     const id = String(req.params.id);
-    if (store.getAutomation(id)?.finishedAt === null) stopProcess(id);
+    const automation = store.getAutomation(id);
+    if (automation?.finishedAt === null) stopProcess(id);
     if (!store.deleteAutomation(id)) throw new HttpError(404, 'That run no longer exists');
+    log.info('claude.delete', { id, target: automation?.target, running: automation?.finishedAt === null || undefined });
     pump();
     res.status(204).end();
   });
@@ -750,6 +859,6 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   app.use('/api', api);
   if (options.clientDir) app.use(express.static(options.clientDir));
-  app.use(errorHandler(lang));
+  app.use(errorHandler(lang, log));
   return app;
 }

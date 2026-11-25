@@ -312,3 +312,25 @@ export interface Backup extends Settings {
   /** QA reports; backups from before v1.14.0 do not have them (importing one keeps the current reports). */
   automations?: Automation[];
 }
+
+/** Why an automatic copy of the data file was taken. */
+export type BackupReason = 'daily' | 'before-import' | 'before-restore' | 'manual';
+
+/** An automatic copy of the data file, in `backups/` next to it. */
+export interface BackupInfo {
+  name: string;
+  /** When the copy was taken. */
+  at: number;
+  reason: BackupReason;
+  size: number;
+  runs: number;
+  reports: number;
+}
+
+export interface BackupList {
+  dir: string;
+  /** Newest first. */
+  items: BackupInfo[];
+  /** The copy just made by "Back up now". */
+  created?: string;
+}

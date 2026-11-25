@@ -1,5 +1,5 @@
 import type {
-  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, JiraConfigInput, JiraState, Lang, QueueItem, ReportBugEdit, Settings, TestRun, TestRunInput,
+  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, BackupList, JiraConfigInput, JiraState, Lang, QueueItem, ReportBugEdit, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -36,6 +36,10 @@ export const api = {
   deleteRun: (id: string) => request<void>('DELETE', `/api/runs/${encodeURIComponent(id)}`),
   saveSettings: (settings: Settings) => request<Settings>('PUT', '/api/settings', settings),
   importBackup: (backup: Backup) => request<AppState>('POST', '/api/import', backup),
+  listBackups: () => request<BackupList>('GET', '/api/backups'),
+  backupNow: () => request<BackupList>('POST', '/api/backups', {}),
+  restoreBackup: (name: string) => request<AppState>('POST', `/api/backups/${encodeURIComponent(name)}/restore`, {}),
+  getLog: () => request<{ file: string; lines: string[] }>('GET', '/api/log'),
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
   runOrchestrator: (key: string) => request<LaunchResult>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
   runRegression: (run: string, dryRun = false) => request<LaunchResult>('POST', '/api/regression', { run, dryRun }),

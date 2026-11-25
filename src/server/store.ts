@@ -1,11 +1,12 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_JQL, defaultSettings, guessLang, localizeTypes } from '../shared/defaults.js';
 import { automationTitle, runText, titleSubject } from './automation.js';
+import { AppLog, appLog } from './log.js';
 import { parseJiraBoardUrl } from '../shared/jiraBoard.js';
 import {
-  LANGUAGES, type AppState, type Automation, type Backup, type JiraConnection, type JiraState, type JiraTicket, type Lang,
+  LANGUAGES, type AppState, type Automation, type Backup, type BackupInfo, type JiraConnection, type JiraState, type JiraTicket, type Lang,
   type QueueBatchDone, type QueueItem, type QueueState, type ReportBug, type ReportBugEdit, type ReportTranslation, type Settings, type TestRun, type TestRunInput,
 } from '../shared/types.js';
 
@@ -36,6 +37,17 @@ interface StoreData {
 /** How many dropped runs are remembered to show why. */
 const MAX_SKIPPED = 20;
 
+/** Automatic backups kept: one per day for two weeks, plus the last copies taken before an import, a restore or by hand. */
+const KEEP_DAILY = 14;
+const KEEP_OTHER = 10;
+/** Copies taken for a reason (not the daily one). */
+type BackupReason = Exclude<BackupInfo['reason'], 'daily'>;
+/** `qa-tests-2026-11-24.json` (daily) or `qa-tests-2026-11-24-153012-before-import.json`. */
+export const BACKUP_NAME = /^qa-tests-(\d{4}-\d{2}-\d{2})(?:-(\d{6})-(before-import|before-restore|manual))?\.json$/;
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const localDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
 const emptyData = (): StoreData => ({
   version: 1,
   settings: defaultSettings(),
@@ -56,9 +68,15 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
  */
 export class Store {
   private data: StoreData;
+  readonly backupsDir: string;
 
-  constructor(private readonly file: string) {
+  constructor(
+    readonly file: string,
+    readonly log: AppLog = appLog(path.dirname(file)),
+  ) {
+    this.backupsDir = path.join(path.dirname(file), 'backups');
     this.data = this.load();
+    this.log.hide(this.data.jira.token);
     // Data from earlier versions may have app texts in the other language.
     this.localizeAll();
   }
@@ -124,10 +142,99 @@ export class Store {
 
   private persist(): void {
     mkdirSync(path.dirname(this.file), { recursive: true });
+    // The first change of each day keeps a copy of the file as it was before it.
+    this.dailyBackup();
     const tmp = `${this.file}.tmp`;
     // 0600: the file contains the Jira API token.
-    writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+    const fd = openSync(tmp, 'w', 0o600);
+    try {
+      writeSync(fd, JSON.stringify(this.data, null, 2));
+      // On disk before the rename: a power cut cannot leave an empty file in place of the data.
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(tmp, this.file);
+  }
+
+  // ── Automatic backups (`backups/` next to the data file) ───────────────────────────────────────────
+  private dailyBackup(now = new Date()): void {
+    const name = `qa-tests-${localDay(now)}.json`;
+    if (!existsSync(this.file) || existsSync(path.join(this.backupsDir, name))) return;
+    this.copyTo(name, 'daily');
+  }
+
+  /** Copies the data file as it is now (before an import or a restore, or by hand). */
+  backupNow(reason: BackupReason, now = new Date()): string | null {
+    if (!existsSync(this.file)) return null;
+    const nameAt = (d: Date) => `qa-tests-${localDay(d)}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${reason}.json`;
+    // Two in the same second (a double click) do not overwrite each other: the second one takes the next second.
+    let at = now;
+    while (existsSync(path.join(this.backupsDir, nameAt(at)))) at = new Date(at.getTime() + 1000);
+    const name = nameAt(at);
+    return this.copyTo(name, reason) ? name : null;
+  }
+
+  private copyTo(name: string, reason: 'daily' | BackupReason): boolean {
+    try {
+      mkdirSync(this.backupsDir, { recursive: true, mode: 0o700 });
+      const target = path.join(this.backupsDir, name);
+      copyFileSync(this.file, target);
+      // The copy holds the Jira token, like the data file.
+      chmodSync(target, 0o600);
+      this.log.info('backup.created', { file: name, reason });
+      this.pruneBackups();
+      return true;
+    } catch (err) {
+      // A failed copy must not stop the change being saved.
+      this.log.error('backup.failed', err, { file: name });
+      return false;
+    }
+  }
+
+  private pruneBackups(): void {
+    const names = readdirSync(this.backupsDir).filter((n) => BACKUP_NAME.test(n)).sort().reverse();
+    const daily = names.filter((n) => !BACKUP_NAME.exec(n)![3]);
+    const other = names.filter((n) => BACKUP_NAME.exec(n)![3]);
+    for (const old of [...daily.slice(KEEP_DAILY), ...other.slice(KEEP_OTHER)]) {
+      try {
+        unlinkSync(path.join(this.backupsDir, old));
+      } catch {
+        // Already gone.
+      }
+    }
+  }
+
+  /** The automatic backups, newest first, with how many runs and QA reports each one has. */
+  listBackups(): BackupInfo[] {
+    if (!existsSync(this.backupsDir)) return [];
+    return readdirSync(this.backupsDir)
+      .filter((n) => BACKUP_NAME.test(n))
+      .map((name): BackupInfo => {
+        const file = path.join(this.backupsDir, name);
+        const [, , , why] = BACKUP_NAME.exec(name)!;
+        const { size, mtimeMs } = statSync(file);
+        let runs = 0;
+        let reports = 0;
+        try {
+          const saved = JSON.parse(readFileSync(file, 'utf8')) as Partial<StoreData>;
+          runs = saved.runs?.length ?? 0;
+          reports = saved.automations?.length ?? 0;
+        } catch {
+          // An unreadable copy is still listed (with zero counts): restoring it will say why it cannot.
+        }
+        return { name, at: Math.round(mtimeMs), reason: (why as BackupReason | undefined) ?? 'daily', size, runs, reports };
+      })
+      .sort((a, b) => b.at - a.at || b.name.localeCompare(a.name));
+  }
+
+  /** The saved data of a backup (settings, runs and reports), to restore it; null if it does not exist. */
+  readBackup(name: string): Pick<StoreData, 'settings' | 'runs' | 'automations'> | null {
+    if (!BACKUP_NAME.test(name)) return null;
+    const file = path.join(this.backupsDir, name);
+    if (!existsSync(file)) return null;
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as Partial<StoreData>;
+    return { settings: { ...defaultSettings(), ...saved.settings }, runs: saved.runs ?? [], automations: saved.automations ?? [] };
   }
 
   getState(): AppState {
@@ -356,8 +463,12 @@ export class Store {
     return automation;
   }
 
-  /** Replaces settings and runs; a backup that includes QA reports (v1.14.0 and later) also replaces them. */
-  importBackup({ runs, automations, ...settings }: Backup): void {
+  /**
+   * Replaces settings and runs; a backup that includes QA reports (v1.14.0 and later) also replaces them.
+   * The data as it was is copied to `backups/` first, so an import or a restore can be undone.
+   */
+  importBackup({ runs, automations, ...settings }: Backup, reason: 'before-import' | 'before-restore' = 'before-import'): string | null {
+    const saved = this.backupNow(reason);
     this.data.settings = settings;
     this.data.runs = runs;
     if (automations) {
@@ -367,6 +478,7 @@ export class Store {
     }
     this.localizeAll();
     this.persist();
+    return saved;
   }
 
   saveJiraConfig(config: { site: string; email: string; board: string; jql: string; token?: string }): void {
@@ -390,6 +502,7 @@ export class Store {
       jql: board ? (config.jql === DEFAULT_JQL ? '' : config.jql) : config.jql || DEFAULT_JQL,
       token: config.token || (keepToken ? this.data.jira.token : ''),
     };
+    this.log.hide(this.data.jira.token);
     // The configuration changed: the connection must be tested again.
     this.data.jiraCache = { ...this.data.jiraCache, ok: null, error: null };
     this.persist();

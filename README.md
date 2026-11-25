@@ -84,6 +84,8 @@ Each ticket appears as a button on the dashboard; clicking it opens a new run wi
 - The Jira token is kept only for the site it was saved for (the site must be `https://`).
 - The token is never sent to the UI; the API only reports whether one is saved.
 - **Types & settings → Data backup** exports JSON or CSV and imports a JSON backup.
+- **Automatic copies:** the first change of each day copies `qa-tests.json` to `backups/` in the data folder (the last 14 days are kept), and so do an import and a restore (the last 10 of those). They hold the Jira token too, so they are `0600` like the data file. The same card restores a copy or takes one by hand. Saving writes a temporary file, flushes it to disk and renames it, so a crash or a power cut leaves either the old data or the new, never a half-written file.
+- **App log:** `logs/app.log` in the data folder records what the app launched, queued, skipped or paused, run results, Jira failures, imports and restores, and unexpected errors with their stack. It rotates at 1 MB (`app.log.1` keeps the previous one). The Jira token, report keys and authorization headers are replaced with `<hidden>`/`<key>` before anything is written. **Help → Show the app log** opens it in Finder; **Data backup → Copy the last lines** copies the end to share it. Each Claude run still has its own step log in `~/qa-dashboard-runs/logs/`.
 
 ## Development
 
@@ -124,7 +126,10 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | POST | `/api/runs` | Creates a run |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
 | PUT | `/api/settings` | Saves the settings: types, environments, ticket URL, language, theme, and sites & skills |
-| POST | `/api/import` | Replaces the data with a backup (and the QA reports, if the backup has them) |
+| POST | `/api/import` | Replaces the data with a backup (and the QA reports, if the backup has them). A copy of the current data is kept first; 409 while a run is in progress or queued |
+| GET / POST | `/api/backups` | Lists the automatic copies of the data (`{dir, items}`, newest first; `dir` shows the home folder as `~`), or takes one now |
+| POST | `/api/backups/:name/restore` | Restores the runs, reports and settings of a copy (the Jira connection is kept); a copy of the current data is kept first; 409 while a run is in progress or queued |
+| GET | `/api/log` | The last 300 lines of the app log (`{file, lines}`) |
 | PUT | `/api/jira/config` | Saves the Jira connection |
 | POST | `/api/jira/refresh` | Reloads the tickets from Jira |
 | POST | `/api/orchestrator/:key` | Launches the QA orchestrator on a loaded ticket, on the site its Jira status maps to (409 if the status is not ready or the ticket is already running or queued). Like smoke and regression: 200 with the run, or 202 `{queued, position}` if its site is busy |

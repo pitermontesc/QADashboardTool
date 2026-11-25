@@ -2,6 +2,7 @@ import { BrowserWindow, Menu, app, dialog, nativeTheme, shell, type MenuItemCons
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { APP_NAME, DEFAULT_PORT, HOST, defaultDataDir, startServer } from '../server/start.js';
+import { appLog } from '../server/log.js';
 import { DEMO_PORT, demoAppOptions, demoDataDir, seedDemoData } from '../server/demo.js';
 
 /**
@@ -11,6 +12,15 @@ import { DEMO_PORT, demoAppOptions, demoDataDir, seedDemoData } from '../server/
 const PORT = Number(process.env.QA_DASH_PORT ?? DEFAULT_PORT);
 const URL_ = `http://${HOST}:${PORT}`;
 const WINDOW_FILE = path.join(defaultDataDir(), 'window.json');
+/** Same log as the server's (`logs/app.log` in the data folder). */
+const log = appLog(defaultDataDir());
+
+// What fails outside a request (a timer, a queued run starting) is kept in the log too.
+process.on('unhandledRejection', (reason) => log.error('app.unhandled-rejection', reason));
+process.on('uncaughtException', (err) => {
+  log.error('app.crash', err);
+  dialog.showErrorBox(APP_NAME, String(err));
+});
 
 type Lang = 'es' | 'en';
 type Theme = 'system' | 'light' | 'dark';
@@ -41,7 +51,7 @@ const TEXT = {
     assistant: 'Asistente de Claude',
     portBusy: (port: number) => `El puerto ${port} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`,
     startFailed: 'No se pudo iniciar la app:',
-    help: 'Ayuda', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
+    help: 'Ayuda', showLog: 'Mostrar el log de la app', openData: 'Abrir la carpeta de datos', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
   },
   en: {
     file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
@@ -51,7 +61,7 @@ const TEXT = {
     assistant: 'Claude assistant',
     portBusy: (port: number) => `Port ${port} is used by another program. Close it or open the app with QA_DASH_PORT=8770.`,
     startFailed: 'The app could not start:',
-    help: 'Help', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
+    help: 'Help', showLog: 'Show the app log', openData: 'Open the data folder', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
   },
 };
 
@@ -100,6 +110,7 @@ async function openDemo(): Promise<void> {
     }
     createWindow(demoUrl, true);
   } catch (err) {
+    log.error('demo.failed', err);
     dialog.showErrorBox(APP_NAME, `${TEXT[lang].demoFailed}\n${String(err)}`);
   }
 }
@@ -179,7 +190,16 @@ function buildMenu(): void {
       ],
     },
     { role: 'windowMenu' },
-    { role: 'help', label: t.help, submenu: [{ label: t.openDemo, click: () => void openDemo() }] },
+    {
+      role: 'help',
+      label: t.help,
+      submenu: [
+        { label: t.showLog, click: () => shell.showItemInFolder(log.file) },
+        { label: t.openData, click: () => void shell.openPath(defaultDataDir()) },
+        { type: 'separator' },
+        { label: t.openDemo, click: () => void openDemo() },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -271,6 +291,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', () => log.info('app.quit'));
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -286,6 +307,7 @@ if (!app.requestSingleInstanceLock()) {
     .then(() => (process.argv.includes('--demo') ? openDemo() : createWindow()))
     .catch((err: unknown) => {
       const busy = (err as NodeJS.ErrnoException).code === 'EADDRINUSE';
+      log.error('app.start-failed', err, { port: PORT });
       dialog.showErrorBox(
         APP_NAME,
         busy

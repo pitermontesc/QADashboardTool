@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] - 2026-11-24
+
+### Added
+- **Automatic copies of the data.** The first change of each day keeps a copy of the data as it was before it (the last 14 days), and an import or a restore keeps a copy of what it replaces (the last 10). **Types & settings → Data backup** lists them with their date and how many runs and reports each has, restores one after asking (the Jira connection stays; the restore itself can be undone), and has **Back up now**. The copies live in `backups/` in the data folder and, like the data file, only your user can read them.
+- **App log.** `logs/app.log` in the data folder records what the app launched, queued, skipped or paused, run results, Jira failures, imports, restores and unexpected errors with their stack (1 MB, then it rotates to `app.log.1`). The Jira token, run keys and authorization headers are never written. **Copy the last lines** (Data backup) puts its end on the clipboard to share; in the desktop app, **Help → Show the app log** and **Help → Open the data folder**.
+
+### Changed
+- **Import waits for the runs.** Importing (or restoring) while a run is in progress or queued is refused until they finish or are stopped: their results would have landed in data that no longer had them.
+- Saving flushes the data to disk before replacing the file, so a crash or a power cut cannot leave it half-written.
+
 ## [1.15.2] - 2026-11-24
 
 ### Fixed

@@ -49,6 +49,7 @@ const TEXT = {
     newTicketIn: (status: string) => `Nuevo ticket en ${status}`,
     newTickets: 'Nuevos tickets por probar',
     imported: (n: number) => `Respaldo importado: ${n} ${n === 1 ? 'registro' : 'registros'}`,
+    restored: (when: string) => `Datos restaurados de la copia del ${when}`,
     orchestratorOpened: (key: string) => `Orquestador QA corriendo en segundo plano para ${key}`,
     regressionOpened: (run: string) => (run ? `Regresión corriendo en segundo plano para ${run}` : 'Regresión corriendo en segundo plano'),
     smokeOpened: (site: string) => `Smoke en ${site} corriendo en segundo plano`,
@@ -88,6 +89,7 @@ const TEXT = {
     newTicketIn: (status: string) => `New ticket in ${status}`,
     newTickets: 'New tickets to test',
     imported: (n: number) => `Backup imported: ${n} ${n === 1 ? 'run' : 'runs'}`,
+    restored: (when: string) => `Data restored from the copy of ${when}`,
     orchestratorOpened: (key: string) => `QA orchestrator running in the background for ${key}`,
     regressionOpened: (run: string) => (run ? `Regression running in the background for ${run}` : 'Regression running in the background'),
     smokeOpened: (site: string) => `Smoke on ${site} running in the background`,
@@ -435,6 +437,13 @@ export function App() {
     }
   };
 
+  /** Brings back an automatic copy; the card shows the error if it cannot. */
+  const restoreBackup = async (name: string, when: string): Promise<void> => {
+    const next = await api.restoreBackup(name);
+    update(() => next);
+    notify(t.restored(when));
+  };
+
   const newFromTicket = (ticket: JiraTicket): void => {
     const functional = state.settings.types.find((t) => /funcional|functional/i.test(t.name));
     openForm(blankRun(state.settings, { ticket: ticket.key, title: ticket.summary, ...(functional && { typeId: functional.id }) }));
@@ -703,6 +712,8 @@ export function App() {
             onSaveSettings={saveSettings}
             onSaveJira={saveJira}
             onImport={importBackup}
+            onRestore={restoreBackup}
+            onNotice={notify}
             onError={(message) => notify(message, 'error')}
           />
         )}

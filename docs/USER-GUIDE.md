@@ -440,15 +440,33 @@ Changes are saved together with **Save sites & skills**; **Restore defaults** br
 
 ## 9. Backup and export
 
-!["Data backup" card with the export and import buttons](img/16-backup.png)
+!["Data backup" card: export and import buttons, the automatic copies with Restore and Back up now, and the app log](img/16-backup.png)
 
 | Button | What it does |
 | --- | --- |
 | **Export backup (JSON)** | Saves a file (the app asks you where) with your runs, Claude's QA reports, types, environments and ticket link. It does not include the Jira connection or the token. |
 | **Export CSV** | Saves the runs as a table to open in Excel or Google Sheets. |
-| **Import backup** | Loads a JSON backup. It **replaces** the current runs and settings, and the QA reports if the backup has them (backups from before v1.14.0 do not, and keep the current reports); export first if in doubt. |
+| **Import backup** | Loads a JSON backup. It **replaces** the current runs and settings, and the QA reports if the backup has them (backups from before v1.14.0 do not, and keep the current reports). The app keeps an automatic copy of what it replaces first (see below). |
 
-**Where the data is stored:** in `~/Library/Application Support/QA Dashboard/qa-tests.json` (macOS). Only your user can read the file, because it contains the Jira API token. Do not share it: to pass your runs to someone else, use **Export backup (JSON)**.
+### Automatic copies
+
+You do not have to remember to export. The app keeps copies of its data on its own, in the **backups** folder next to the data file:
+
+- **Daily:** the first change of each day saves the data as it was before that change. The last 14 days are kept.
+- **Before importing or restoring:** a copy of what is about to be replaced. The last 10 are kept.
+- **Back up now** saves one by hand (for example, before cleaning up old runs).
+
+The **Automatic copies** list shows each copy with its date, why it was taken, and how many runs and QA reports it has. **Restore** asks first, and then replaces the current runs, reports and settings with the copy's; the Jira connection stays as it is. A restore can be undone: it keeps a **Before restore** copy, and you can restore that one.
+
+Restoring and importing wait until nothing is running or queued: stop the runs in progress, or wait for them, and empty the run queue.
+
+### App log
+
+The app writes what it does to a log: runs launched, queued, skipped or paused, their results, Jira failures, imports, restores, and unexpected errors. If something goes wrong, click **Copy the last lines** and paste them in your message to whoever maintains the app. The Jira token and the run keys are never written to the log.
+
+In the desktop app, **Help → Show the app log** opens the log in Finder and **Help → Open the data folder** opens the folder with the data, the copies and the log.
+
+**Where the data is stored:** in `~/Library/Application Support/QA Dashboard/qa-tests.json` (macOS), with the automatic copies in `backups/` and the log in `logs/app.log` in the same folder. Only your user can read the data file and the copies, because they contain the Jira API token. Do not share them: to pass your runs to someone else, use **Export backup (JSON)**.
 
 ## 10. Keyboard shortcuts
 
@@ -486,4 +504,6 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A report is still in its original language** | The translation failed (for example, with no connection). Open the report and click **Retry**. |
 | **"Post on AVM-…" fails** | Check in **Types & settings** that Jira is connected: the comment is posted with the same email and API token. |
 | **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. On an Intel Mac the app does not run; use the code with `npm start`. |
+| **Runs or settings disappeared, or an import went wrong** | **Types & settings → Data backup → Automatic copies**: restore the copy from before the problem (the one **Before import** if it was an import). |
+| **Something failed and you do not know why** | **Types & settings → Data backup → Copy the last lines** of the app log, and share them. |
 | **The app looks too big or too small** | `⌘0` goes back to actual size; `⌘+` / `⌘-` adjust the zoom. |

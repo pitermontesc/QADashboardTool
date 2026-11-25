@@ -77,6 +77,13 @@ const ES: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^Not a Jira board link \(…\/boards\/<number>\)$/, () => 'No es un link de board de Jira (…/boards/<número>)'],
   [/^The verdict must be one of: (.*)$/, (list) => `El veredicto debe ser uno de: ${list}`],
   [/^The status must be one of: (.*)$/, (list) => `El status debe ser uno de: ${list}`],
+  [
+    /^Wait until no run is in progress or queued \(or stop them\) before replacing the data$/,
+    () => 'Espera a que no haya ejecuciones en curso ni en cola (o detenlas) antes de reemplazar los datos',
+  ],
+  [/^There is no data to back up yet$/, () => 'Todavía no hay datos que respaldar'],
+  [/^That backup cannot be read$/, () => 'Ese respaldo no se puede leer'],
+  [/^That backup does not exist$/, () => 'Ese respaldo no existe'],
 ];
 
 function toSpanish(message: string): string {

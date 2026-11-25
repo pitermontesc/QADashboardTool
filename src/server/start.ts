@@ -1,8 +1,10 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp, type AppOptions } from './app.js';
+import { appLog } from './log.js';
 import { Store } from './store.js';
 
 export const HOST = '127.0.0.1';
@@ -37,16 +39,28 @@ export interface RunningServer {
   server: Server;
 }
 
+/** The app's version, from its package.json (two folders up from dist/server, also inside the packaged app). */
+export function appVersion(): string {
+  try {
+    const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../package.json');
+    return (JSON.parse(readFileSync(file, 'utf8')) as { version?: string }).version ?? '';
+  } catch {
+    return '';
+  }
+}
+
 /** Starts the server; rejects with the `listen` error (e.g. EADDRINUSE). */
 export function startServer({ port, dataDir, clientDir, appOptions = {} }: StartOptions): Promise<RunningServer> {
   const dataFile = path.join(dataDir, 'qa-tests.json');
   const hasClient = existsSync(clientDir);
-  const app = createApp(new Store(dataFile), hasClient ? { ...appOptions, clientDir } : appOptions);
+  const log = appLog(dataDir);
+  const app = createApp(new Store(dataFile, log), hasClient ? { ...appOptions, clientDir } : appOptions);
   return new Promise((resolve, reject) => {
     const server = app.listen(port, HOST);
     server.once('error', reject);
     server.once('listening', () => {
       server.off('error', reject);
+      log.info('app.start', { version: appVersion(), port, demo: appOptions.demo || undefined, node: process.versions.node, electron: process.versions.electron });
       resolve({ url: `http://${HOST}:${port}`, dataFile, hasClient, server });
     });
   });
