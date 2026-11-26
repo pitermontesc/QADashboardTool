@@ -131,6 +131,8 @@ export class Store {
         lang: a.lang ?? guessLang([a.title, a.summary, a.details?.notes, ...(a.details?.modules ?? []).map((m) => m.name)].join(' ')),
         translations: a.translations ?? {},
         dryRun: a.dryRun ?? false,
+        // Before v1.18.0 there was no full coverage.
+        fullCoverage: a.fullCoverage ?? false,
         // Before v1.15.0 the lane was not saved (laneOf works it out).
         site: a.site ?? '',
         ticketType: a.ticketType ?? '',
@@ -143,7 +145,7 @@ export class Store {
       queue: {
         ...base.queue,
         ...saved.queue,
-        items: (saved.queue?.items ?? []).map((q) => ({ ...q, batch: q.batch ?? q.id, retries: q.retries ?? 0 })),
+        items: (saved.queue?.items ?? []).map((q) => ({ ...q, batch: q.batch ?? q.id, retries: q.retries ?? 0, fullCoverage: q.fullCoverage ?? false })),
         finished: saved.queue?.finished ?? [],
       },
     };
@@ -274,11 +276,11 @@ export class Store {
    * Also creates its "In progress" test run, so the run shows up in Runs as soon as it is launched.
    */
   startAutomation(
-    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title' | 'site'> & { dryRun?: boolean; ticketType?: string; queued?: Automation['queued'] },
+    input: Pick<Automation, 'kind' | 'target' | 'env' | 'title' | 'site'> & { dryRun?: boolean; fullCoverage?: boolean; ticketType?: string; queued?: Automation['queued'] },
     runFor: (a: Automation) => TestRunInput,
   ): Automation {
     const automation: Automation = {
-      ...input, dryRun: input.dryRun ?? false, ticketType: input.ticketType ?? '', queued: input.queued ?? null, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
+      ...input, dryRun: input.dryRun ?? false, fullCoverage: input.fullCoverage ?? false, ticketType: input.ticketType ?? '', queued: input.queued ?? null, id: randomUUID(), startedAt: Date.now(), finishedAt: null, verdict: null, summary: '', link: '', details: null, runId: null, pid: null, logFile: '',
       lang: this.data.settings.language, translations: {},
     };
     const run: TestRun = { ...runFor(automation), id: randomUUID(), createdAt: automation.startedAt };
@@ -522,10 +524,10 @@ export class Store {
   }
 
   /** Adds runs to the end of the queue, in the order given. */
-  enqueue(items: Array<Pick<QueueItem, 'kind' | 'target' | 'site' | 'dryRun'> & Partial<Pick<QueueItem, 'batch' | 'retries'>>>): QueueItem[] {
+  enqueue(items: Array<Pick<QueueItem, 'kind' | 'target' | 'site' | 'dryRun'> & Partial<Pick<QueueItem, 'fullCoverage' | 'batch' | 'retries'>>>): QueueItem[] {
     // Runs queued in one call are one batch (one summary when all are done).
     const batch = items.find((i) => i.batch)?.batch ?? randomUUID();
-    const added = items.map((item) => ({ ...item, batch: item.batch ?? batch, retries: item.retries ?? 0, id: randomUUID(), addedAt: Date.now() }));
+    const added = items.map((item) => ({ ...item, fullCoverage: item.fullCoverage ?? false, batch: item.batch ?? batch, retries: item.retries ?? 0, id: randomUUID(), addedAt: Date.now() }));
     this.data.queue.items = [...this.data.queue.items, ...added];
     this.persist();
     return added;

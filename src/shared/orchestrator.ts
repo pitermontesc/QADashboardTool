@@ -66,6 +66,18 @@ export const REGRESSION_DRY_RUN =
   ' no epic, no suite tasks, no bugs, no comments. Validate every test case in the browser as usual, report each bug in details.bugs' +
   ' without key or link, leave details.jiraComment empty, and list in details.notes what you would have created or marked.';
 
+/**
+ * Appended to the orchestrator prompt for full coverage: the skill runs its full (M) pipeline
+ * whatever the ticket size, instead of the smaller team it picks for an S ticket. Shared so the
+ * button's tooltip shows exactly what Claude receives.
+ */
+export const ORCHESTRATOR_FULL_COVERAGE =
+  ' -- FULL COVERAGE: the tester asks for full coverage. Whatever size the ticket is, run the full M pipeline with every agent:' +
+  ' A1 analyst and A3 impact reviewer in parallel, A2 strategist, A4 executors, A5 regression runner as its own agent,' +
+  ' A6 automation TC author (drafts in the run folder when a write needs approval) and A7 bug reporter for every FAIL.' +
+  ' On an L ticket, run the tier with the most coverage. Do not merge or skip an agent to save time; if one cannot run,' +
+  ' mark it blocked in run.json with the reason and say it in the report.';
+
 /** Suites the regression runner is offered for. */
 export const isRegressionType = (name: string): boolean => /regres/i.test(name);
 

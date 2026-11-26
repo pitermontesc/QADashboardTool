@@ -5,7 +5,7 @@ import {
   bugKeysByRun, countedRuns, buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
+import { ORCHESTRATOR_FULL_COVERAGE, canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
 import { RESULTS, type AppState, type Automation, type JiraTicket, type QueueItem } from '../../shared/types';
 import { queuePosition, queuedOf, ticketsToValidate } from '../../shared/queue';
 import { QueuePanel } from './Queue';
@@ -50,6 +50,10 @@ const TEXT = {
     validating: 'validando',
     seeProgress: 'Ver el progreso de la ejecución',
     runOrchestrator: 'Ejecutar orquestador QA',
+    fullCoverage: 'Completa',
+    fullCoverageLabel: (key: string) => `Ejecutar el orquestador QA en ${key} con cobertura completa`,
+    fullCoverageTitle: (cmd: string) =>
+      `Cobertura completa: corre todos los agentes del orquestador (análisis, impacto, estrategia, ejecución, regresión, TCs de automatización y bugs) aunque el ticket sea chico. Tarda más y usa más tokens. Corre: ${cmd}`,
     startTitle: 'Empieza en dos pasos',
     stepJira: 'Conecta Jira',
     stepJiraHint: 'Tus tickets aparecerán como tarjetas listas para registrar.',
@@ -120,6 +124,10 @@ const TEXT = {
     validating: 'validating',
     seeProgress: 'See the run progress',
     runOrchestrator: 'Run QA orchestrator',
+    fullCoverage: 'Full',
+    fullCoverageLabel: (key: string) => `Run the QA orchestrator on ${key} with full coverage`,
+    fullCoverageTitle: (cmd: string) =>
+      `Full coverage: runs every orchestrator agent (analysis, impact, strategy, execution, regression, automation TCs and bugs) even on a small ticket. It takes longer and uses more tokens. Runs: ${cmd}`,
     startTitle: 'Get started in two steps',
     stepJira: 'Connect Jira',
     stepJiraHint: 'Your tickets will show up as cards ready to log.',
@@ -171,7 +179,7 @@ interface DashboardProps {
   jiraLoading: boolean;
   onRefreshJira: () => void;
   onTicket: (ticket: JiraTicket) => void;
-  onOrchestrate: (ticket: JiraTicket) => void;
+  onOrchestrate: (ticket: JiraTicket, fullCoverage?: boolean) => void;
   /** Ticket whose orchestrator is being launched. */
   launching: string | null;
   onRegression: () => void;
@@ -239,7 +247,7 @@ interface TicketsProps {
   perTicket: Map<string, number>;
   onRefresh: () => void;
   onTicket: (ticket: JiraTicket) => void;
-  onOrchestrate: (ticket: JiraTicket) => void;
+  onOrchestrate: (ticket: JiraTicket, fullCoverage?: boolean) => void;
   launching: string | null;
   onOpenSettings: () => void;
   automations: Automation[];
@@ -380,15 +388,26 @@ function JiraTickets({
                     {t.queuedAt(queuePosition(queue, waiting))}
                   </span>
                 ) : ready && (
-                  <button
-                    className="tk-run"
-                    onClick={() => onOrchestrate(ticket)}
-                    disabled={launching !== null}
-                    title={t.orchestratorTitle(`${qa.skills.orchestrator} ${ticket.key}`)}
-                  >
-                    <Icon name="play" size={13} />
-                    {launching === ticket.key ? t.openingTerminal : t.runOrchestrator}
-                  </button>
+                  <div className="tk-runs">
+                    <button
+                      className="tk-run"
+                      onClick={() => onOrchestrate(ticket)}
+                      disabled={launching !== null}
+                      title={t.orchestratorTitle(`${qa.skills.orchestrator} ${ticket.key}`)}
+                    >
+                      <Icon name="play" size={13} />
+                      <span className="tk-run-label">{launching === ticket.key ? t.openingTerminal : t.runOrchestrator}</span>
+                    </button>
+                    <button
+                      className="tk-run tk-full"
+                      onClick={() => onOrchestrate(ticket, true)}
+                      disabled={launching !== null}
+                      aria-label={t.fullCoverageLabel(ticket.key)}
+                      title={t.fullCoverageTitle(`${qa.skills.orchestrator} ${ticket.key}${ORCHESTRATOR_FULL_COVERAGE}`)}
+                    >
+                      {launching === `full:${ticket.key}` ? t.openingTerminal : t.fullCoverage}
+                    </button>
+                  </div>
                 )}
               </div>
             );

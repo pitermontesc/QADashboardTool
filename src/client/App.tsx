@@ -492,10 +492,10 @@ export function App() {
     return ok;
   };
 
-  const runOrchestrator = async (ticket: JiraTicket): Promise<boolean> => {
-    setLaunching(ticket.key);
+  const runOrchestrator = async (ticket: JiraTicket, fullCoverage = false): Promise<boolean> => {
+    setLaunching(fullCoverage ? `full:${ticket.key}` : ticket.key);
     try {
-      await afterLaunch(await api.runOrchestrator(ticket.key), t.orchestratorOpened(ticket.key), ticket.key);
+      await afterLaunch(await api.runOrchestrator(ticket.key, fullCoverage), t.orchestratorOpened(ticket.key), ticket.key);
       return true;
     } catch (err) {
       notify((err as Error).message, 'error');

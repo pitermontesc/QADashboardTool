@@ -34,7 +34,7 @@ describe('App', () => {
   it('logs a test from a Jira ticket button', async () => {
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /AVM-102/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^AVM-102/ }));
     const title = screen.getByLabelText('Título / qué se probó') as HTMLInputElement;
     expect(title.value).toBe('Vendor <import> & export');
     expect((screen.getByLabelText('Ticket (opcional)') as HTMLInputElement).value).toBe('AVM-102');
@@ -43,7 +43,7 @@ describe('App', () => {
     fireEvent.submit(title.closest('form')!);
 
     await screen.findByText('Registro guardado');
-    await waitFor(() => expect(screen.getByRole('button', { name: /AVM-102/ }).textContent).toContain('1 reg.'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^AVM-102/ }).textContent).toContain('1 reg.'));
 
     const { body } = await srv.call('GET', '/api/state');
     expect(body.runs).toMatchObject([{ ticket: 'AVM-102', title: 'Vendor <import> & export', typeId: 't2', passed: 4, result: 'passed' }]);
@@ -51,7 +51,7 @@ describe('App', () => {
 
   it('suggests the result from the case counts until one is picked by hand', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /AVM-101/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^AVM-101/ }));
     const checked = () => screen.getByRole('radio', { checked: true }).textContent;
 
     fireEvent.change(screen.getByLabelText('Casos passed'), { target: { value: '5' } });
@@ -249,14 +249,14 @@ describe('App', () => {
 
   it('refreshes tickets on its own when the window regains focus and announces new ones in On QA', async () => {
     render(<App />);
-    await screen.findByRole('button', { name: /AVM-101/ });
+    await screen.findByRole('button', { name: /^AVM-101/ });
     extraIssues.push({ key: 'AVM-103', summary: 'New for QA', status: 'On Staging' });
     // The last load must be over a minute old for it to repeat.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.now() + 2 * 60_000);
     try {
       fireEvent.focus(window);
-      expect(await screen.findByRole('button', { name: /AVM-103/ })).toBeTruthy();
+      expect(await screen.findByRole('button', { name: /^AVM-103/ })).toBeTruthy();
       expect(await screen.findByText(/Nuevo ticket en On Staging: AVM-103/)).toBeTruthy();
     } finally {
       vi.useRealTimers();

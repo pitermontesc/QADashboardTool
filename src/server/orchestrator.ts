@@ -1,4 +1,4 @@
-import { REGRESSION_DRY_RUN, findSite, isTestRunRef, isTicketKey } from '../shared/orchestrator.js';
+import { ORCHESTRATOR_FULL_COVERAGE, REGRESSION_DRY_RUN, findSite, isTestRunRef, isTicketKey } from '../shared/orchestrator.js';
 import type { QaConfig } from '../shared/types.js';
 import { HttpError } from './errors.js';
 
@@ -11,10 +11,10 @@ import { HttpError } from './errors.js';
 export const orList = (items: string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
 
-/** QA orchestrator on a ticket. */
-export function orchestratorPrompt(key: string, qa: QaConfig, extra = ''): string {
+/** QA orchestrator on a ticket; with full coverage, every agent of the skill runs whatever the ticket size. */
+export function orchestratorPrompt(key: string, qa: QaConfig, extra = '', fullCoverage = false): string {
   if (!isTicketKey(key)) throw new HttpError(400, `Invalid ticket: ${key}`);
-  return `${qa.skills.orchestrator} ${key}${extra}`;
+  return `${qa.skills.orchestrator} ${key}${fullCoverage ? ORCHESTRATOR_FULL_COVERAGE : ''}${extra}`;
 }
 
 /** Regression runner; without a test run, the skill picks the right one or reports BLOCKED. */

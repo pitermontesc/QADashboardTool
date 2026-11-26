@@ -217,6 +217,8 @@ export interface Automation {
   translations: Partial<Record<Lang, ReportTranslation>>;
   /** Test mode: Claude only reads Jira and testomat.io; it creates, marks and posts nothing there. */
   dryRun: boolean;
+  /** Orchestrator with full coverage: every agent of the skill runs, whatever the ticket size. */
+  fullCoverage: boolean;
   /**
    * Id of the QA site it runs on: its lane, where runs go one at a time. Empty in runs from before
    * v1.15.0 (their lane is worked out from the kind, target and environment).
@@ -237,6 +239,8 @@ export interface QueueItem {
   /** Lane: id of the QA site it runs on. */
   site: string;
   dryRun: boolean;
+  /** Orchestrator with full coverage (see Automation.fullCoverage). */
+  fullCoverage: boolean;
   addedAt: number;
   /** Runs queued together ("Validate all" or one launch): a summary is shown when the whole batch is done. */
   batch: string;

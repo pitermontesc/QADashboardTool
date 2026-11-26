@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] - 2026-11-25
+
+### Added
+- **Full coverage for the orchestrator.** Each ticket ready for the orchestrator has a **Full** button next to **Run QA orchestrator**. The skill sizes each ticket and, on a small one (most tickets), runs only part of its team: one executor, no impact review, the regression folded into the executor. **Full** asks it for every agent whatever the size: analyst and impact review, strategist, executors, regression runner as its own agent, automation TC author and bug reporter. It takes longer (up to about 2.5 h) and uses more tokens. The report shows **Full coverage**, the run keeps it while it waits in the queue and in its automatic retry, and its tooltip shows the exact prompt. `POST /api/orchestrator/:key` takes `{fullCoverage: true}`.
+
+### Changed
+- Ticket cards are at least 262 px wide (were 250 px), so both buttons fit in Spanish.
+- The user guide explains how the orchestrator sizes a ticket and which agents run at each size.
+
 ## [1.17.2] - 2026-11-25
 
 ### Fixed

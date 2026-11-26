@@ -41,7 +41,8 @@ export const api = {
   restoreBackup: (name: string) => request<AppState>('POST', `/api/backups/${encodeURIComponent(name)}/restore`, {}),
   getLog: () => request<{ file: string; lines: string[] }>('GET', '/api/log'),
   saveJiraConfig: (config: JiraConfigInput) => request<JiraState>('PUT', '/api/jira/config', config),
-  runOrchestrator: (key: string) => request<LaunchResult>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, {}),
+  runOrchestrator: (key: string, fullCoverage = false) =>
+    request<LaunchResult>('POST', `/api/orchestrator/${encodeURIComponent(key)}`, fullCoverage ? { fullCoverage } : {}),
   runRegression: (run: string, dryRun = false) => request<LaunchResult>('POST', '/api/regression', { run, dryRun }),
   runSmoke: (site: string) => request<LaunchResult>('POST', '/api/smoke', { site }),
   queueTickets: (keys: string[]) => request<AppState>('POST', '/api/queue', { keys }),

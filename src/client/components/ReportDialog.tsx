@@ -32,6 +32,7 @@ const TEXT = {
     title: (what: string) => `Reporte QA · ${what}`,
     start: 'Inicio', end: 'Fin', build: 'Build', running: 'En curso', close: 'Cerrar',
     dryRun: 'Modo prueba: sin crear ni marcar nada en Jira ni en testomat.io',
+    fullCoverage: 'Cobertura completa: con todos los agentes del orquestador',
     stillRunning: 'Claude está trabajando en segundo plano. El reporte completo aparece aquí en cuanto envíe el resultado.',
     activity: 'Actividad en vivo', waiting: 'Esperando los primeros pasos de Claude…',
     elapsed: (min: number) => `${min} min`, stop: 'Detener', confirmStop: '¿Detener?', stopping: 'Deteniendo…',
@@ -61,6 +62,7 @@ const TEXT = {
     title: (what: string) => `QA report · ${what}`,
     start: 'Start', end: 'End', build: 'Build', running: 'Running', close: 'Close',
     dryRun: 'Test mode: nothing is created or marked in Jira or testomat.io',
+    fullCoverage: 'Full coverage: with every orchestrator agent',
     stillRunning: 'Claude is working in the background. The full report shows up here as soon as it sends the result.',
     activity: 'Live activity', waiting: 'Waiting for Claude’s first steps…',
     elapsed: (min: number) => `${min} min`, stop: 'Stop', confirmStop: 'Stop?', stopping: 'Stopping…',
@@ -410,6 +412,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
               {details?.build && ` · ${t.build} ${details.build}`}
             </p>
             {a.dryRun && <p className="hint rep-dry">{t.dryRun}</p>}
+            {a.fullCoverage && <p className="hint rep-full">{t.fullCoverage}</p>}
           </div>
           {running ? (
             <span className="status-pill tone-prog pulsing"><i />{t.running}</span>

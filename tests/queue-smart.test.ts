@@ -103,7 +103,7 @@ describe('Expected duration', () => {
       settings: { qa } as never,
       jira: { tickets: [ticket('AVM-9', { type: 'Bug' })] } as never,
       automations: [...history, run({ target: 'AVM-8', ticketType: 'Bug', startedAt: NOW - 5 * 60_000, finishedAt: null, verdict: null })],
-      queue: { items: [{ id: 'q1', kind: 'orchestrator' as const, target: 'AVM-9', site: 'qa', dryRun: false, addedAt: 0, batch: 'b', retries: 0 }], paused: {}, skipped: [], finished: [] },
+      queue: { items: [{ id: 'q1', kind: 'orchestrator' as const, target: 'AVM-9', site: 'qa', dryRun: false, fullCoverage: false, addedAt: 0, batch: 'b', retries: 0 }], paused: {}, skipped: [], finished: [] },
     };
     const { starts, freeAt } = laneSchedule(state, 'qa', NOW);
     // The running Bug has ~10 of its 15 min left, then the 30 s pause, then 15 min for AVM-9.

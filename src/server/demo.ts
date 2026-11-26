@@ -269,6 +269,7 @@ function seededAutomation(
     details: def ? details(def, lang, extra.jiraComment ?? null) : null, runId: null, pid: null, logFile: '', lang,
     translations: { [other]: { summary: summary[other], details: def ? details(def, other) : null } satisfies ReportTranslation },
     dryRun: extra.dryRun ?? false,
+    fullCoverage: false,
     site: '',
     ticketType: kind === 'orchestrator' ? (DEMO_TICKET_DEFS.find((t) => t.key === target)?.type ?? '') : '',
     queued: null,

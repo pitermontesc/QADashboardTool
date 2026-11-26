@@ -412,7 +412,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   }
 
   /** The orchestrator on a loaded ticket, on the site its Jira status maps to (On QA → QA, On Staging → STG). */
-  const orchestratorSpec = (key: string): LaunchSpec => {
+  const orchestratorSpec = (key: string, fullCoverage = false): LaunchSpec => {
     if (!isTicketKey(key)) throw new HttpError(400, `Invalid ticket: ${key}`);
     const ticket = store.getJiraState().tickets.find((t) => t.key === key);
     if (!ticket) throw new HttpError(404, `${key} is not among the loaded Jira tickets`);
@@ -423,8 +423,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     }
     const title = automationTitle('orchestrator', key, lang(), ticket.summary);
     return {
-      input: { kind: 'orchestrator', target: key, env: site.env, title, site: site.id, ticketType: ticket.type },
-      prompt: (extra) => orchestratorPrompt(key, qa, extra),
+      input: { kind: 'orchestrator', target: key, env: site.env, title, site: site.id, ticketType: ticket.type, fullCoverage },
+      prompt: (extra) => orchestratorPrompt(key, qa, extra, fullCoverage),
     };
   };
 
@@ -448,7 +448,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
   /** The spec of a queued run, read again when its turn comes (the ticket or the settings may have changed). */
   const specFor = (item: QueueItem): LaunchSpec =>
-    item.kind === 'orchestrator' ? orchestratorSpec(item.target) : item.kind === 'smoke' ? smokeSpec(item.site) : regressionSpec(item.target, item.dryRun);
+    item.kind === 'orchestrator' ? orchestratorSpec(item.target, item.fullCoverage) : item.kind === 'smoke' ? smokeSpec(item.site) : regressionSpec(item.target, item.dryRun);
 
   /** Launches Claude Code in the background and leaves the run "in progress" until it reports the result. */
   const launchAutomation = async ({ input, prompt }: LaunchSpec) => {
@@ -477,7 +477,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       running.set(automation.id, handle);
       store.setAutomationProcess(automation.id, handle.pid, handle.logFile);
       log.info('claude.start', {
-        id: automation.id, kind: input.kind, target: input.target, site: input.site, dryRun: input.dryRun || undefined,
+        id: automation.id, kind: input.kind, target: input.target, site: input.site, dryRun: input.dryRun || undefined, fullCoverage: input.fullCoverage || undefined,
         queued: input.queued ? `batch ${input.queued.batch}${input.queued.retries ? ' retry' : ''}` : undefined, pid: handle.pid, claudeLog: handle.logFile,
       });
     } catch (err) {
@@ -514,7 +514,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     }
     if (queue.items.some((q) => q.kind === kind && q.target === target)) throw new HttpError(409, `${runLabel(kind, target)} is already queued`);
     if (laneBusy(site) || queue.items.some((q) => q.site === site)) {
-      const [queued] = store.enqueue([{ kind, target, site, dryRun: spec.input.dryRun ?? false }]);
+      const [queued] = store.enqueue([{ kind, target, site, dryRun: spec.input.dryRun ?? false, fullCoverage: spec.input.fullCoverage ?? false }]);
       const position = queuePosition(store.getState().queue.items, queued!);
       log.info('queue.add', { kind, target, site, position });
       return { queued: queued!, position };
@@ -573,7 +573,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     const en = settings.language === 'en';
     const site = laneOf(a, settings.qa);
     if (a.queued && a.kind === 'orchestrator' && a.queued.retries < 1 && isEnvironmentBlock(a) && !isUsageLimit(a)) {
-      store.enqueue([{ kind: a.kind, target: a.target, site, dryRun: a.dryRun, batch: a.queued.batch, retries: a.queued.retries + 1 }]);
+      store.enqueue([{ kind: a.kind, target: a.target, site, dryRun: a.dryRun, fullCoverage: a.fullCoverage, batch: a.queued.batch, retries: a.queued.retries + 1 }]);
       log.info('queue.retry', { target: a.target, site, reason: 'BLOCKED by the environment' });
     }
     const waiting = new Set(store.getState().queue.items.map((q) => q.site));
@@ -688,7 +688,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
 
   api.post('/orchestrator/:key', async (req, res) => {
-    sendLaunch(res, await requestLaunch(orchestratorSpec(String(req.params.key))));
+    const body = (req.body ?? {}) as { fullCoverage?: unknown };
+    sendLaunch(res, await requestLaunch(orchestratorSpec(String(req.params.key), body.fullCoverage === true)));
   });
 
   api.post('/regression', async (req, res) => {

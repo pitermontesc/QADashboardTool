@@ -266,6 +266,7 @@ const storedAutomationSchema = z.object({
   lang: z.enum(LANGUAGES),
   translations: z.partialRecord(z.enum(LANGUAGES), z.object({ summary: z.string().max(5000), details: automationDetailsSchema.nullable() })).default({}),
   dryRun: z.boolean().default(false),
+  fullCoverage: z.boolean().default(false),
   site: z.string().max(100).default(''),
   ticketType: z.string().max(100).default(''),
   queued: z.object({ batch: z.string().max(100), retries: z.number().int().min(0).max(10) }).nullable().default(null),

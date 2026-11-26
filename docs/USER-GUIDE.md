@@ -16,6 +16,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 3. [Connect Jira](#3-connect-jira)
 4. [Log a test from a ticket](#4-log-a-test-from-a-ticket)
    - [Validate a ticket with the QA orchestrator](#validate-a-ticket-with-the-qa-orchestrator)
+   - [Full coverage: every orchestrator agent](#full-coverage-every-orchestrator-agent)
    - [Validate all tickets: the run queue](#validate-all-tickets-the-run-queue)
 5. [Log a test without a ticket (Smoke, Regression…)](#5-log-a-test-without-a-ticket-smoke-regression)
    - [Run the smoke test with Claude Code](#run-the-smoke-test-with-claude-code)
@@ -194,20 +195,37 @@ Test types you renamed and environments are not translated: they are your data. 
 >
 > **Before launching a run**, have Chrome open with the **Claude in Chrome** extension connected and be signed in to the site that will be tested. Without a browser, the run ends as **BLOCKED**.
 
-Tickets in **On QA** or **On Staging** have the **▷ Run QA orchestrator** button below them. It launches the Claude Code `/avm-qa-skills:avm-qa-orchestrator` skill on that ticket:
+Tickets in **On QA** or **On Staging** have two buttons below them: **▷ Run QA orchestrator** and **Full** (see [Full coverage](#full-coverage-every-orchestrator-agent)). Both launch the Claude Code `/avm-qa-skills:avm-qa-orchestrator` skill on that ticket:
 
-![On QA and On Staging ticket cards, each with the "Run QA orchestrator" button below](img/17-orchestrator.png)
+![On QA and On Staging ticket cards, each with the "Run QA orchestrator" and "Full" buttons below](img/17-orchestrator.png)
 
 1. **Click "Run QA orchestrator"** on the ticket card. The app shows the notice **QA orchestrator running in the background for AVM-7057**.
 2. **The ticket card changes to "Running · validating · N min"** and the header shows **Running**. Click either one to see the progress live (see [Follow a run in progress](#follow-a-run-in-progress)).
-3. The orchestrator analyzes the ticket, runs the cases on qa.alpinevm.com, reviews impact and regression, assigns the ticket to itself, posts the QA comment, and may create TCs and bugs. It ends with a **PASSED / PASSED W/F / FAILED / BLOCKED** verdict.
+3. The orchestrator analyzes the ticket, runs the cases on the ticket's site (qa.alpinevm.com for On QA), assigns the ticket to itself, posts the QA comment, and may create TCs and bugs. It ends with a **PASSED / PASSED W/F / FAILED / BLOCKED** verdict.
 4. **The result is logged in Runs automatically**: when you launch it, an "In progress" run for the ticket appears and, when the orchestrator finishes, it is completed with its verdict (see [Automated QA runs](#automated-qa-runs-in-runs-and-on-the-dashboard)).
 
 Requirements and limits:
 
-- **Claude Code installed** and signed in, with the `avm-qa-orchestrator` skill available. The app looks for the `claude` command in `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
+- **Claude Code installed** and signed in, with the `avm-qa-skills` plugin and its `avm-qa-orchestrator` skill available. The app looks for the `claude` command in `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin`.
 - The button appears only on **On QA** or **On Staging** tickets. If the ticket changed status in Jira, click **Refresh from Jira** first; the app does not launch the orchestrator for a ticket that is no longer in those statuses.
 - **One run at a time per site.** Two runs on the same site share Chrome, the test users and the data, so they would get in each other's way. If the site is busy (another ticket, a smoke test or the regression is running there), the ticket waits in that site's queue: the app says **AVM-7057 queued on its site (position 1)**, the card shows **Queued · #1**, and it starts on its own when the site is free. QA and STG are separate: a ticket on QA and one on STG run at the same time.
+
+### Full coverage: every orchestrator agent
+
+The orchestrator is a team of agents: an analyst who audits the acceptance criteria, a strategist who adds negative, boundary and permission flows to the plan, an impact reviewer who looks beyond the ticket, executors in the browser, a regression runner, an author of automation TCs and a bug reporter. **It does not always call all of them.** It first sizes the ticket and runs only the agents that size needs:
+
+| Size | Ticket | Agents that run |
+| --- | --- | --- |
+| **S** | A bug or a fix, up to 5 criteria, one screen | Analysis and plan in one agent, **one** executor that also runs the regression checks, the TC author when the verdict is in, and the bug reporter only if something failed. The impact review is skipped (with the reason in the report). |
+| **M** | A story with 6 to 19 criteria, or several screens | Every agent: analyst and impact in parallel, strategist, executors, regression runner, TC author and bug reporter. |
+| **L** | 20 criteria or more | Scoping first, then the chosen part as an M. |
+
+Most tickets are S, so a normal run usually shows one or two agents at work. To run the whole team on any ticket, click **Full** on its card instead of **Run QA orchestrator**. The prompt then asks the skill for full coverage: the full M pipeline whatever the size, the regression runner as its own agent, the TC author (drafts in the run folder when publishing needs an approval nobody can give in the background) and the bug reporter for every failure. An agent that cannot run is marked blocked in the report with the reason, never skipped in silence.
+
+- **It takes longer and uses more tokens.** The skill aims at up to 2.5 hours for the full pipeline, against about 1 hour for an S run. Use it for tickets that touch shared components, permissions, accounting or anything risky, or when the normal run left you with doubts.
+- **The report says so.** It shows **Full coverage: with every orchestrator agent** under its title. What each agent did is in the skill's own report, `REPORT.md`, in `~/qa-dashboard-runs/outputs/avm-orch/<TICKET>/<date-time>/`.
+- **It keeps full coverage in the queue.** If the site is busy, the ticket waits in the queue with full coverage, and so does its automatic retry. **Validate all** queues the usual (sized) runs.
+- Hover over **Full** to see the exact prompt Claude receives.
 
 ### Validate all tickets: the run queue
 
