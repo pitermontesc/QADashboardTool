@@ -303,6 +303,38 @@ export interface AssistantReply {
   actions: AssistantAction[];
 }
 
+/** Something this Mac needs for runs with Claude. */
+export type SetupCheckId = 'claude' | 'login' | 'skills' | 'chrome' | 'profile' | 'jira';
+/** `invalid`: the QA profile exists but lacks the tester's name or accountId. `unknown`: it could not be checked. */
+export type SetupStatus = 'ok' | 'missing' | 'invalid' | 'unknown';
+
+export interface SetupCheck {
+  id: SetupCheckId;
+  status: SetupStatus;
+  /** Missing, it stops runs with Claude from launching; the others are only advice. */
+  required: boolean;
+  /** What was found: Claude's version, the tester's name, the Jira site, the skills that are missing. */
+  detail: string;
+}
+
+/** One configured skill, and whether Claude Code has it. */
+export interface SkillCheck {
+  kind: AutomationKind;
+  name: string;
+  status: SetupStatus;
+  /** The app changed the name to the one Claude Code has (for example, with the plugin's prefix). */
+  renamedFrom?: string;
+}
+
+/** Whether this Mac is ready for runs with Claude Code, and what to fix if not. */
+export interface SetupState {
+  checkedAt: number;
+  /** No required check is missing: runs with Claude can launch. */
+  ready: boolean;
+  checks: SetupCheck[];
+  skills: SkillCheck[];
+}
+
 export interface AppState {
   settings: Settings;
   runs: TestRun[];
@@ -314,6 +346,8 @@ export interface AppState {
   translating: number;
   /** Demo mode: sample data and simulated Jira/Claude. */
   demo: boolean;
+  /** What this Mac has for runs with Claude; null until the first check finishes. */
+  setup: SetupState | null;
 }
 
 export interface Backup extends Settings {

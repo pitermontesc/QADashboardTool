@@ -196,7 +196,7 @@ export function App() {
     [notify],
   );
 
-  // Jira tickets refresh on their own: every few minutes and when the window regains focus.
+  // Jira tickets (and a Mac that was not ready) refresh on their own: every few minutes and when the window regains focus.
   const autoRefresh = useRef<() => void>(() => undefined);
   useEffect(() => {
     const tick = (): void => autoRefresh.current();
@@ -226,7 +226,7 @@ export function App() {
   const applyPolled = useEffectEvent((next: AppState) => {
     const before = new Map(state?.automations.map((a) => [a.id, a]));
     const queueBefore = state?.queue;
-    setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating } : s));
+    setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating, setup: next.setup ?? s.setup } : s));
     const current = state?.settings.language ?? 'es';
     for (const a of next.automations) {
       if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
@@ -277,9 +277,25 @@ export function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    api.getState().then(setState, (error: unknown) => setLoadError(errorMessage(error)));
+  /**
+   * Asks the server to check the Mac again. Only the check and the skill names (the check may switch
+   * one to the name Claude Code has) are taken, so nothing being edited is overwritten.
+   */
+  const checkSetup = useCallback(async (): Promise<void> => {
+    const next = await api.checkSetup();
+    setState((s) => (s ? { ...s, setup: next.setup, settings: { ...s.settings, qa: { ...s.settings.qa, skills: next.settings.qa.skills } } } : s));
   }, []);
+
+  useEffect(() => {
+    api.getState().then(
+      (next) => {
+        setState(next);
+        // The server checks the Mac as it starts; a window opened before that check ends asks for it.
+        if (!next.setup) void checkSetup().catch(() => undefined);
+      },
+      (error: unknown) => setLoadError(errorMessage(error)),
+    );
+  }, [checkSetup]);
 
   // Desktop app menu commands and keyboard shortcuts. Kept in a ref so the listener
   // (registered once) always sees the current state.
@@ -403,6 +419,8 @@ export function App() {
    */
   // oxlint-disable-next-line react/refs
   autoRefresh.current = () => {
+    // Back from Terminal after fixing something: a Mac that was not ready is checked again.
+    if (state.setup && !state.setup.ready) void checkSetup().catch(() => undefined);
     const { jira } = state;
     if (jiraLoading || !jira.hasToken || jira.connection === 'none') return;
     // When returning to the window, skip if the last load was very recent.
@@ -723,6 +741,7 @@ export function App() {
             onSaveJira={saveJira}
             onImport={importBackup}
             onRestore={restoreBackup}
+            onCheckSetup={checkSetup}
             onNotice={notify}
             onError={(message) => notify(message, 'error')}
           />

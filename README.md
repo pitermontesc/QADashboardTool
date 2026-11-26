@@ -50,6 +50,19 @@ The window remembers its size and position. Drag `QA Dashboard.app` to `/Applica
 
 The checklist for another team member to use the app and the QA skills with their own account is in [docs/NEW-QA-ONBOARDING.md](docs/NEW-QA-ONBOARDING.md): installation, Claude Code and Claude in Chrome, their QA profile (`~/.config/avm-qa/profile.json`, so the skills assign tickets to them and not to someone else), the app settings and a final check.
 
+**Types & settings → Set up this Mac** checks what runs with Claude need, on the Mac running the app:
+
+| Check | How | If it is missing |
+| --- | --- | --- |
+| Claude Code installed | the `claude` command (`~/.local/bin`, Homebrew or the login shell's PATH) | **runs are refused** |
+| Signed in to Claude Code | `claude auth status` | **runs are refused** |
+| QA skills | the configured skills against `claude plugin list --json` (with each plugin's prefix) and the personal, synced and runs-folder skills | **runs that use it are refused** |
+| Claude in Chrome connected | Claude Code's connection file for Chrome (or Edge, Brave, Chromium) | advice: runs without the browser end BLOCKED |
+| QA profile | `~/.config/avm-qa/profile.json` with `tester.name` and `tester.accountId` | advice: the skills use the Jira account |
+| Jira | the Jira connection | advice: no tickets for the orchestrator |
+
+What is missing shows how to fix it, with the command to copy. A check that could not be done (for example, skills on an older Claude Code) does not stop runs. The app checks when it starts, every 5 minutes, with **Check again**, when you come back to the window while something is missing, and before a launch if the last check is more than a minute old or failed, so a fix counts right away. A configured skill that Claude Code has only under another plugin prefix is switched to that name (it says so on the card). While something required is missing, the dashboard says what and links to the card.
+
 ## Demo
 
 `npm run demo` (or `npm run demo:en`) opens the app at `http://127.0.0.1:8790` with sample data in a temporary folder that is reset on every start. Jira, Claude Code and translation are simulated (`src/server/demo.ts`): Claude runs write their activity step by step and report a sample result, and nothing leaves the machine. In the desktop app it is under **Help → Open demo (sample data)**. The script for presenting it is in [docs/DEMO.md](docs/DEMO.md).
@@ -122,7 +135,7 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/state` | Settings, runs and Jira status |
+| GET | `/api/state` | Settings, runs and Jira status, and `setup`: what this Mac has for runs with Claude (null until the first check ends) |
 | POST | `/api/runs` | Creates a run (`testMode: true` marks a rehearsal: listed, but left out of the dashboard's numbers) |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
 | PUT | `/api/settings` | Saves the settings: types, environments, ticket URL, language, theme, and sites & skills |
@@ -130,10 +143,11 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | GET / POST | `/api/backups` | Lists the automatic copies of the data (`{dir, items}`, newest first; `dir` shows the home folder as `~`), or takes one now |
 | POST | `/api/backups/:name/restore` | Restores the runs, reports and settings of a copy (the Jira connection is kept); a copy of the current data is kept first; 409 while a run is in progress or queued |
 | GET | `/api/log` | The last 300 lines of the app log (`{file, lines}`) |
+| POST | `/api/setup/check` | Checks the Mac again (Claude Code, its sign-in, the configured skills, Claude in Chrome, the QA profile, Jira) and returns the state |
 | PUT | `/api/jira/config` | Saves the Jira connection |
 | POST | `/api/jira/refresh` | Reloads the tickets from Jira |
 | POST | `/api/orchestrator/:key` | Launches the QA orchestrator on a loaded ticket, on the site its Jira status maps to (409 if the status is not ready or the ticket is already running or queued). Optional `{fullCoverage: true}` runs every agent of the skill whatever the ticket size. Like smoke and regression: 200 with the run, or 202 `{queued, position}` if its site is busy |
-| POST | `/api/smoke` | Launches the smoke test on a site (`{site}`, a site id from Sites & skills) |
+| POST | `/api/smoke` | Launches the smoke test on a site (`{site}`, a site id from Sites & skills). Every launch (orchestrator, smoke, regression, Validate all) answers 503, recording and queueing nothing, while Claude Code is missing, signed out or without the run's skill |
 | POST | `/api/regression` | Launches the regression (`{run}` test run link, optional `{dryRun: true}` for test mode: nothing is created or marked) |
 | POST | `/api/queue` | "Validate all": queues the given tickets (`{keys}`), each on its site, in the app's order; returns the state |
 | DELETE | `/api/queue/:id` | Takes a run out of the queue |

@@ -3,6 +3,7 @@ import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import { BackupsCard } from './BackupsCard';
 import { QaSitesCard } from './QaSitesCard';
+import { SetupCard } from './SetupCard';
 import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
@@ -16,6 +17,7 @@ interface SettingsViewProps {
   onSaveJira: (config: JiraConfigInput) => void;
   onImport: (backup: Backup) => void;
   onRestore: (name: string, when: string) => Promise<void>;
+  onCheckSetup: () => Promise<void>;
   onNotice: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -79,7 +81,7 @@ const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
   if (event.key === 'Enter') action();
 };
 
-export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onNotice, onError }: SettingsViewProps) {
+export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onCheckSetup, onNotice, onError }: SettingsViewProps) {
   const { settings, runs, jira } = state;
   const lang = useLang();
   const t = useText(TEXT);
@@ -156,6 +158,7 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
 
   return (
     <section>
+      <SetupCard setup={state.setup} onCheck={onCheckSetup} onNotice={onNotice} onError={onError} />
       <div className="grid2">
         <div>
         <div className="card">

@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] - 2026-11-26
+
+### Added
+- **Set up this Mac.** A card at the top of **Types & settings** checks what runs with Claude need on the Mac running the app, so another QA can set it up alone: Claude Code installed (its version), signed in (`claude auth status`), the configured QA skills (against `claude plugin list --json`, with each plugin's prefix, and the personal and synced skills), Claude in Chrome connected, the QA profile (`~/.config/avm-qa/profile.json`) and Jira. What is missing says how to fix it, with the command to copy. It is checked when the app starts, every 5 minutes, with **Check again** and when you come back to the window while something is missing (about a second).
+- While Claude Code is missing or signed out, the dashboard says so and links to the card.
+- A configured skill that Claude Code has only under another plugin prefix is switched to that name, and the card says so.
+
+### Changed
+- **A run this Mac cannot do is refused instead of ending in BLOCKED.** Without Claude Code, signed out, or without the run's skill, the orchestrator, smoke, regression and **Validate all** answer what is missing (503) and record or queue nothing; a queued run whose turn comes then pauses its site. A check that could not be done (for example, skills on an older Claude Code) does not stop a run. Before a launch, a check older than a minute, or one that failed, is done again, so a fix counts right away.
+
 ## [1.18.1] - 2026-11-26
 
 ### Fixed

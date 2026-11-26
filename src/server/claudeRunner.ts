@@ -38,8 +38,8 @@ export interface ClaudeHandle {
 /** Launches Claude Code in the background; injectable to test without running anything. */
 export type ClaudeLauncher = (job: ClaudeJob) => Promise<ClaudeHandle>;
 
-/** The desktop app does not inherit the terminal PATH: look for `claude` where the installer puts it. */
-function findClaude(): string {
+/** The desktop app does not inherit the terminal PATH: look for `claude` where the installer puts it. Null if it is not installed. */
+export function claudeBinary(): string | null {
   const home = os.homedir();
   const candidates = [
     path.join(home, '.local/bin/claude'),
@@ -55,13 +55,19 @@ function findClaude(): string {
     const resolved = execFileSync(shell, ['-ilc', 'command -v claude'], { encoding: 'utf8', timeout: 10_000 }).trim().split('\n').at(-1);
     if (resolved && existsSync(resolved)) return resolved;
   } catch {
-    // Fall through to the clear error below.
+    // Not installed, or the shell failed: the same answer.
   }
-  throw new HttpError(500, 'Claude Code (claude) was not found on this Mac');
+  return null;
+}
+
+function findClaude(): string {
+  const bin = claudeBinary();
+  if (!bin) throw new HttpError(500, 'Claude Code (claude) was not found on this Mac');
+  return bin;
 }
 
 /** Clean environment: without the markers of a Claude or Electron session that started the app. */
-function cleanEnv(): NodeJS.ProcessEnv {
+export function cleanEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (key.startsWith('CLAUDE') || key === 'ELECTRON_RUN_AS_NODE') continue;

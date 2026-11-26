@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { BackupInfo, BackupList, BackupReason } from '../../shared/types';
 import { api } from '../api';
+import { copyText } from '../clipboard';
 import { useLang, useText } from '../i18n';
 
 const TEXT = {
@@ -67,29 +68,6 @@ interface BackupsCardProps {
 }
 
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-
-/** The clipboard API refuses when the page is not focused; the older copy command still works then. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.setAttribute('readonly', '');
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.append(area);
-    area.select();
-    try {
-      return document.execCommand('copy');
-    } catch {
-      return false;
-    } finally {
-      area.remove();
-    }
-  }
-}
 
 /** The automatic copies of the data (restore one, or take one now) and the app's log. */
 export function BackupsCard({ busy, onRestore, onNotice, onError }: BackupsCardProps) {

@@ -9,6 +9,7 @@ import { ORCHESTRATOR_FULL_COVERAGE, canOrchestrate, isRegressionType, isSmokeTy
 import { RESULTS, type AppState, type Automation, type JiraTicket, type QueueItem } from '../../shared/types';
 import { queuePosition, queuedOf, ticketsToValidate } from '../../shared/queue';
 import { QueuePanel } from './Queue';
+import { SetupBanner } from './SetupCard';
 import { Automations, elapsedMin, runningOf } from './Automations';
 import { useLang, useText } from '../i18n';
 import { useNow } from '../useNow';
@@ -512,6 +513,8 @@ export function Dashboard({
           <span className={view.today.bugs ? 'text-bad' : ''}><b>{view.today.bugs}</b> bugs</span>
         </div>
       </div>
+
+      <SetupBanner setup={state.setup} onOpenSettings={onOpenSettings} />
 
       {runs.length === 0 && (
         <Onboarding jiraConnected={jira.connection === 'connected'} onOpenSettings={onOpenSettings} onNewRun={onNewRun} t={t} />

@@ -13,6 +13,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 1. [Open the app](#1-open-the-app)
    - [Try the demo](#try-the-demo)
 2. [First launch](#2-first-launch)
+   - [Set up this Mac](#set-up-this-mac)
 3. [Connect Jira](#3-connect-jira)
 4. [Log a test from a ticket](#4-log-a-test-from-a-ticket)
    - [Validate a ticket with the QA orchestrator](#validate-a-ticket-with-the-qa-orchestrator)
@@ -71,6 +72,27 @@ The first time, you see an empty **Dashboard** with a **Get started in two steps
 The guide disappears as soon as you save your first run.
 
 At the top you always have the three views of the app (**Dashboard**, **Runs** and **Types & settings**) and the **New run** button.
+
+### Set up this Mac
+
+To run the orchestrator, the smoke or the regression with Claude, this Mac needs a few things. **Types & settings → Set up this Mac** checks them and says how to fix what is missing:
+
+![Set up this Mac: Claude Code installed, sign-in missing with the command to copy, QA skills, Claude in Chrome, QA profile and Jira](img/18-setup.png)
+
+| Check | Needed? | How to fix it |
+| --- | --- | --- |
+| **Claude Code installed** | Yes | In Terminal: `curl -fsSL https://claude.ai/install.sh \| bash` |
+| **Signed in to Claude Code** | Yes | In Terminal: `claude auth login`, with your organization account (runs use your plan) |
+| **QA skills** | Yes, the ones each run uses | Install the `avm-qa-skills` plugin from the organization library, or type in **Sites & skills** the exact name of the skill you use |
+| **Claude in Chrome connected** | Recommended | Install the extension, sign in and run `claude --chrome` once. Without the browser, runs end in BLOCKED |
+| **QA profile** | Recommended | `~/.config/avm-qa/profile.json` with your name and Jira accountId ([onboarding checklist](NEW-QA-ONBOARDING.md)); without it, the skills use your Jira account |
+| **Jira connected** | Recommended | Section 3; without it there are no tickets for the orchestrator |
+
+**Copy** next to each command copies it, ready to paste into Terminal (or into Claude Code, for the plugin). After fixing something, click **Check again**; coming back to the app window also checks again.
+
+While something needed is missing, the dashboard shows **Runs with Claude cannot launch** with what is missing and a link to this card, and the run buttons answer with the same message instead of launching a run that would end in BLOCKED. Logging tests by hand works the same as always.
+
+If Claude Code has a configured skill under another plugin prefix (for example, the organization's copy instead of the plugin's), the app switches to the name Claude Code has and says so on the card.
 
 ## 3. Connect Jira
 
@@ -519,6 +541,7 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A ticket you expected is missing** | The app leaves out done tickets and loads at most 100. Adjust the filter to narrow it down. |
 | **Tickets do not reflect recent changes** | The app refreshes them every 5 minutes and when you return to the window. To avoid waiting, click **Refresh from Jira** (`⌘R`). If the card shows **Connection error**, check the token. |
 | **"Port 8765 is used by another program"** on launch | Another program is using that port. Close it, or open the app from Terminal with another port: `QA_DASH_PORT=8770 "/Applications/QA Dashboard.app/Contents/MacOS/QA Dashboard"`. |
+| **"Claude Code is not installed / not signed in on this Mac"** or **"Claude Code does not have the skill…"** | Open **Types & settings → Set up this Mac**: each missing item has the command to fix it. Then click **Check again** and launch the run again. |
 | **"Claude Code (claude) was not found on this Mac"** | Install Claude Code (it goes to `~/.local/bin/claude`), sign in by running `claude` once in Terminal, and launch the run again. |
 | **The run ends in BLOCKED with "no browser"** | Open Chrome, check that the **Claude in Chrome** extension is installed and connected to your Claude account, sign in to QA or STG, and launch the run again from the app. If you launched `claude` by hand, use `claude --chrome` or run `/chrome` inside the session. |
 | **A run ends in BLOCKED "without reporting a result"** | Open its report: **Live activity · Log** has Claude's last steps and the path to the full log in `~/qa-dashboard-runs/logs/`. |

@@ -60,4 +60,5 @@ export const api = {
   stopAutomation: (id: string) => request<Automation>('POST', `/api/automation/${encodeURIComponent(id)}/stop`, {}),
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
+  checkSetup: () => request<AppState>('POST', '/api/setup/check', {}),
 };

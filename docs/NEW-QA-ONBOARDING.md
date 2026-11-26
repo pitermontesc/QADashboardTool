@@ -23,7 +23,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
   - on claude.ai: <https://claude.ai/customize/plugins/plugin_01W7CGiL5o3doWhowWcddeqT>;
   - in Claude Code: add the organization library under `/plugin` → **Marketplaces** and run `/plugin install avm-qa-skills@claudeai-organization-library`.
 
-  Check with `/skills` in Claude Code that `avm-qa-orchestrator`, `avm-smoke-tester`, `avm-regression-runner`, `avm-qa-validator` and the rest are listed.
+  Check with `/skills` in Claude Code that `avm-qa-orchestrator`, `avm-smoke-tester`, `avm-regression-runner`, `avm-qa-validator` and the rest are listed. The app checks it too, in **Types & settings → Set up this Mac**.
 - [ ] **Atlassian connector in Claude.** Connect it in claude.ai → Connectors. If the organization requires approval to post to Jira, Claude cannot comment from a background run; the app keeps the comment ready to post in one click.
 
 ### Your QA profile
@@ -61,6 +61,7 @@ The skills assign tickets and sign reports with the name of the person running t
 
 ## 4. Final check
 
+- [ ] **Set up this Mac:** in **Types & settings → Set up this Mac**, everything is **Ready** (Claude Code, its sign-in, the QA skills, Claude in Chrome, the QA profile and Jira). What is missing says how to fix it.
 - [ ] **Demo:** open **Help → Open demo (sample data)**, launch the smoke on QA and open its report.
 - [ ] **Real app:** click **Refresh from Jira** and check that your tickets appear.
 - [ ] **Real smoke on QA:** launch it from the Smoke card and check that:

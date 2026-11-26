@@ -3,7 +3,8 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
-import type { Automation, AutomationDetails, Lang, QueueItem } from '../shared/types.js';
+import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem } from '../shared/types.js';
+import { SKILL_KINDS, checkSkill, launchBlocker, probeSetup, readyFacts, setupState, skillOf, type SetupFacts, type SetupProbe, type SkillRename } from './setup.js';
 import { fetchJiraTickets, postJiraComment } from './jira.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import {
@@ -37,10 +38,20 @@ export interface AppOptions {
   processAlive?: (pid: number) => boolean;
   /** Pause between the end of a run and the start of the next queued one on the same site (default 30 s). */
   laneGapMs?: number;
+  /**
+   * Checks what this Mac has for runs with Claude. Injectable to test it; when Claude itself is
+   * injected (tests, demo) and this is not, the Mac counts as ready.
+   */
+  probeSetup?: SetupProbe;
 }
 
 /** Default pause between runs on a site, so Chrome and the site settle before the next one. */
 const LANE_GAP_MS = 30_000;
+
+/** How often the Mac's setup is checked again on its own. */
+const SETUP_CHECK_MS = 5 * 60_000;
+/** A launch trusts a passing setup check this recent; an older one, or a failing one, is done again first. */
+const SETUP_FRESH_MS = 60_000;
 
 /** How often runs left by an earlier session are checked. */
 const ORPHAN_CHECK_MS = 30_000;
@@ -171,8 +182,71 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     next();
   });
 
+  // ── Setup: what this Mac has for runs with Claude ─────────────────────────────────────────────
+  const probe: SetupProbe =
+    options.probeSetup ??
+    (options.launchClaude ? async () => readyFacts(Object.values(store.getState().settings.qa.skills).map(skillOf)) : probeSetup);
+  let setupFacts: SetupFacts | null = null;
+  let setupCheckedAt = 0;
+  let setupChecking: Promise<SetupFacts> | null = null;
+  const renamedSkills: Partial<Record<AutomationKind, SkillRename>> = {};
+  let lastSetupLog = '';
+
+  /** Checks the Mac again (one check at a time) and switches a skill name Claude Code has under another prefix. */
+  const checkSetup = (): Promise<SetupFacts> => {
+    setupChecking ??= probe()
+      .then((facts) => {
+        const { settings } = store.getState();
+        let { skills } = settings.qa;
+        for (const kind of SKILL_KINDS) {
+          const { suggestion } = checkSkill(skills[kind], facts.skills);
+          if (!suggestion) continue;
+          renamedSkills[kind] = { from: skills[kind], to: suggestion };
+          log.info('setup.skill-renamed', { kind, from: skills[kind], to: suggestion });
+          skills = { ...skills, [kind]: suggestion };
+        }
+        if (skills !== settings.qa.skills) store.saveSettings({ ...settings, qa: { ...settings.qa, skills } });
+        setupFacts = facts;
+        setupCheckedAt = Date.now();
+        // Logged when the answer changes, not every few minutes.
+        const state = currentSetup()!;
+        const summary = state.checks.filter((c) => c.status !== 'ok').map((c) => `${c.id}=${c.status}`).join(' ') || 'all ok';
+        if (summary !== lastSetupLog) log.info('setup.check', { ready: state.ready, claude: facts.claude?.version, issues: summary });
+        lastSetupLog = summary;
+        return facts;
+      })
+      .finally(() => {
+        setupChecking = null;
+      });
+    return setupChecking;
+  };
+  const currentSetup = () => {
+    if (!setupFacts) return null;
+    const { settings, jira } = store.getState();
+    return setupState(setupFacts, settings.qa, jira, renamedSkills, setupCheckedAt);
+  };
+  /**
+   * Refuses a run this Mac cannot do. A recent passing check answers at once (no await, so a launch
+   * stays synchronous up to Claude); a failing or stale one is done again first, so a fix counts right away.
+   */
+  const assertCanLaunch = (kind: AutomationKind): Promise<void> | undefined => {
+    const fresh = Date.now() - setupCheckedAt <= SETUP_FRESH_MS;
+    if (setupFacts && fresh && !launchBlocker(setupFacts, store.getState().settings.qa, kind)) return undefined;
+    return checkSetup().then((facts) => {
+      const why = launchBlocker(facts, store.getState().settings.qa, kind);
+      if (why) throw new HttpError(503, why);
+    });
+  };
+  void checkSetup().catch((err: unknown) => log.error('setup.check-failed', err));
+  setInterval(() => void checkSetup().catch((err: unknown) => log.error('setup.check-failed', err)), SETUP_CHECK_MS).unref();
+
   api.get('/state', (_req, res) => {
-    res.json({ ...store.getState(), translating: translating.size, demo: options.demo === true });
+    res.json(fullState());
+  });
+
+  api.post('/setup/check', async (_req, res) => {
+    await checkSetup();
+    res.json(fullState());
   });
 
   /** A test run always points to a test type that exists in the settings. */
@@ -277,7 +351,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
   translateAll(lang());
 
-  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true });
+  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true, setup: currentSetup() });
 
   /** Nothing may be running or queued while the data is replaced: their results would land in the other data. */
   const assertIdle = (): void => {
@@ -453,6 +527,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   /** Launches Claude Code in the background and leaves the run "in progress" until it reports the result. */
   const launchAutomation = async ({ input, prompt }: LaunchSpec) => {
     prompt(''); // Validate before recording anything.
+    const check = assertCanLaunch(input.kind);
+    if (check) await check;
     // A double click does not launch two Claude processes on the same target; another site or ticket can run at the same time.
     const busy = store.getState().automations.find((a) => a.finishedAt === null && a.kind === input.kind && a.target === input.target);
     if (busy) throw new HttpError(409, `There is already a run in progress for ${input.kind === 'orchestrator' ? input.target : `${input.kind} ${input.target}`.trim()}`);
@@ -507,6 +583,9 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   const requestLaunch = async (spec: LaunchSpec): Promise<Automation | null | { queued: QueueItem; position: number }> => {
     spec.prompt(''); // Validate before recording anything.
     const { kind, target, site } = spec.input;
+    // Refused before queueing too: a run that cannot start should not wait in line.
+    const check = assertCanLaunch(kind);
+    if (check) await check;
     const { automations, queue } = store.getState();
     // A double click does not launch or queue the same run twice.
     if (automations.some((a) => a.finishedAt === null && a.kind === kind && a.target === target)) {
@@ -705,8 +784,10 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
 
 
   /** "Validate all": queues the chosen tickets, each on its site's lane, in the app's order. */
-  api.post('/queue', (req, res) => {
+  api.post('/queue', async (req, res) => {
     const { keys } = z.object({ keys: z.array(z.string().trim().max(50)).min(1).max(100) }).parse(req.body);
+    const check = assertCanLaunch('orchestrator');
+    if (check) await check;
     const wanted = new Set(keys);
     const chosen = ticketsToValidate(store.getState()).filter((c) => wanted.has(c.ticket.key));
     if (chosen.length === 0) throw new HttpError(409, 'None of those tickets can be queued (not ready, already running or already queued)');
