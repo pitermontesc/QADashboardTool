@@ -437,7 +437,10 @@ export function demoLauncher(dataDir: string, stepMs = 4000): ClaudeLauncher {
     mkdirSync(path.dirname(logFile), { recursive: true });
     const write = (event: unknown) => appendFileSync(logFile, `${JSON.stringify(event)}\n`);
     const lang: Lang = /Write summary and details in English/.test(job.prompt) ? 'en' : 'es';
-    const kind: AutomationKind = /smoke/i.test(job.prompt) ? 'smoke' : /regression/i.test(job.prompt) ? 'regression' : 'orchestrator';
+    // The kind comes from the skill that starts the prompt: the orchestrator's full-coverage
+    // instructions name the regression runner too.
+    const skill = job.prompt.split(/\s/, 1)[0] ?? '';
+    const kind: AutomationKind = /smoke/i.test(skill) ? 'smoke' : /regression/i.test(skill) ? 'regression' : 'orchestrator';
     const target = kind === 'smoke' ? (/run smoke on (\w+)/.exec(job.prompt)?.[1] ?? 'STG') : (/[A-Z][A-Z0-9]+-\d+/.exec(job.prompt)?.[0] ?? '');
     const reportUrl = /http:\/\/127\.0\.0\.1:\d+\/api\/automation\/[\w-]+\/result(\/[0-9a-f]+)?/.exec(job.prompt)?.[0];
     // The smoke prompt carries the configured site URL; the other kinds use a sample site.

@@ -75,6 +75,17 @@ describe('Demo mode', () => {
     expect(body.details.jiraComment.url).toMatch(/^https:\/\/example\.atlassian\.net\/browse\/AVM-7061\?focusedCommentId=\d+$/);
   });
 
+  it('a full-coverage orchestrator run is simulated as an orchestrator run, though its prompt names the regression runner', async () => {
+    const { body: launched } = await call('POST', '/api/orchestrator/AVM-7068', { fullCoverage: true });
+    let done: Automation | undefined;
+    await until(async () => {
+      done = (await state()).automations.find((a) => a.id === launched.id && a.finishedAt !== null);
+      return done !== undefined;
+    });
+    expect(done).toMatchObject({ kind: 'orchestrator', target: 'AVM-7068', fullCoverage: true, verdict: 'PASSED W/F' });
+    expect(done!.summary).toMatch(/^AVM-7068 PASSED W\/F/);
+  });
+
   it('switching to English leaves everything in English, including simulated runs', async () => {
     const settings = (await state()).settings;
     await call('PUT', '/api/settings', { ...settings, language: 'en' });

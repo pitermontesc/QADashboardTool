@@ -2,6 +2,11 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.18.1] - 2026-11-26
+
+### Fixed
+- **Demo mode: a full-coverage orchestrator run is simulated as an orchestrator run.** The simulator chose the kind of run by looking for "regression" anywhere in the prompt, and the full-coverage instructions name the regression runner, so the run ended **BLOCKED** with a regression summary. It now goes by the skill that starts the prompt. Real runs were not affected: Claude gets the prompt as it is.
+
 ## [1.18.0] - 2026-11-25
 
 ### Added
