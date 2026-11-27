@@ -183,6 +183,8 @@ export function App() {
 
   const notify = useCallback((text: string, kind: ToastKind = 'ok') => setToast({ text, kind, id: Date.now() }), []);
   const fail = useCallback((error: unknown) => notify(errorMessage(error), 'error'), [notify]);
+  /** Stable, so cards that load on mount do not load again on every render. */
+  const notifyError = useCallback((message: string) => notify(message, 'error'), [notify]);
   /** Important notice: a toast and, if the system allows it (the desktop app does), a native notification. */
   const announce = useCallback(
     (title: string, body: string) => {
@@ -742,8 +744,9 @@ export function App() {
             onImport={importBackup}
             onRestore={restoreBackup}
             onCheckSetup={checkSetup}
+            onSetup={(setup) => patch({ setup })}
             onNotice={notify}
-            onError={(message) => notify(message, 'error')}
+            onError={notifyError}
           />
         )}
       </main>

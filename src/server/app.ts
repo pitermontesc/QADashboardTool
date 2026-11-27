@@ -4,8 +4,9 @@ import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
 import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem } from '../shared/types.js';
-import { SKILL_KINDS, checkSkill, launchBlocker, probeSetup, readyFacts, setupState, skillOf, type SetupFacts, type SetupProbe, type SkillRename } from './setup.js';
-import { fetchJiraTickets, postJiraComment } from './jira.js';
+import { SKILL_KINDS, checkSkill, launchBlocker, probeSetup, profileFacts, readyFacts, setupState, skillOf, type SetupFacts, type SetupProbe, type SkillRename } from './setup.js';
+import { fetchJiraMyself, fetchJiraTickets, postJiraComment, searchJiraUsers } from './jira.js';
+import { PROFILE_FILE, profileInputSchema, readQaProfile, writeQaProfile } from './profile.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import {
   MAX_RUN_MS, isClaudeProcess, lastMessage, launchClaude, readActivity, runAssistant, stopPid, translateReport,
@@ -43,6 +44,8 @@ export interface AppOptions {
    * injected (tests, demo) and this is not, the Mac counts as ready.
    */
   probeSetup?: SetupProbe;
+  /** The QA profile file (default `~/.config/avm-qa/profile.json`); the demo and the tests use their own. */
+  profileFile?: string;
 }
 
 /** Default pause between runs on a site, so Chrome and the site settle before the next one. */
@@ -183,9 +186,12 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   // ── Setup: what this Mac has for runs with Claude ─────────────────────────────────────────────
+  const profileFile = options.profileFile ?? PROFILE_FILE;
   const probe: SetupProbe =
     options.probeSetup ??
-    (options.launchClaude ? async () => readyFacts(Object.values(store.getState().settings.qa.skills).map(skillOf)) : probeSetup);
+    (options.launchClaude
+      ? async () => ({ ...readyFacts(Object.values(store.getState().settings.qa.skills).map(skillOf)), profile: profileFacts(profileFile) })
+      : () => probeSetup(profileFile));
   let setupFacts: SetupFacts | null = null;
   let setupCheckedAt = 0;
   let setupChecking: Promise<SetupFacts> | null = null;
@@ -220,6 +226,14 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       });
     return setupChecking;
   };
+  /**
+   * A check that starts now: one already running may have read the Mac before a change the caller
+   * knows about (a profile just saved, a fix the tester made), so it runs after that one ends.
+   */
+  const recheckSetup = async (): Promise<SetupFacts> => {
+    if (setupChecking) await setupChecking.catch(() => undefined);
+    return checkSetup();
+  };
   const currentSetup = () => {
     if (!setupFacts) return null;
     const { settings, jira } = store.getState();
@@ -245,7 +259,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   });
 
   api.post('/setup/check', async (_req, res) => {
-    await checkSetup();
+    await recheckSetup();
     res.json(fullState());
   });
 
@@ -415,6 +429,27 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   /** The end of the app's log, to copy it when something went wrong. */
   api.get('/log', (_req, res) => {
     res.json({ file: shown(log.file), lines: log.tail(300) });
+  });
+
+  // ── QA profile: who runs the skills, and who runs the TCs ──────────────────────────────────────
+  api.get('/profile', (_req, res) => {
+    res.json(readQaProfile(profileFile));
+  });
+
+  api.put('/profile', async (req, res) => {
+    const profile = writeQaProfile(profileInputSchema.parse(req.body), profileFile);
+    log.info('profile.saved', { file: profile.file, tcExecutor: profile.tcExecutor !== null });
+    await recheckSetup();
+    res.json({ profile, setup: currentSetup() });
+  });
+
+  api.get('/jira/myself', async (_req, res) => {
+    res.json(await fetchJiraMyself(store.getJiraCredentials(), options.fetchImpl));
+  });
+
+  api.get('/jira/users', async (req, res) => {
+    const query = z.string().trim().min(2).max(100).parse(req.query.query);
+    res.json(await searchJiraUsers(store.getJiraCredentials(), query, options.fetchImpl));
   });
 
   api.put('/jira/config', (req, res) => {

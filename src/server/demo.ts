@@ -341,9 +341,21 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
   return file;
 }
 
-/** Simulated Jira: returns the demo tickets and accepts comments without posting them anywhere. */
+/** People in the simulated Jira: the first one is the demo's own user. */
+const DEMO_PEOPLE = [
+  { displayName: 'Ana Ríos', accountId: '712020:0d3m0-ana-r10s' },
+  { displayName: 'Luis Torres', accountId: '712020:0d3m0-luis-t0rres' },
+  { displayName: 'Marta Gómez', accountId: '712020:0d3m0-marta-g0mez' },
+];
+
+/** Simulated Jira: returns the demo tickets and people, and accepts comments without posting them anywhere. */
 export const demoFetch: typeof fetch = async (input, init) => {
   const url = new URL(String(input));
+  if (url.pathname === '/rest/api/3/myself') return Response.json({ ...DEMO_PEOPLE[0], accountType: 'atlassian', active: true });
+  if (url.pathname === '/rest/api/3/user/search') {
+    const query = (url.searchParams.get('query') ?? '').toLowerCase();
+    return Response.json(DEMO_PEOPLE.filter((p) => p.displayName.toLowerCase().includes(query)).map((p) => ({ ...p, accountType: 'atlassian', active: true })));
+  }
   if (init?.method === 'POST' && /\/rest\/api\/2\/issue\/[^/]+\/comment$/.test(url.pathname)) {
     return Response.json({ id: String(Math.floor(Math.random() * 90000) + 10000) }, { status: 201 });
   }
@@ -557,7 +569,11 @@ export const demoAssistant: AssistantRunner = async ({ context, messages, lang }
 };
 
 /** API options for demo mode: everything external is simulated. */
-export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo' | 'laneGapMs'> {
+export function demoAppOptions(dataDir: string, stepMs?: number): Pick<AppOptions, 'fetchImpl' | 'launchClaude' | 'translateReport' | 'assistant' | 'demo' | 'laneGapMs' | 'profileFile'> {
   // A short pause between queued runs, so the queue can be shown in a few minutes.
-  return { fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true, laneGapMs: 5_000 };
+  // The demo's QA profile lives in its own folder: it never touches the tester's real one.
+  return {
+    fetchImpl: demoFetch, launchClaude: demoLauncher(dataDir, stepMs), translateReport: demoTranslate, assistant: demoAssistant, demo: true, laneGapMs: 5_000,
+    profileFile: path.join(dataDir, 'avm-qa-profile.json'),
+  };
 }

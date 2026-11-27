@@ -1,6 +1,6 @@
 import { DEFAULT_JQL } from '../shared/defaults.js';
 import { parseJiraBoardUrl, type JiraBoardRef } from '../shared/jiraBoard.js';
-import type { JiraTicket } from '../shared/types.js';
+import type { JiraTicket, QaPerson } from '../shared/types.js';
 import { HttpError } from './errors.js';
 import type { JiraCredentials } from './store.js';
 import { markdownToJira } from './jiraMarkup.js';
@@ -84,7 +84,12 @@ export async function fetchJiraTickets(
   return issues.map(toTicket);
 }
 
-async function request(fetchImpl: typeof fetch, url: string, auth: string): Promise<JiraSearchResponse> {
+async function request<T extends { errorMessages?: string[] } = JiraSearchResponse>(
+  fetchImpl: typeof fetch,
+  url: string,
+  auth: string,
+  notFound = 'Jira could not find the board (check the link and that you have access)',
+): Promise<T> {
   let response: Response;
   try {
     response = await fetchImpl(url, {
@@ -98,10 +103,8 @@ async function request(fetchImpl: typeof fetch, url: string, auth: string): Prom
   if (response.status === 401 || response.status === 403) {
     throw new HttpError(502, 'Jira rejected the credentials (check the email and API token)');
   }
-  const body = (await response.json().catch(() => ({}))) as JiraSearchResponse;
-  if (response.status === 404) {
-    throw new HttpError(502, 'Jira could not find the board (check the link and that you have access)');
-  }
+  const body = (await response.json().catch(() => ({}))) as T;
+  if (response.status === 404) throw new HttpError(502, notFound);
   if (!response.ok) {
     const detail = body.errorMessages?.join('; ');
     throw new HttpError(502, `Jira responded ${response.status}${detail ? `: ${detail}` : ''}`);
@@ -167,4 +170,38 @@ export async function postJiraComment(
     throw new HttpError(502, `Jira responded ${response.status}${detail ? `: ${detail}` : ''}`);
   }
   return `${site}/browse/${encodeURIComponent(key)}${body.id ? `?focusedCommentId=${body.id}` : ''}`;
+}
+
+/** Site and Basic auth for the saved connection; refuses if it is incomplete. */
+function connection(creds: JiraCredentials): { site: string; auth: string } {
+  if (!/^https?:\/\//i.test(creds.site) || !creds.email || !creds.token) {
+    throw new HttpError(400, 'Connect Jira (site, email and API token) in Types & settings first');
+  }
+  return { site: creds.site.replace(/\/+$/, ''), auth: `Basic ${Buffer.from(`${creds.email}:${creds.token}`).toString('base64')}` };
+}
+
+interface JiraUser {
+  accountId?: string;
+  displayName?: string;
+  accountType?: string;
+  active?: boolean;
+  errorMessages?: string[];
+}
+
+/** The person the API token belongs to: their name and accountId, for the QA profile. */
+export async function fetchJiraMyself(creds: JiraCredentials, fetchImpl: typeof fetch = fetch): Promise<QaPerson> {
+  const { site, auth } = connection(creds);
+  const me = await request<JiraUser>(fetchImpl, `${site}/rest/api/3/myself`, auth, 'Jira did not find your user');
+  if (!me.accountId) throw new HttpError(502, 'Jira did not return your accountId');
+  return { name: me.displayName?.trim() || creds.email, accountId: me.accountId };
+}
+
+/** People whose name or email matches, for the TC executor: active Atlassian accounts only (no apps or bots). */
+export async function searchJiraUsers(creds: JiraCredentials, query: string, fetchImpl: typeof fetch = fetch): Promise<QaPerson[]> {
+  const { site, auth } = connection(creds);
+  const params = new URLSearchParams({ query, maxResults: '10' });
+  const users = await request<JiraUser[] & { errorMessages?: string[] }>(fetchImpl, `${site}/rest/api/3/user/search?${params.toString()}`, auth, 'Jira did not find users');
+  return (Array.isArray(users) ? users : [])
+    .filter((u) => u.accountId && u.accountType === 'atlassian' && u.active !== false)
+    .map((u) => ({ name: u.displayName?.trim() || u.accountId!, accountId: u.accountId! }));
 }

@@ -3,8 +3,9 @@ import { DEFAULT_JQL, colorForIndex } from '../../shared/defaults';
 import { parseJiraBoardUrl } from '../../shared/jiraBoard';
 import { BackupsCard } from './BackupsCard';
 import { QaSitesCard } from './QaSitesCard';
+import { ProfileCard } from './ProfileCard';
 import { SetupCard } from './SetupCard';
-import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type Settings, type Theme } from '../../shared/types';
+import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type SetupState, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
 import { Icon } from './icons';
@@ -18,6 +19,8 @@ interface SettingsViewProps {
   onImport: (backup: Backup) => void;
   onRestore: (name: string, when: string) => Promise<void>;
   onCheckSetup: () => Promise<void>;
+  /** A new setup check (after saving the QA profile). */
+  onSetup: (setup: SetupState | null) => void;
   onNotice: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -81,7 +84,7 @@ const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
   if (event.key === 'Enter') action();
 };
 
-export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onCheckSetup, onNotice, onError }: SettingsViewProps) {
+export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onCheckSetup, onSetup, onNotice, onError }: SettingsViewProps) {
   const { settings, runs, jira } = state;
   const lang = useLang();
   const t = useText(TEXT);
@@ -342,6 +345,8 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
               </button>
             </div>
           </div>
+
+          <ProfileCard jiraConnected={jira.connection === 'connected'} onSaved={onSetup} onNotice={onNotice} onError={onError} />
 
           <div className="card" style={{ marginBottom: 12 }}>
             <h3>{t.ticketLink}</h3>

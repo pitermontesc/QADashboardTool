@@ -303,6 +303,26 @@ export interface AssistantReply {
   actions: AssistantAction[];
 }
 
+/** A person in the QA profile: their Jira name and accountId. */
+export interface QaPerson {
+  name: string;
+  accountId: string;
+}
+
+/**
+ * The QA profile the AVM skills read (`~/.config/avm-qa/profile.json`): who runs them, to assign
+ * tickets and sign reports, and who runs the TCs once a ticket passes QA.
+ */
+export interface QaProfile {
+  /** Where it is, with the home folder as `~`. */
+  file: string;
+  exists: boolean;
+  /** The file exists but is not JSON the app can read. */
+  unreadable: boolean;
+  tester: QaPerson | null;
+  tcExecutor: QaPerson | null;
+}
+
 /** Something this Mac needs for runs with Claude. */
 export type SetupCheckId = 'claude' | 'login' | 'skills' | 'chrome' | 'profile' | 'jira';
 /** `invalid`: the QA profile exists but lacks the tester's name or accountId. `unknown`: it could not be checked. */

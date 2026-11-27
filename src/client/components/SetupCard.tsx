@@ -44,10 +44,10 @@ const TEXT = {
       chrome: () =>
         'Instala la extensión Claude in Chrome, inicia sesión con tu cuenta y conéctala a Claude Code corriendo este comando una vez en Terminal. Sin el navegador, las ejecuciones terminan en BLOCKED.',
       profile: () =>
-        'Las skills asignan tickets y firman reportes con el nombre de ~/.config/avm-qa/profile.json. Créalo como dice la guía para sumar a otra QA; sin él, usan tu cuenta de Jira.',
+        'Las skills asignan tickets y firman reportes con tu nombre. Complétalo más abajo, en Mi perfil QA (tu nombre y accountId salen de Jira); sin él, usan tu cuenta de Jira.',
       jira: () => 'Conéctalo en Conexión con Jira: sin Jira no hay tickets para el orquestador.',
     } as Record<SetupCheckId, (detail: string) => string>,
-    invalid: 'El archivo ~/.config/avm-qa/profile.json no es válido: necesita tester.name y tester.accountId.',
+    invalid: 'El perfil no tiene tu nombre y accountId: complétalo más abajo, en Mi perfil QA.',
     unknown: { claude: '', login: 'Se comprueba cuando Claude Code esté instalado.', skills: 'Se comprueba cuando Claude Code esté instalado.', chrome: 'Solo se comprueba en macOS.', profile: '', jira: '' } as Record<SetupCheckId, string>,
     renamed: (from: string, to: string) => `Nombre ajustado al que tiene Claude Code: ${from} → ${to}`,
     banner: (what: string) => `No se pueden lanzar ejecuciones con Claude: falta ${what}.`,
@@ -86,10 +86,10 @@ const TEXT = {
       chrome: () =>
         'Install the Claude in Chrome extension, sign in with your account and connect it to Claude Code by running this command once in Terminal. Without the browser, runs end in BLOCKED.',
       profile: () =>
-        'The skills assign tickets and sign reports with the name in ~/.config/avm-qa/profile.json. Create it as the onboarding guide says; without it they use your Jira account.',
+        'The skills assign tickets and sign reports with your name. Fill it in below, in My QA profile (your name and accountId come from Jira); without it they use your Jira account.',
       jira: () => 'Connect it in Jira connection: without Jira there are no tickets for the orchestrator.',
     } as Record<SetupCheckId, (detail: string) => string>,
-    invalid: 'The file ~/.config/avm-qa/profile.json is not valid: it needs tester.name and tester.accountId.',
+    invalid: 'The profile lacks your name and accountId: fill it in below, in My QA profile.',
     unknown: { claude: '', login: 'Checked once Claude Code is installed.', skills: 'Checked once Claude Code is installed.', chrome: 'Only checked on macOS.', profile: '', jira: '' } as Record<SetupCheckId, string>,
     renamed: (from: string, to: string) => `Name switched to the one Claude Code has: ${from} → ${to}`,
     banner: (what: string) => `Runs with Claude cannot launch: you need to ${what}.`,

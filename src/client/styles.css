@@ -509,3 +509,12 @@ label.check.queue-check b{font-weight:700}
 .backup-confirm p{margin:0 0 8px}
 .backups .path{margin:8px 0 0;overflow-wrap:anywhere}
 .backups .path code{font-size:11.5px}
+
+/* QA profile card */
+.profile-who{border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;margin:10px 0 0;min-width:0}
+.profile-who legend{font-size:12.5px;font-weight:700;color:var(--ink-2);padding:0 4px}
+.profile-who>.hint{margin:0 0 4px}
+.profile-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:8px 0}
+.profile-fields input{width:100%;min-width:0}
+.profile-results{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.profile-results .link-btn{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;text-align:left}

@@ -1,5 +1,5 @@
 import type {
-  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, BackupList, JiraConfigInput, JiraState, Lang, QueueItem, ReportBugEdit, Settings, TestRun, TestRunInput,
+  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, BackupList, JiraConfigInput, JiraState, Lang, QaPerson, QaProfile, QueueItem, ReportBugEdit, SetupState, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -61,4 +61,9 @@ export const api = {
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
   checkSetup: () => request<AppState>('POST', '/api/setup/check', {}),
+  getProfile: () => request<QaProfile>('GET', '/api/profile'),
+  saveProfile: (profile: { tester: QaPerson; tcExecutor: QaPerson | null }) =>
+    request<{ profile: QaProfile; setup: SetupState | null }>('PUT', '/api/profile', profile),
+  jiraMyself: () => request<QaPerson>('GET', '/api/jira/myself'),
+  searchJiraUsers: (query: string) => request<QaPerson[]>('GET', `/api/jira/users?query=${encodeURIComponent(query)}`),
 };

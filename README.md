@@ -58,7 +58,7 @@ The checklist for another team member to use the app and the QA skills with thei
 | Signed in to Claude Code | `claude auth status` | **runs are refused** |
 | QA skills | the configured skills against `claude plugin list --json` (with each plugin's prefix) and the personal, synced and runs-folder skills | **runs that use it are refused** |
 | Claude in Chrome connected | Claude Code's connection file for Chrome (or Edge, Brave, Chromium) | advice: runs without the browser end BLOCKED |
-| QA profile | `~/.config/avm-qa/profile.json` with `tester.name` and `tester.accountId` | advice: the skills use the Jira account |
+| QA profile | `~/.config/avm-qa/profile.json` with `tester.name` and `tester.accountId` (filled in from **My QA profile**: the tester from the Jira account, the TC executor searched in Jira by name) | advice: the skills use the Jira account |
 | Jira | the Jira connection | advice: no tickets for the orchestrator |
 
 What is missing shows how to fix it, with the command to copy. A check that could not be done (for example, skills on an older Claude Code) does not stop runs. The app checks when it starts, every 5 minutes, with **Check again**, when you come back to the window while something is missing, and before a launch if the last check is more than a minute old or failed, so a fix counts right away. A configured skill that Claude Code has only under another plugin prefix is switched to that name (it says so on the card). While something required is missing, the dashboard says what and links to the card.
@@ -144,6 +144,9 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | POST | `/api/backups/:name/restore` | Restores the runs, reports and settings of a copy (the Jira connection is kept); a copy of the current data is kept first; 409 while a run is in progress or queued |
 | GET | `/api/log` | The last 300 lines of the app log (`{file, lines}`) |
 | POST | `/api/setup/check` | Checks the Mac again (Claude Code, its sign-in, the configured skills, Claude in Chrome, the QA profile, Jira) and returns the state |
+| GET / PUT | `/api/profile` | Reads or saves the QA profile the skills read (`~/.config/avm-qa/profile.json`): `{tester, tcExecutor}`, each `{name, accountId}` (`tcExecutor` may be null). Other keys in the file are kept; PUT returns `{profile, setup}` |
+| GET | `/api/jira/myself` | The Jira user of the saved token: `{name, accountId}` |
+| GET | `/api/jira/users` | Active Jira people whose name or email matches `?query=` (2+ characters): `[{name, accountId}]` |
 | PUT | `/api/jira/config` | Saves the Jira connection |
 | POST | `/api/jira/refresh` | Reloads the tickets from Jira |
 | POST | `/api/orchestrator/:key` | Launches the QA orchestrator on a loaded ticket, on the site its Jira status maps to (409 if the status is not ready or the ticket is already running or queued). Optional `{fullCoverage: true}` runs every agent of the skill whatever the ticket size. Like smoke and regression: 200 with the run, or 202 `{queued, position}` if its site is busy |

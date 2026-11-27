@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AutomationKind, JiraState, QaConfig, SetupCheck, SetupState, SetupStatus, SkillCheck } from '../shared/types.js';
 import { RUNS_DIR, claudeBinary, cleanEnv } from './claudeRunner.js';
+import { PROFILE_FILE, readQaProfile } from './profile.js';
 
 /** What was found on this Mac; `null` where it could not be checked. */
 export interface SetupFacts {
@@ -24,9 +25,6 @@ export interface InstalledSkill {
 
 /** Checks this Mac; injectable so tests and the demo do not run the real Claude. */
 export type SetupProbe = () => Promise<SetupFacts>;
-
-/** The QA profile the AVM skills read to assign tickets and sign reports. */
-export const PROFILE_FILE = path.join(os.homedir(), '.config', 'avm-qa', 'profile.json');
 
 /** Where Claude Code registers the Claude in Chrome connection, per Chromium browser. */
 const CHROME_HOST = 'NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json';
@@ -173,16 +171,11 @@ function claudeOutput(bin: string, args: string[]): Promise<string> {
   });
 }
 
-function readProfile(file = PROFILE_FILE): SetupFacts['profile'] {
-  if (!existsSync(file)) return { status: 'missing' };
-  try {
-    const { tester } = JSON.parse(readFileSync(file, 'utf8')) as { tester?: { name?: unknown; accountId?: unknown } };
-    const name = typeof tester?.name === 'string' ? tester.name.trim() : '';
-    const id = typeof tester?.accountId === 'string' ? tester.accountId.trim() : '';
-    return name && id ? { status: 'ok', tester: name } : { status: 'invalid' };
-  } catch {
-    return { status: 'invalid' };
-  }
+/** The QA profile as the setup check sees it: the tester's name, or why it is not usable. */
+export function profileFacts(file = PROFILE_FILE): SetupFacts['profile'] {
+  const profile = readQaProfile(file);
+  if (!profile.exists) return { status: 'missing' };
+  return profile.tester ? { status: 'ok', tester: profile.tester.name } : { status: 'invalid' };
 }
 
 function chromeConnected(home = os.homedir()): boolean | null {
@@ -191,9 +184,9 @@ function chromeConnected(home = os.homedir()): boolean | null {
 }
 
 /** Checks the real Mac: about a second (three quick Claude Code commands). */
-export const probeSetup: SetupProbe = async () => {
+export const probeSetup = async (profileFile = PROFILE_FILE): Promise<SetupFacts> => {
   const bin = claudeBinary();
-  const base = { chrome: chromeConnected(), profile: readProfile() };
+  const base = { chrome: chromeConnected(), profile: profileFacts(profileFile) };
   if (!bin) return { claude: null, loggedIn: null, skills: null, ...base };
   mkdirSync(RUNS_DIR, { recursive: true });
   const [version, auth, plugins] = await Promise.all([

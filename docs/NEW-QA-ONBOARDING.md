@@ -26,11 +26,15 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
   Check with `/skills` in Claude Code that `avm-qa-orchestrator`, `avm-smoke-tester`, `avm-regression-runner`, `avm-qa-validator` and the rest are listed. The app checks it too, in **Types & settings → Set up this Mac**.
 - [ ] **Atlassian connector in Claude.** Connect it in claude.ai → Connectors. If the organization requires approval to post to Jira, Claude cannot comment from a background run; the app keeps the comment ready to post in one click.
 
-### Your QA profile
+### Set up the app
 
-The skills assign tickets and sign reports with the name of the person running them. They read it from this file:
+- [ ] **Jira.** In **Types & settings → Jira connection**: your email, **your own API token** and the board link. If the board has a people filter, check that it includes you.
+- [ ] **Your QA profile.** The skills assign tickets and sign reports with the name of the person running them, and hand the `[TC]` items to the TC executor. In **Types & settings → My QA profile**:
+  1. **Use my Jira account** fills in your name and accountId (Jira must be connected first).
+  2. **Search Jira by name** for the TC executor (currently Paulo Sanchez) and choose them.
+  3. **Save profile**. It is saved to `~/.config/avm-qa/profile.json`, the file the skills read.
 
-- [ ] Create `~/.config/avm-qa/profile.json`:
+  Without a profile, the skills use the account you are signed in to Jira with, and the `[TC]` items stay with you (the report says so). The file can also be written by hand:
 
   ```json
   {
@@ -38,13 +42,6 @@ The skills assign tickets and sign reports with the name of the person running t
     "tcExecutor": { "name": "Paulo Sanchez", "accountId": "712020:7439f202-d2d1-4c3e-ad76-338d4b912816" }
   }
   ```
-
-  - **Your accountId:** open your profile in Jira (the URL ends with it) or ask Claude "what is my Jira accountId?".
-  - **Without the file:** the skills use the account you are signed in to Jira with, and the `[TC]` items stay with you (the report says so).
-
-### Set up the app
-
-- [ ] **Jira.** In **Types & settings → Jira connection**: your email, **your own API token** and the board link. If the board has a people filter, check that it includes you.
 - [ ] **Sites & skills.** In **Types & settings → Sites & skills**, check:
   - The QA and STG sites, their Jira statuses and the test run domains. The defaults are the AVM ones.
   - The skill names. If you installed the plugin from the organization, Claude Code shows them with their prefix (for example `/avm-qa-skills:avm-qa-orchestrator`); use exactly the name you see in `/skills`.

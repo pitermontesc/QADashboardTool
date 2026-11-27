@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] - 2026-11-26
+
+### Added
+- **My QA profile.** A card in **Types & settings** fills in the profile the QA skills read (`~/.config/avm-qa/profile.json`) without typing JSON: **Use my Jira account** takes your name and accountId from the Jira connection, and the TC executor is found with **Search Jira by name** (active people only, no apps). It checks what is typed (a tester is needed, an accountId must look like one, the executor is whole or none) and keeps any other settings in the file. After saving, **Set up this Mac** shows the profile as ready.
+- `GET`/`PUT /api/profile`, `GET /api/jira/myself` and `GET /api/jira/users?query=`.
+
+### Changed
+- **Set up this Mac** points to **My QA profile** when the profile is missing or incomplete.
+- The demo keeps its QA profile in its own folder and its simulated Jira has people to search; it never touches the real profile.
+
+### Fixed
+- **Check again**, and saving the profile, could answer with a check that had started before the change (for example, the one when the app opens) and still show the old state. They now wait for it and check again.
+
 ## [1.19.0] - 2026-11-26
 
 ### Added
