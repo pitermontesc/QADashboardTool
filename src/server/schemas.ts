@@ -248,7 +248,7 @@ export const automationResultSchema = z.object({
 export type AutomationResult = z.infer<typeof automationResultSchema>;
 
 /** A QA report as saved, inside a backup. The process and its log belong to the machine that ran it, so they are not imported. */
-const storedAutomationSchema = z.object({
+export const storedAutomationSchema = z.object({
   id: z.string().trim().min(1).max(100),
   kind: z.enum(['smoke', 'regression', 'orchestrator']),
   target: z.string().max(300),

@@ -10,7 +10,8 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
 - [ ] **Information they will need:**
   - the link to the team's Jira board;
   - who runs the TCs when a ticket passes QA (the "TC executor", currently Paulo Sanchez), with their Jira accountId;
-  - the QA and STG test users they can use.
+  - the QA and STG test users they can use;
+  - the team's shared folder for the **Team** view (for example `QA Team` in a Google Drive shared drive), shared with them.
 
 ## 2. The new QA, on their Mac
 
@@ -42,6 +43,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
     "tcExecutor": { "name": "Paulo Sanchez", "accountId": "712020:7439f202-d2d1-4c3e-ad76-338d4b912816" }
   }
   ```
+- [ ] **Team.** In the **Team** tab (`⌘4`), choose the team's shared folder (the person inviting tells you which one; it must be synced on your Mac) and join. Your runs and reports then show up for the others, and theirs for you.
 - [ ] **Sites & skills.** In **Types & settings → Sites & skills**, check:
   - The QA and STG sites, their Jira statuses and the test run domains. The defaults are the AVM ones.
   - The skill names. If you installed the plugin from the organization, Claude Code shows them with their prefix (for example `/avm-qa-skills:avm-qa-orchestrator`); use exactly the name you see in `/skills`.

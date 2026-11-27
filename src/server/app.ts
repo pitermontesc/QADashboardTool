@@ -1,13 +1,15 @@
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
 import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
-import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem, ReleaseInfo, UpdateState } from '../shared/types.js';
+import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem, ReleaseInfo, TeamMember, TeamState, TeamView, UpdateState } from '../shared/types.js';
 import { SKILL_KINDS, checkSkill, launchBlocker, probeSetup, profileFacts, readyFacts, setupState, skillOf, type SetupFacts, type SetupProbe, type SkillRename } from './setup.js';
 import { fetchJiraMyself, fetchJiraTickets, postJiraComment, searchJiraUsers } from './jira.js';
 import { PROFILE_FILE, profileInputSchema, readQaProfile, writeQaProfile } from './profile.js';
 import { appVersion, compareVersions, fetchLatestRelease, type LatestRelease } from './updates.js';
+import { buildTeamFile, displayPath, prepareTeamFolder, readTeamFolder, removeTeamFile, syncedFolders, teamFileName, writeTeamFile } from './team.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import {
   MAX_RUN_MS, isClaudeProcess, lastMessage, launchClaude, readActivity, runAssistant, stopPid, translateReport,
@@ -65,6 +67,11 @@ const LANE_GAP_MS = 30_000;
 const SETUP_CHECK_MS = 5 * 60_000;
 /** A launch trusts a passing setup check this recent; an older one, or a failing one, is done again first. */
 const SETUP_FRESH_MS = 60_000;
+
+/** How often the team folder is read, and this app's file written if its data changed. */
+const TEAM_SYNC_MS = 60_000;
+/** This app's team file is written at least this often, so the team sees it is still active. */
+const TEAM_HEARTBEAT_MS = 60 * 60_000;
 
 /** How often GitHub is asked for a newer version. */
 const UPDATE_CHECK_MS = 6 * 60 * 60_000;
@@ -310,6 +317,103 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   setTimeout(() => void checkUpdates(), options.firstUpdateCheckMs ?? 10_000).unref();
   setInterval(() => void checkUpdates(), UPDATE_CHECK_MS).unref();
 
+  // ── Team folder: this app writes its own file and reads everyone else's ─────────────────────────
+  let teamOwnFile = '';
+  let teamWrittenAt: number | null = null;
+  let teamReadAt: number | null = null;
+  let teamError: string | null = null;
+  let teamWritten = '';
+  let teammates: TeamMember[] = [];
+  let teamProblems: { file: string; error: string }[] = [];
+  /** Writes this app's file if its data or name changed (or an hour went by), then reads the folder. */
+  const syncTeam = (force = false): void => {
+    const { folder, name, memberId } = store.getTeamConfig();
+    if (!folder) return;
+    try {
+      if (!existsSync(folder)) throw new Error(`The team folder ${displayPath(folder)} is not there (is the sync app running?)`);
+      const stamp = `${name}|${store.revision}`;
+      if (force || stamp !== teamWritten || Date.now() - (teamWrittenAt ?? 0) > TEAM_HEARTBEAT_MS) {
+        const { settings, runs, automations } = store.getState();
+        teamOwnFile = writeTeamFile(folder, buildTeamFile({ id: memberId, name }, version, settings.types, runs, automations));
+        teamWrittenAt = Date.now();
+        teamWritten = stamp;
+      }
+      ({ members: teammates, problems: teamProblems } = readTeamFolder(folder, memberId));
+      teamReadAt = Date.now();
+      if (teamError) log.info('team.ok', { folder: displayPath(folder) });
+      teamError = null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message !== teamError) log.warn('team.sync-failed', { folder: displayPath(folder), error: message });
+      teamError = message;
+    }
+  };
+  const teamState = (): TeamState => {
+    const { folder, name } = store.getTeamConfig();
+    return { folder: folder ? displayPath(folder) : '', name, ownFile: teamOwnFile, writtenAt: teamWrittenAt, readAt: teamReadAt, error: folder && teamError ? translateError(teamError, lang()) : null };
+  };
+  const teamView = (): TeamView => {
+    const { folder, name, memberId } = store.getTeamConfig();
+    if (!folder) return { ...teamState(), members: [], problems: [] };
+    const { settings, runs, automations } = store.getState();
+    const me: TeamMember = {
+      id: memberId, name, app: version, updatedAt: teamWrittenAt ?? Date.now(), file: teamOwnFile || teamFileName({ id: memberId, name }), me: true,
+      types: settings.types, runs, automations,
+    };
+    return { ...teamState(), members: [me, ...teammates], problems: teamProblems.map((p) => ({ ...p, error: translateError(p.error, lang()) })) };
+  };
+  if (!options.demo || store.getTeamConfig().folder) {
+    setTimeout(() => syncTeam(), 3_000).unref();
+    setInterval(() => syncTeam(), TEAM_SYNC_MS).unref();
+  }
+
+  api.get('/team', (_req, res) => {
+    syncTeam();
+    res.json(teamView());
+  });
+
+  api.get('/team/folders', (_req, res) => {
+    res.json({ suggestions: syncedFolders() });
+  });
+
+  api.put('/team', (req, res) => {
+    const input = z.object({ folder: z.string().trim().min(1).max(500), name: z.string().trim().min(1, 'Your name in the team is needed').max(120) }).parse(req.body);
+    let folder: string;
+    try {
+      folder = prepareTeamFolder(input.folder);
+    } catch (err) {
+      throw new HttpError(400, err instanceof Error ? err.message : String(err));
+    }
+    const before = store.getTeamConfig();
+    // Moving to another folder: this app's file leaves the old one.
+    if (before.folder && before.folder !== folder) removeTeamFile(before.folder, before.memberId);
+    store.saveTeamConfig({ folder, name: input.name });
+    log.info('team.join', { folder: displayPath(folder) });
+    syncTeam(true);
+    res.json(teamView());
+  });
+
+  /** Leaves the team: this app's file is taken out of the folder and nothing more is written. */
+  api.delete('/team', (_req, res) => {
+    const { folder, memberId } = store.getTeamConfig();
+    if (folder) {
+      try {
+        removeTeamFile(folder, memberId);
+      } catch {
+        // The folder may be gone already.
+      }
+      log.info('team.leave', { folder: displayPath(folder) });
+    }
+    store.saveTeamConfig({ folder: '', name: store.getTeamConfig().name });
+    teammates = [];
+    teamProblems = [];
+    teamOwnFile = '';
+    teamWrittenAt = null;
+    teamReadAt = null;
+    teamError = null;
+    res.json(teamView());
+  });
+
   api.post('/updates/check', async (_req, res) => {
     await checkUpdates();
     res.json(fullState());
@@ -426,7 +530,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
   translateAll(lang());
 
-  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true, setup: currentSetup(), update: currentUpdate() });
+  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true, setup: currentSetup(), update: currentUpdate(), team: teamState() });
 
   /** Nothing may be running or queued while the data is replaced: their results would land in the other data. */
   const assertIdle = (): void => {

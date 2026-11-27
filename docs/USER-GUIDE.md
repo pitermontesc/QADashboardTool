@@ -26,6 +26,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
    - [Automated QA runs in Runs and on the dashboard](#automated-qa-runs-in-runs-and-on-the-dashboard)
    - [Claude assistant](#claude-assistant)
 6. [Read the dashboard](#6-read-the-dashboard)
+   - [Team view](#team-view)
 7. [Search, edit, duplicate and delete runs](#7-search-edit-duplicate-and-delete-runs)
 8. [Customize test types and environments](#8-customize-test-types-and-environments)
 9. [Backup and export](#9-backup-and-export)
@@ -442,6 +443,29 @@ Below the KPIs:
 - **By test type**: how many runs of each type and with what result.
 - **Latest runs**: the 8 most recent.
 
+### Team view
+
+The **Team** tab (`⌘4`, also under **View → Team**) puts your runs and reports together with the other QAs', with no server: each app leaves its own file in a folder the team syncs and reads everyone else's.
+
+![Team view: the team's totals, a row per QA with what they are running, and the tickets each one validated](img/21-team.png)
+
+**Join the team**
+
+1. Agree on one shared folder: for example a **QA Team** folder in a Google Drive shared drive, Dropbox, iCloud Drive or OneDrive. It has to be synced on every Mac (the sync app open).
+2. In **Team**, choose that folder. The app lists the synced folders it finds on your Mac; click one and add the team folder's name (`…/QA Team`), or type the full path.
+3. Check **Your name in the team** (it comes from your QA profile) and click **Join the team**.
+
+**What is shared:** your runs (title, ticket, type, environment, cases, bugs, minutes, result and notes) and the QA reports of your Claude runs. **Never shared:** your Jira token or email, your settings or anything about your Mac.
+
+**What you see**
+
+- **Team summary** for the period: runs, cases, pass rate, bugs (a Jira bug two people found counts once) and time, like the dashboard but for everyone.
+- **Per person:** each QA's numbers, what they are running right now, and how long ago their file was updated. A file not updated for days is marked: their app may be closed or not syncing.
+- **Validated tickets:** the orchestrator runs of the period and who ran them. Click one to open its report; a teammate's report is read only (**Shared by…**).
+- **Latest team runs**, with who logged each one.
+
+The view refreshes every minute and with **Refresh**. **Change folder or name** moves your file to another folder; **Leave the team** takes it out of the folder (your data on this Mac does not change). A file that cannot be read (for example, one still syncing) is listed under **Files that could not be read**.
+
 ## 7. Search, edit, duplicate and delete runs
 
 The **Runs** view (`⌘2`) lists your whole history, from newest to oldest. It shows the first 100 runs; **Show 100 more**, under the table, adds the next ones:
@@ -550,6 +574,7 @@ They are also in the app's **File** and **View** menus.
 | `⌘1` | Dashboard |
 | `⌘2` | Runs |
 | `⌘3` | Types & settings |
+| `⌘4` | Team |
 | `⌘F` or `/` | Search runs |
 | `⌘R` | Refresh Jira tickets |
 | `⌘K` | Open or close the Claude assistant |
@@ -577,6 +602,7 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A report is still in its original language** | The translation failed (for example, with no connection). Open the report and click **Retry**. |
 | **"Post on AVM-…" fails** | Check in **Types & settings** that Jira is connected: the comment is posted with the same email and API token. |
 | **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. If it still does not open, check that you downloaded the installer for your Mac: `arm64` for Apple Silicon, `x64` for Intel. |
+| **A teammate is missing from Team** | They must choose the same folder, and their sync app must be open. Their row says how long ago their file was updated; **Files that could not be read** lists a file still syncing. |
 | **"Could not check (GitHub responded 403)"** in App version | GitHub limits how often it answers without an account; the app keeps working and checks again later. You can always look at the [releases page](https://github.com/pitermontesc/QADashboardTool/releases). |
 | **Runs or settings disappeared, or an import went wrong** | **Types & settings → Data backup → Automatic copies**: restore the copy from before the problem (the one **Before import** if it was an import). |
 | **Something failed and you do not know why** | **Types & settings → Data backup → Copy the last lines** of the app log, and share them. |

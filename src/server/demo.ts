@@ -8,6 +8,8 @@ import type {
   Automation, AutomationDetails, AutomationKind, JiraTicket, Lang, ReportModule, ReportTranslation, StepStatus, TestRun, Verdict,
 } from '../shared/types.js';
 import type { AppOptions } from './app.js';
+import { buildTeamFile, writeTeamFile } from './team.js';
+import { appVersion } from './updates.js';
 import { automationTitle, runText } from './automation.js';
 import type { ClaudeLauncher, ReportTranslator } from './claudeRunner.js';
 import type { AssistantRunner } from './assistant.js';
@@ -336,8 +338,45 @@ export function seedDemoData(dataDir: string, lang: Lang = 'es', now = Date.now(
     jiraCache: { tickets: demoTickets(now), fetchedAt: now, ok: true, error: null },
     automations: seeded.map((s) => s.automation),
   };
+  // The team view: the demo user and two teammates in a team folder of its own.
+  const teamFolder = path.join(dataDir, 'team');
+  mkdirSync(teamFolder, { recursive: true });
+  const automations = seeded.map((s) => s.automation);
+  const copyRuns = (every: number, shift: number, flip: number) =>
+    runs
+      .filter((_, i) => i % every === 0)
+      .map((r, i) => {
+        const createdAt = r.createdAt - shift * day;
+        const failedNow = i % flip === flip - 1;
+        return {
+          ...r, id: randomUUID(), createdAt, date: toYmd(new Date(createdAt)),
+          result: failedNow ? ('failed' as const) : r.result, failed: failedNow ? Math.max(1, r.failed ?? 0) : r.failed, bugs: failedNow ? Math.max(1, r.bugs ?? 0) : r.bugs,
+        };
+      });
+  const orchestrator = automations.find((a) => a.kind === 'orchestrator')!;
+  const regression = automations.find((a) => a.kind === 'regression' && !a.dryRun)!;
+  const [, luis, marta] = DEMO_PEOPLE;
+  /** The orchestrator's title for another demo ticket: its key and its own summary. */
+  const titleFor = (key: string) => {
+    const from = DEMO_TICKET_DEFS[0]!;
+    const to = DEMO_TICKET_DEFS.find((d) => d.key === key) ?? from;
+    return orchestrator.title.replace(from.key, key).replace(from.summary, to.summary);
+  };
+  writeTeamFile(teamFolder, buildTeamFile({ id: 'demo-luis-0000-0001', name: luis!.displayName }, appVersion(), settings.types, copyRuns(2, 1, 4), [
+    { ...regression, id: randomUUID(), runId: null, startedAt: regression.startedAt - day, finishedAt: (regression.finishedAt ?? now) - day },
+    // Running now on Luis's Mac.
+    { ...orchestrator, id: randomUUID(), runId: null, target: 'AVM-7068', title: titleFor('AVM-7068'), startedAt: now - 12 * 60_000, finishedAt: null, verdict: null, summary: '', details: null },
+  ], now - 5 * 60_000));
+  writeTeamFile(teamFolder, buildTeamFile({ id: 'demo-marta-0000-0002', name: marta!.displayName }, appVersion(), settings.types, copyRuns(3, 2, 3), [
+    {
+      ...orchestrator, id: randomUUID(), runId: null, target: 'AVM-7064', title: titleFor('AVM-7064'), verdict: 'PASSED',
+      startedAt: orchestrator.startedAt - 2 * day, finishedAt: (orchestrator.finishedAt ?? now) - 2 * day, translations: {},
+      summary: lang === 'en' ? 'AVM-7064 PASSED: the 5 criteria work on STG, with no bugs.' : 'AVM-7064 PASSED: los 5 criterios funcionan en STG, sin bugs.',
+      details: orchestrator.details && { ...orchestrator.details, bugs: [], notes: '', jiraComment: null },
+    },
+  ], now - 2 * 60 * 60_000));
   const file = path.join(dataDir, 'qa-tests.json');
-  writeFileSync(file, JSON.stringify(data, null, 2));
+  writeFileSync(file, JSON.stringify({ ...data, team: { folder: teamFolder, name: DEMO_PEOPLE[0]!.displayName, memberId: 'demo-ana-0000-0000' } }, null, 2));
   return file;
 }
 

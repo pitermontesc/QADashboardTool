@@ -2,6 +2,15 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] - 2026-11-27
+
+### Added
+- **Team view.** A new **Team** tab (`⌘4`, **View → Team**) brings every QA's runs and reports together with no server. Everyone chooses the same folder the team syncs (Google Drive, Dropbox, iCloud, OneDrive); each app writes only its own file there and reads everyone else's. It shows the team's totals for the period (a Jira bug found by two people counts once), a row per QA with what they are running and how fresh their file is, the tickets validated with the orchestrator and by whom, and the latest runs. A teammate's report opens read only.
+- What is shared: runs and QA reports. Never the Jira token or email, the settings, the QA profile, or anything about the Mac (no process, log path, queue or Jira comment draft).
+- Teammates' files are checked like an import; one that cannot be read is listed, never fatal. The app's team id is made once and kept; an imported backup does not bring someone else's. Leaving the team takes this app's file out of the folder.
+- The demo has a team folder with two sample teammates.
+- `GET`/`PUT`/`DELETE /api/team` and `GET /api/team/folders`.
+
 ## [1.21.0] - 2026-11-27
 
 ### Added

@@ -323,6 +323,46 @@ export interface QaProfile {
   tcExecutor: QaPerson | null;
 }
 
+/** A QA in the team view: their runs and reports, as their app shared them in the team folder. */
+export interface TeamMember {
+  /** Stable id of that person's app (not their email or Jira account). */
+  id: string;
+  name: string;
+  /** Version of the app that wrote the file. */
+  app: string;
+  /** When their app last wrote it. */
+  updatedAt: number;
+  /** The file in the team folder. */
+  file: string;
+  /** This Mac's own data. */
+  me: boolean;
+  types: TestType[];
+  runs: TestRun[];
+  automations: Automation[];
+}
+
+/** The team view: where it is shared, and what this app sees there. */
+export interface TeamState {
+  /** The synced folder the team shares; empty when this app is not in a team. */
+  folder: string;
+  /** The name the team sees for this app's data. */
+  name: string;
+  /** This app's file in the folder (empty until the first write). */
+  ownFile: string;
+  /** When this app last wrote its file. */
+  writtenAt: number | null;
+  /** When the folder was last read. */
+  readAt: number | null;
+  /** The folder could not be read or written (missing, not synced, no permission). */
+  error: string | null;
+}
+
+/** GET /api/team: the state, everyone's data (this Mac's first) and files that could not be read. */
+export interface TeamView extends TeamState {
+  members: TeamMember[];
+  problems: { file: string; error: string }[];
+}
+
 /** A published version of the app (a GitHub release). */
 export interface ReleaseInfo {
   version: string;
@@ -395,6 +435,8 @@ export interface AppState {
   setup: SetupState | null;
   /** Updates: null in the demo and before the first check is asked for. */
   update: UpdateState | null;
+  /** The team folder this app shares in. */
+  team: TeamState;
 }
 
 export interface Backup extends Settings {

@@ -18,6 +18,11 @@ interface ReportDialogProps {
   /** The automation changed (translation or posted comment). */
   onUpdate: (automation: Automation) => void;
   onError: (error: unknown) => void;
+  /**
+   * A teammate's report, from the team folder: read only. Nothing in it can be stopped, edited,
+   * translated or posted from this Mac, and its log is on theirs.
+   */
+  sharedBy?: string;
 }
 
 /** How often the activity of a running automation is refreshed. */
@@ -33,6 +38,8 @@ const TEXT = {
     start: 'Inicio', end: 'Fin', build: 'Build', running: 'En curso', close: 'Cerrar',
     dryRun: 'Modo prueba: sin crear ni marcar nada en Jira ni en testomat.io',
     fullCoverage: 'Cobertura completa: con todos los agentes del orquestador',
+    sharedBy: (name?: string) => `Compartido por ${name} desde la carpeta del equipo (solo lectura)`,
+    sharedRunning: (name?: string) => `Lo está corriendo ${name} en su Mac.`,
     stillRunning: 'Claude está trabajando en segundo plano. El reporte completo aparece aquí en cuanto envíe el resultado.',
     activity: 'Actividad en vivo', waiting: 'Esperando los primeros pasos de Claude…',
     elapsed: (min: number) => `${min} min`, stop: 'Detener', confirmStop: '¿Detener?', stopping: 'Deteniendo…',
@@ -63,6 +70,8 @@ const TEXT = {
     start: 'Start', end: 'End', build: 'Build', running: 'Running', close: 'Close',
     dryRun: 'Test mode: nothing is created or marked in Jira or testomat.io',
     fullCoverage: 'Full coverage: with every orchestrator agent',
+    sharedBy: (name?: string) => `Shared by ${name} through the team folder (read only)`,
+    sharedRunning: (name?: string) => `${name} is running it on their Mac.`,
     stillRunning: 'Claude is working in the background. The full report shows up here as soon as it sends the result.',
     activity: 'Live activity', waiting: 'Waiting for Claude’s first steps…',
     elapsed: (min: number) => `${min} min`, stop: 'Stop', confirmStop: 'Stop?', stopping: 'Stopping…',
@@ -130,10 +139,11 @@ function ModuleBlock({ module, t }: { module: ReportModule; t: Text }) {
 }
 
 /** What Claude is doing: polled while it runs and once more when it finishes. */
-function useActivity(a: Automation): { items: ActivityItem[]; logFile: string } {
+function useActivity(a: Automation, enabled: boolean): { items: ActivityItem[]; logFile: string } {
   const [activity, setActivity] = useState<{ items: ActivityItem[]; logFile: string }>({ items: [], logFile: a.logFile });
   const running = a.finishedAt === null;
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     const load = (): void => {
       api.getActivity(a.id).then((next) => alive && setActivity(next)).catch(() => undefined);
@@ -144,7 +154,7 @@ function useActivity(a: Automation): { items: ActivityItem[]; logFile: string } 
       alive = false;
       clearInterval(timer);
     };
-  }, [a.id, running]);
+  }, [a.id, running, enabled]);
   return activity;
 }
 
@@ -228,9 +238,9 @@ function JiraCommentBlock({ automation, comment, t, onUpdate, onError }: {
 }
 
 /** Bugs found: a list that can be edited once the run finished (add the Jira key or link, fix a title, add or remove bugs). */
-function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError }: {
+function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError, readOnly }: {
   automation: Automation; automations: Automation[]; bugs: ReportBug[] | null; count: number; t: Text;
-  onUpdate: (a: Automation) => void; onError: (e: unknown) => void;
+  onUpdate: (a: Automation) => void; onError: (e: unknown) => void; readOnly: boolean;
 }) {
   const lang = useLang();
   /** Other reports that list the same Jira key, e.g. "Smoke QA · 19 Nov". */
@@ -273,7 +283,7 @@ function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError 
     <>
       <h3 className="rep-h rep-h-row">
         {t.bugs} <span className="hint">({draft ? draft.length : count})</span>
-        {!draft && (
+        {!draft && !readOnly && (
           <button type="button" className="btn small" onClick={() => setDraft((bugs ?? []).map((b, i) => ({ ...b, from: i })))}>
             <Icon name="edit" size={14} /> {t.editBugs}
           </button>
@@ -339,13 +349,13 @@ function BugsBlock({ automation, automations, bugs, count, t, onUpdate, onError 
 }
 
 /** Requests the report's translation if Claude wrote it in another language. */
-function useTranslation(a: Automation, onUpdate: (a: Automation) => void): { failed: boolean; retry: () => void } {
+function useTranslation(a: Automation, onUpdate: (a: Automation) => void, enabled: boolean): { failed: boolean; retry: () => void } {
   const lang = useLang();
   const [attempt, setAttempt] = useState(0);
   // The attempt that failed: a new attempt, report or language starts without the error.
   const [failedOn, setFailedOn] = useState('');
   const current = `${a.id} ${lang} ${attempt}`;
-  const pending = reportIn(a, lang).pending;
+  const pending = enabled && reportIn(a, lang).pending;
   const translated = useEffectEvent((next: Automation) => onUpdate(next));
   useEffect(() => {
     if (!pending) return;
@@ -381,12 +391,16 @@ function Activity({ items, t, live }: { items: ActivityItem[]; t: Text; live: bo
 }
 
 /** QA report of a Claude automation: verdict, timings, modules with their steps, and bugs found. */
-export function ReportDialog({ automation: a, run, automations, onClose, onStop, onUpdate, onError }: ReportDialogProps) {
+export function ReportDialog({ automation: a, run, automations, onClose, onStop, onUpdate, onError, sharedBy }: ReportDialogProps) {
   const lang = useLang();
   const t = useText(TEXT);
-  const activity = useActivity(a);
-  const { summary, details, pending } = reportIn(a, lang);
-  const translation = useTranslation(a, onUpdate);
+  const shared = sharedBy !== undefined;
+  const activity = useActivity(a, !shared);
+  const report = reportIn(a, lang);
+  const { summary, details } = report;
+  // A teammate's report is shown as they have it: it is not translated from this Mac.
+  const pending = report.pending && !shared;
+  const translation = useTranslation(a, onUpdate, !shared);
   const [stopState, setStopState] = useState<'idle' | 'armed' | 'stopping'>('idle');
   const dialog = useModalDialog();
   const running = a.finishedAt === null;
@@ -413,6 +427,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
             </p>
             {a.dryRun && <p className="hint rep-dry">{t.dryRun}</p>}
             {a.fullCoverage && <p className="hint rep-full">{t.fullCoverage}</p>}
+            {shared && <p className="hint rep-shared">{t.sharedBy(sharedBy)}</p>}
           </div>
           {running ? (
             <span className="status-pill tone-prog pulsing"><i />{t.running}</span>
@@ -428,9 +443,9 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
           <>
             <div className="rep-live">
               <span className="status-pill tone-prog pulsing"><i />{t.running} · {t.elapsed(elapsedMin(a))}</span>
-              <span className="hint">{t.stillRunning}</span>
+              <span className="hint">{shared ? t.sharedRunning(sharedBy) : t.stillRunning}</span>
               <div className="spacer" />
-              <button
+              {!shared && <button
                 className="btn small danger"
                 disabled={stopState === 'stopping'}
                 onClick={() => {
@@ -443,10 +458,14 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
                 }}
               >
                 {stopState === 'stopping' ? t.stopping : stopState === 'armed' ? t.confirmStop : t.stop}
-              </button>
+              </button>}
             </div>
-            <h3 className="rep-h">{t.activity}</h3>
-            <Activity items={activity.items} t={t} live />
+            {!shared && (
+              <>
+                <h3 className="rep-h">{t.activity}</h3>
+                <Activity items={activity.items} t={t} live />
+              </>
+            )}
           </>
         ) : (
           <>
@@ -483,7 +502,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
               <p className="rep-empty">{t.noDetails}</p>
             )}
 
-            <BugsBlock automation={a} automations={automations} bugs={details?.bugs ?? null} count={bugCount} t={t} onUpdate={onUpdate} onError={onError} />
+            <BugsBlock automation={a} automations={automations} bugs={details?.bugs ?? null} count={bugCount} t={t} onUpdate={onUpdate} onError={onError} readOnly={shared} />
 
             {details?.notes && (
               <>
@@ -492,7 +511,7 @@ export function ReportDialog({ automation: a, run, automations, onClose, onStop,
               </>
             )}
 
-            {details?.jiraComment && (
+            {details?.jiraComment && !shared && (
               <JiraCommentBlock key={details.jiraComment.posted ? 'posted' : details.jiraComment.dismissed ? 'dismissed' : 'draft'} automation={a} comment={details.jiraComment} t={t} onUpdate={onUpdate} onError={onError} />
             )}
 

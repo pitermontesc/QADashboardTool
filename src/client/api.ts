@@ -1,5 +1,5 @@
 import type {
-  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, BackupList, JiraConfigInput, JiraState, Lang, QaPerson, QaProfile, QueueItem, ReportBugEdit, SetupState, Settings, TestRun, TestRunInput,
+  ActivityItem, AppState, AssistantReply, AssistantTurn, Automation, Backup, BackupList, JiraConfigInput, JiraState, Lang, QaPerson, QaProfile, QueueItem, TeamView, ReportBugEdit, SetupState, Settings, TestRun, TestRunInput,
 } from '../shared/types';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -62,6 +62,10 @@ export const api = {
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
   checkSetup: () => request<AppState>('POST', '/api/setup/check', {}),
   checkUpdates: () => request<AppState>('POST', '/api/updates/check', {}),
+  getTeam: () => request<TeamView>('GET', '/api/team'),
+  teamFolders: () => request<{ suggestions: string[] }>('GET', '/api/team/folders'),
+  joinTeam: (folder: string, name: string) => request<TeamView>('PUT', '/api/team', { folder, name }),
+  leaveTeam: () => request<TeamView>('DELETE', '/api/team'),
   getProfile: () => request<QaProfile>('GET', '/api/profile'),
   saveProfile: (profile: { tester: QaPerson; tcExecutor: QaPerson | null }) =>
     request<{ profile: QaProfile; setup: SetupState | null }>('PUT', '/api/profile', profile),

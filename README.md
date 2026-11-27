@@ -34,13 +34,24 @@ Shortcuts (also in the app menu):
 | Shortcut | Action |
 | --- | --- |
 | `⌘N` or `N` | New run |
-| `⌘1` `⌘2` `⌘3` | Dashboard, Runs, Types & settings |
+| `⌘1` `⌘2` `⌘3` `⌘4` | Dashboard, Runs, Types & settings, Team |
 | `⌘F` or `/` | Search runs |
 | `⌘R` | Refresh Jira tickets |
 | `⌘K` | Claude assistant |
 | `⌘↵` / `Esc` | Save / cancel the form |
 
 The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. `desktop:pack` builds for the Mac that packs it; the installers for both architectures are built by `npm run desktop:dist` (`release/QA-Dashboard-<version>-{arm64,x64}.{dmg,zip}`). The app is **not signed**. An app you packed yourself opens directly; one you received (Slack, AirDrop, a download) is blocked the first time: allow it in **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/QA Dashboard.app"`. On current macOS, right-click → Open no longer skips this check. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
+
+### Team view
+
+The **Team** tab (`⌘4`) brings every QA's runs and reports together with no server. Each one chooses the same folder that the team syncs (Google Drive, Dropbox, iCloud, OneDrive…). Each app writes only its own file there, `<name>--<id>.qa-team.json`, and reads everyone else's:
+
+- **What goes in the file:** the app's runs, its QA reports (no process, log path, queue or Jira comment draft) and its test types' names and colors. Never the Jira connection, the settings or the QA profile.
+- **When it is written:** when the data or the name changes, at most once a minute, and at least once an hour so the others see the app is active. It is written to a hidden temporary file and renamed, so a sync app never uploads half of it.
+- **Reading the others:** every file is checked like an import (the same limits and link rules). One that cannot be read is listed under **Files that could not be read**, never fatal. If two files claim the same app, the newest wins.
+- **Identity:** the app's team id is made once and kept. Importing a backup does not bring someone else's.
+- **What the tab shows:** the team's totals for the period (a Jira bug found by two people counts once), a row per person (with what they are running and how long ago their file was updated), the tickets validated with the orchestrator and by whom, and the latest runs. A teammate's report opens read only.
+- **Leaving the team** takes this app's file out of the folder. The demo has a team folder of its own with two sample teammates.
 
 ### Releases and updates
 
@@ -157,6 +168,8 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | POST | `/api/setup/check` | Checks the Mac again (Claude Code, its sign-in, the configured skills, Claude in Chrome, the QA profile, Jira) and returns the state |
 | POST | `/api/updates/check` | Asks GitHub for the latest release now and returns the state (`update`: `{current, arch, latest, available, checkedAt, error}`) |
 | GET / PUT | `/api/profile` | Reads or saves the QA profile the skills read (`~/.config/avm-qa/profile.json`): `{tester, tcExecutor}`, each `{name, accountId}` (`tcExecutor` may be null). Other keys in the file are kept; PUT returns `{profile, setup}` |
+| GET / PUT / DELETE | `/api/team` | The team view (`{folder, name, ownFile, writtenAt, readAt, error, members, problems}`, this Mac first); PUT `{folder, name}` joins or changes the shared folder (created if its parent exists); DELETE leaves it, taking this app's file out |
+| GET | `/api/team/folders` | Synced folders found on this Mac (Google Drive, OneDrive, Dropbox, Box, iCloud), to suggest where the team folder goes |
 | GET | `/api/jira/myself` | The Jira user of the saved token: `{name, accountId}` |
 | GET | `/api/jira/users` | Active Jira people whose name or email matches `?query=` (2+ characters): `[{name, accountId}]` |
 | PUT | `/api/jira/config` | Saves the Jira connection |

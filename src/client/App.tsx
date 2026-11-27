@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toYmd } from '../shared/dates';
 import type {
-  AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, QueueItem, Settings, TestRun, TestRunInput, Theme,
+  AppState, AssistantAction, Automation, Backup, JiraConfigInput, JiraTicket, Lang, QueueItem, Settings, TestRun, TestRunInput, Theme, TeamMember,
 } from '../shared/types';
 import { applyTheme, nextTheme } from './theme';
 import { LANGUAGES } from '../shared/types';
@@ -18,6 +18,7 @@ import { ReportDialog } from './components/ReportDialog';
 import { RunForm } from './components/RunForm';
 import { RunsView } from './components/RunsView';
 import { SettingsView } from './components/SettingsView';
+import { TeamView } from './components/TeamView';
 import { Icon, type IconName } from './components/icons';
 import { RavnLogo } from './components/RavnLogo';
 import { Kbd, MOD } from './components/ui';
@@ -26,16 +27,17 @@ import { KIND_LABEL, elapsedMin, reportIn } from './components/Automations';
 /** How often the result of a running smoke or regression is polled. */
 const AUTOMATION_POLL_MS = 10_000;
 
-type Tab = 'dash' | 'runs' | 'config';
+type Tab = 'dash' | 'runs' | 'config' | 'team';
 const TABS: ReadonlyArray<{ id: Tab; icon: IconName; key: string }> = [
   { id: 'dash', icon: 'dashboard', key: '1' },
   { id: 'runs', icon: 'list', key: '2' },
   { id: 'config', icon: 'settings', key: '3' },
+  { id: 'team', icon: 'team', key: '4' },
 ];
 
 const TEXT = {
   es: {
-    tabs: { dash: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes' } as Record<Tab, string>,
+    tabs: { dash: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes', team: 'Equipo' } as Record<Tab, string>,
     unexpected: 'Error inesperado',
     demoBadge: 'Demo: datos de ejemplo. Jira y Claude están simulados; nada se publica ni se guarda en tus datos.',
     openFailed: 'No se pudo abrir la app:',
@@ -76,7 +78,7 @@ const TEXT = {
     themeTitle: (current: string, next: string) => `Tema: ${current}. Pulsa para cambiar a ${next}.`,
   },
   en: {
-    tabs: { dash: 'Dashboard', runs: 'Runs', config: 'Types & settings' } as Record<Tab, string>,
+    tabs: { dash: 'Dashboard', runs: 'Runs', config: 'Types & settings', team: 'Team' } as Record<Tab, string>,
     unexpected: 'Unexpected error',
     demoBadge: 'Demo: sample data. Jira and Claude are simulated; nothing is posted or saved to your data.',
     openFailed: 'The app could not open:',
@@ -165,6 +167,8 @@ export function App() {
   const [validateOpen, setValidateOpen] = useState(false);
   /** Automation whose QA report is open (read from state so it updates live). */
   const [reportId, setReportId] = useState<string | null>(null);
+  /** A teammate's report opened from the team view (read only). */
+  const [teamReport, setTeamReport] = useState<{ automation: Automation; member: TeamMember } | null>(null);
   const [tab, setTab] = useState<Tab>('dash');
   const [form, setForm] = useState<FormState | null>(null);
   const [jiraLoading, setJiraLoading] = useState(false);
@@ -320,7 +324,7 @@ export function App() {
       if (document.querySelector('dialog[open]')) return;
       const mod = event.metaKey || event.ctrlKey;
       // On desktop the menu already handles ⌘N, ⌘1… (they never reach here); in the browser they do.
-      if (mod && /^[123]$/.test(event.key)) {
+      if (mod && /^[1-4]$/.test(event.key)) {
         event.preventDefault();
         commands.current(`tab:${TABS[Number(event.key) - 1]!.id}`);
       } else if (mod && (event.key === 'k' || event.key === 'K')) {
@@ -755,6 +759,13 @@ export function App() {
             onOpenReport={(a) => setReportId(a.id)}
           />
         )}
+        {tab === 'team' && (
+          <TeamView
+            onOpenReport={(automation, member) => (member.me ? setReportId(automation.id) : setTeamReport({ automation, member }))}
+            onNotice={notify}
+            onError={notifyError}
+          />
+        )}
         {tab === 'config' && (
           <SettingsView
             state={state}
@@ -801,6 +812,19 @@ export function App() {
             void api.getState().then((next) => patch({ runs: next.runs }), () => undefined);
           }}
           onError={fail}
+        />
+      )}
+      {teamReport && (
+        <ReportDialog
+          key={`${teamReport.member.id}:${teamReport.automation.id}`}
+          automation={teamReport.automation}
+          run={teamReport.member.runs.find((r) => r.id === teamReport.automation.runId)}
+          automations={teamReport.member.automations}
+          onClose={() => setTeamReport(null)}
+          onStop={async () => false}
+          onUpdate={() => undefined}
+          onError={fail}
+          sharedBy={teamReport.member.name}
         />
       )}
       <div className={`toast${toast ? ` on ${toast.kind}` : ''}`} role={toast?.kind === 'error' ? 'alert' : 'status'}>

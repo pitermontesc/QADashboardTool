@@ -45,7 +45,7 @@ nativeTheme.themeSource = theme;
 const TEXT = {
   es: {
     file: 'Archivo', newRun: 'Nuevo registro', refreshJira: 'Actualizar tickets de Jira', view: 'Ver',
-    dashboard: 'Dashboard', runs: 'Registros', config: 'Tipos y ajustes', search: 'Buscar registros',
+    dashboard: 'Dashboard', runs: 'Registros', team: 'Equipo', config: 'Tipos y ajustes', search: 'Buscar registros',
     resetZoom: 'Tamaño real', zoomIn: 'Acercar', zoomOut: 'Alejar', fullscreen: 'Pantalla completa',
     appearance: 'Apariencia', themeNames: { system: 'Automática', light: 'Clara', dark: 'Oscura' } as Record<Theme, string>,
     assistant: 'Asistente de Claude',
@@ -55,7 +55,7 @@ const TEXT = {
   },
   en: {
     file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
-    dashboard: 'Dashboard', runs: 'Runs', config: 'Types & settings', search: 'Search runs',
+    dashboard: 'Dashboard', runs: 'Runs', team: 'Team', config: 'Types & settings', search: 'Search runs',
     resetZoom: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen',
     appearance: 'Appearance', themeNames: { system: 'Automatic', light: 'Light', dark: 'Dark' } as Record<Theme, string>,
     assistant: 'Claude assistant',
@@ -168,6 +168,7 @@ function buildMenu(): void {
         { label: t.dashboard, accelerator: 'CmdOrCtrl+1', click: () => sendCommand('tab:dash') },
         { label: t.runs, accelerator: 'CmdOrCtrl+2', click: () => sendCommand('tab:runs') },
         { label: t.config, accelerator: 'CmdOrCtrl+3', click: () => sendCommand('tab:config') },
+        { label: t.team, accelerator: 'CmdOrCtrl+4', click: () => sendCommand('tab:team') },
         { label: t.search, accelerator: 'CmdOrCtrl+F', click: () => sendCommand('search') },
         { label: t.assistant, accelerator: 'CmdOrCtrl+K', click: () => sendCommand('assistant') },
         { type: 'separator' },

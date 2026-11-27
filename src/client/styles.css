@@ -137,6 +137,7 @@ label.check .hint{font-weight:400}
 .rehearsals{margin:-4px 0 12px}
 .rep-dry,.rep-full{display:inline-block;margin-top:6px;padding:3px 10px;border-radius:999px;color:var(--warn);background:var(--warn-bg);font-weight:600}
 .rep-full{color:var(--prog);background:var(--prog-bg)}
+.rep-shared{color:var(--stage);background:var(--stage-bg);display:inline-block;padding:2px 8px;border-radius:6px;margin-top:4px}
 .cmd-preview code{display:block;margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--muted-bg);color:var(--ink-2);font-size:12px;overflow-wrap:anywhere}
 .star{color:var(--warn)}
 
@@ -533,3 +534,24 @@ label.check.queue-check b{font-weight:700}
 .release-notes ul{margin:0;padding-left:18px;display:grid;gap:4px}
 .release-notes p{margin:4px 0}
 .release-notes code{font-size:11.5px;background:var(--muted-bg);border-radius:4px;padding:0 4px}
+
+/* Team view */
+.team .card{margin-bottom:14px}
+.team-intro p{max-width:80ch}
+.team-facts{list-style:none;margin:10px 0 14px;padding:0;display:grid;gap:6px;font-size:13.5px;color:var(--ink-2)}
+.team-facts li{display:flex;gap:8px;align-items:flex-start}
+.team-facts li svg{flex:none;margin-top:3px}
+.team-join{display:grid;gap:10px;max-width:720px}
+.team-join input{width:100%;min-width:0}
+.team-suggest{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.team-suggest .hint{flex-basis:100%}
+.team-suggest .link-btn{overflow-wrap:anywhere;text-align:left}
+.team-head .path code{overflow-wrap:anywhere}
+.team-problems{margin-top:8px;font-size:13px}
+.team-problems summary{cursor:pointer;font-weight:600}
+.team-problems ul{margin:6px 0 0;padding-left:18px}
+.team-table td,.team-table th{white-space:nowrap}
+.team-table td.team-what{white-space:normal;min-width:220px}
+.team-table tr.clickable{cursor:pointer}
+.team-table tr.clickable:hover td{background:var(--panel-2)}
+.team-running{margin-left:8px;vertical-align:middle}

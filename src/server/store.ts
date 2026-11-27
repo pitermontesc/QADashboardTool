@@ -33,6 +33,11 @@ interface StoreData {
   reportKeys: Record<string, string>;
   /** Runs waiting for their site's lane (kept across restarts). */
   queue: QueueState;
+  /**
+   * The team folder this app shares in. Not part of the settings: a backup imported from someone
+   * else must not bring their team identity.
+   */
+  team: { folder: string; name: string; memberId: string };
 }
 
 /** How many dropped runs are remembered to show why. */
@@ -58,6 +63,7 @@ const emptyData = (): StoreData => ({
   automations: [],
   reportKeys: {},
   queue: { items: [], paused: {}, skipped: [], finished: [] },
+  team: { folder: '', name: '', memberId: randomUUID() },
 });
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -139,6 +145,8 @@ export class Store {
         queued: a.queued ?? null,
       })),
       runs: withTestMode(saved.runs ?? [], saved.automations ?? []),
+      // Before v1.22.0 there was no team folder; the app's team id is made once and kept.
+      team: { ...base.team, ...saved.team },
       // Before v1.14.0 runs had no report key.
       reportKeys: saved.reportKeys ?? {},
       // v1.15.1 added batches and retries to queued runs.
@@ -155,7 +163,11 @@ export class Store {
     }
   }
 
+  /** Goes up with every saved change: the team file is written again only when it moved. */
+  revision = 0;
+
   private persist(): void {
+    this.revision++;
     mkdirSync(path.dirname(this.file), { recursive: true });
     // The first change of each day keeps a copy of the file as it was before it.
     this.dailyBackup();
@@ -256,7 +268,19 @@ export class Store {
     return {
       settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, queue: this.data.queue,
       translating: 0, demo: false, setup: null, update: null,
+      team: { folder: this.data.team.folder, name: this.data.team.name, ownFile: '', writtenAt: null, readAt: null, error: null },
     };
+  }
+
+  getTeamConfig(): StoreData['team'] {
+    return this.data.team;
+  }
+
+  /** Joins a team folder (or leaves it, with an empty folder); the app's team id never changes. */
+  saveTeamConfig(config: { folder: string; name: string }): StoreData['team'] {
+    this.data.team = { ...this.data.team, ...config };
+    this.persist();
+    return this.data.team;
   }
 
   getJiraState(): JiraState {
