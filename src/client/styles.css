@@ -60,8 +60,8 @@ nav button.on .icon{color:var(--accent)}
 /* ── Buttons ─────────────────────────────────────────────────── */
 button.btn,label.btn,a.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:var(--radius-sm);font:inherit;font-weight:500;cursor:pointer;text-decoration:none;transition:border-color .15s,background .15s,box-shadow .15s;white-space:nowrap}
 button.btn:hover:not(:disabled),label.btn:hover{border-color:var(--accent);background:var(--panel-2)}
-button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(47,91,216,.3)}
-button.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+button.primary,a.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;box-shadow:0 1px 2px rgba(47,91,216,.3)}
+button.primary:hover:not(:disabled),a.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 button.primary .kbd{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.25);color:inherit}
 button.danger{color:var(--bad)}
 button.link{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;font-weight:500;padding:3px 6px;border-radius:6px}
@@ -518,3 +518,18 @@ label.check.queue-check b{font-weight:700}
 .profile-fields input{width:100%;min-width:0}
 .profile-results{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
 .profile-results .link-btn{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;text-align:left}
+
+/* App version and updates */
+.pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.muted{background:var(--muted-bg);color:var(--muted)}
+.update-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));background:var(--soft);color:var(--accent);border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.update-badge:hover{background:var(--panel)}
+.update-new{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.update-new p{margin:0}
+.update-steps{margin:8px 0 0;padding-left:20px;font-size:13px;color:var(--ink-2);display:grid;gap:4px}
+.update-notes{margin-top:8px}
+.update-notes summary{cursor:pointer;font-weight:600;font-size:13px}
+.release-notes{overflow-wrap:anywhere;font-size:12.5px;color:var(--ink-2);margin-top:6px;max-height:320px;overflow:auto}
+.release-notes h5{margin:8px 0 4px;font-size:12.5px;color:var(--ink)}
+.release-notes ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.release-notes p{margin:4px 0}
+.release-notes code{font-size:11.5px;background:var(--muted-bg);border-radius:4px;padding:0 4px}

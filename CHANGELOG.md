@@ -2,6 +2,16 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] - 2026-11-27
+
+### Added
+- **Installers for Apple Silicon and Intel, published as GitHub releases.** `npm run desktop:dist` builds a `.dmg` and a `.zip` per architecture (`QA-Dashboard-<version>-arm64` and `-x64`). Pushing a version tag (`v1.21.0`) runs the new **Release** workflow: it checks that the tag is the app version, runs lint, types and tests, builds the four installers on macOS and publishes the release with this CHANGELOG section as notes.
+- **The app tells you when there is a new version.** It asks GitHub for the latest release 10 s after it opens and every 6 hours (no account, nothing about you). A newer one shows in the header; **Types & settings → App version** has the download for your Mac, the steps to install it (your data is kept) and what changed, and warns you to wait for runs in progress. **Help → Check for updates…** checks right away. Without a connection it says it could not check, and the app works as always.
+
+### Changed
+- The app runs on Intel Macs too.
+- The user guide and the onboarding checklist install the app from the releases page.
+
 ## [1.20.0] - 2026-11-26
 
 ### Added

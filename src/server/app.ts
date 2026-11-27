@@ -3,10 +3,11 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { ZodError, z } from 'zod';
 import { HttpError } from './errors.js';
 import { translateError } from './i18n.js';
-import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem } from '../shared/types.js';
+import type { Automation, AutomationDetails, AutomationKind, Lang, QueueItem, ReleaseInfo, UpdateState } from '../shared/types.js';
 import { SKILL_KINDS, checkSkill, launchBlocker, probeSetup, profileFacts, readyFacts, setupState, skillOf, type SetupFacts, type SetupProbe, type SkillRename } from './setup.js';
 import { fetchJiraMyself, fetchJiraTickets, postJiraComment, searchJiraUsers } from './jira.js';
 import { PROFILE_FILE, profileInputSchema, readQaProfile, writeQaProfile } from './profile.js';
+import { appVersion, compareVersions, fetchLatestRelease, type LatestRelease } from './updates.js';
 import { orList, orchestratorPrompt, regressionPrompt, smokePrompt } from './orchestrator.js';
 import {
   MAX_RUN_MS, isClaudeProcess, lastMessage, launchClaude, readActivity, runAssistant, stopPid, translateReport,
@@ -46,6 +47,15 @@ export interface AppOptions {
   probeSetup?: SetupProbe;
   /** The QA profile file (default `~/.config/avm-qa/profile.json`); the demo and the tests use their own. */
   profileFile?: string;
+  /**
+   * The newest published version. Injectable to test it; when Claude itself is injected (tests, demo)
+   * and this is not, there is none, so they never ask GitHub.
+   */
+  latestRelease?: LatestRelease;
+  /** This app's version (default: its package.json). */
+  version?: string;
+  /** Wait before the first update check (default 10 s, so it never slows down the start). */
+  firstUpdateCheckMs?: number;
 }
 
 /** Default pause between runs on a site, so Chrome and the site settle before the next one. */
@@ -55,6 +65,9 @@ const LANE_GAP_MS = 30_000;
 const SETUP_CHECK_MS = 5 * 60_000;
 /** A launch trusts a passing setup check this recent; an older one, or a failing one, is done again first. */
 const SETUP_FRESH_MS = 60_000;
+
+/** How often GitHub is asked for a newer version. */
+const UPDATE_CHECK_MS = 6 * 60 * 60_000;
 
 /** How often runs left by an earlier session are checked. */
 const ORPHAN_CHECK_MS = 30_000;
@@ -254,6 +267,54 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   void checkSetup().catch((err: unknown) => log.error('setup.check-failed', err));
   setInterval(() => void checkSetup().catch((err: unknown) => log.error('setup.check-failed', err)), SETUP_CHECK_MS).unref();
 
+  // ── Updates: a newer version published on GitHub ──────────────────────────────────────────────
+  const latestRelease: LatestRelease = options.latestRelease ?? (options.launchClaude ? async () => null : fetchLatestRelease());
+  const version = options.version ?? appVersion();
+  let release: ReleaseInfo | null = null;
+  let updateCheckedAt: number | null = null;
+  let updateError: string | null = null;
+  let announced = '';
+  let updateChecking: Promise<void> | null = null;
+  const checkUpdates = (): Promise<void> => {
+    updateChecking ??= latestRelease()
+      .then((found) => {
+        release = found;
+        updateError = null;
+        if (found && compareVersions(found.version, version) > 0 && announced !== found.version) {
+          announced = found.version;
+          log.info('update.available', { current: version, latest: found.version });
+        }
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message !== updateError) log.warn('update.check-failed', { error: message });
+        updateError = message;
+      })
+      .finally(() => {
+        updateCheckedAt = Date.now();
+        updateChecking = null;
+      });
+    return updateChecking;
+  };
+  const currentUpdate = (): UpdateState | null =>
+    options.demo
+      ? null
+      : {
+          current: version,
+          arch: process.arch,
+          latest: release,
+          available: release !== null && compareVersions(release.version, version) > 0,
+          checkedAt: updateCheckedAt,
+          error: updateError,
+        };
+  setTimeout(() => void checkUpdates(), options.firstUpdateCheckMs ?? 10_000).unref();
+  setInterval(() => void checkUpdates(), UPDATE_CHECK_MS).unref();
+
+  api.post('/updates/check', async (_req, res) => {
+    await checkUpdates();
+    res.json(fullState());
+  });
+
   api.get('/state', (_req, res) => {
     res.json(fullState());
   });
@@ -365,7 +426,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
   translateAll(lang());
 
-  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true, setup: currentSetup() });
+  const fullState = () => ({ ...store.getState(), translating: translating.size, demo: options.demo === true, setup: currentSetup(), update: currentUpdate() });
 
   /** Nothing may be running or queued while the data is replaced: their results would land in the other data. */
   const assertIdle = (): void => {

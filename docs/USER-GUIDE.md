@@ -29,6 +29,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 7. [Search, edit, duplicate and delete runs](#7-search-edit-duplicate-and-delete-runs)
 8. [Customize test types and environments](#8-customize-test-types-and-environments)
 9. [Backup and export](#9-backup-and-export)
+   - [Update the app](#update-the-app)
 10. [Keyboard shortcuts](#10-keyboard-shortcuts)
 11. [Troubleshooting](#11-troubleshooting)
 
@@ -36,11 +37,13 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 
 ## 1. Open the app
 
-**If someone gave you `QA Dashboard.app`:**
+**Download it** from the [releases page](https://github.com/pitermontesc/QADashboardTool/releases/latest): `QA-Dashboard-<version>-arm64.dmg` for an Apple Silicon Mac (M1 or later), `QA-Dashboard-<version>-x64.dmg` for an Intel Mac ( → **About This Mac** says which one you have).
 
-1. Drag `QA Dashboard.app` to the **Applications** folder.
-2. The first time, macOS says it cannot verify the app, because the app is not signed. Click **Done**, open **System Settings → Privacy & Security**, scroll to the message about "QA Dashboard" and click **Open Anyway**, then confirm with your password. After that, a double-click is enough. (An app you packed yourself from the code opens directly.) The app runs on Apple Silicon Macs (M1 or later).
+1. Open the `.dmg` and drag **QA Dashboard** to the **Applications** folder.
+2. The first time, macOS says it cannot verify the app, because the app is not signed. Click **Done**, open **System Settings → Privacy & Security**, scroll to the message about "QA Dashboard" and click **Open Anyway**, then confirm with your password. After that, a double-click is enough. (An app you packed yourself from the code opens directly.)
 3. To keep it at hand: with the app open, right-click its Dock icon → **Options → Keep in Dock**.
+
+If someone gave you `QA Dashboard.app` directly, start at step 1 with it.
 
 **If you have the project code** (you need Node.js 20 or later):
 
@@ -48,6 +51,7 @@ The UI can be switched between English and Spanish (see [Language: English or Sp
 npm install            # first time only
 npm run desktop        # opens the desktop app
 npm run desktop:pack   # generates release/mac-*/QA Dashboard.app
+npm run desktop:dist   # the .dmg and .zip installers for Apple Silicon and Intel, in release/
 ```
 
 The window remembers its size and position, so it opens where you left it.
@@ -524,6 +528,18 @@ In the desktop app, **Help → Show the app log** opens the log in Finder and **
 
 **Where the data is stored:** in `~/Library/Application Support/QA Dashboard/qa-tests.json` (macOS), with the automatic copies in `backups/` and the log in `logs/app.log` in the same folder. Only your user can read the data file and the copies, because they contain the Jira API token. Do not share them: to pass your runs to someone else, use **Export backup (JSON)**.
 
+### Update the app
+
+The app checks for a new version when it opens and every 6 hours (**Help → Check for updates…** checks right away). When there is one, the header shows **Version X available**; it leads to **Types & settings → App version**:
+
+![App version: a new version with the download for this Mac, the install steps and what changed](img/20-update.png)
+
+1. **Download for Apple Silicon (.dmg)** (or **Intel**) downloads the installer for your Mac. **What changed** has the release notes.
+2. Wait for the runs in progress and the queue to finish (the card warns you): quitting the app stops them. Then quit QA Dashboard and drag the new app from the `.dmg` to **Applications**, replacing the old one.
+3. Open it; the first time, allow it again in **System Settings → Privacy & Security → Open Anyway**.
+
+Your runs, reports, settings, Jira connection and QA profile are kept: they are not inside the app. The check only asks GitHub for the latest release (no account, nothing about you); without a connection it says it could not check and the app works as always.
+
 ## 10. Keyboard shortcuts
 
 They are also in the app's **File** and **View** menus.
@@ -560,7 +576,8 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A run ends in BLOCKED "without reporting a result"** | Open its report: **Live activity · Log** has Claude's last steps and the path to the full log in `~/qa-dashboard-runs/logs/`. |
 | **A report is still in its original language** | The translation failed (for example, with no connection). Open the report and click **Retry**. |
 | **"Post on AVM-…" fails** | Check in **Types & settings** that Jira is connected: the comment is posted with the same email and API token. |
-| **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. On an Intel Mac the app does not run; use the code with `npm start`. |
+| **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. If it still does not open, check that you downloaded the installer for your Mac: `arm64` for Apple Silicon, `x64` for Intel. |
+| **"Could not check (GitHub responded 403)"** in App version | GitHub limits how often it answers without an account; the app keeps working and checks again later. You can always look at the [releases page](https://github.com/pitermontesc/QADashboardTool/releases). |
 | **Runs or settings disappeared, or an import went wrong** | **Types & settings → Data backup → Automatic copies**: restore the copy from before the problem (the one **Before import** if it was an import). |
 | **Something failed and you do not know why** | **Types & settings → Data backup → Copy the last lines** of the app log, and share them. |
 | **The app looks too big or too small** | `⌘0` goes back to actual size; `⌘+` / `⌘-` adjust the zoom. |

@@ -26,6 +26,7 @@ The app opens in its own window. Keep the terminal open while you use it; `Ctrl+
 ```bash
 npm run desktop        # builds and opens the app in an Electron window (no terminal or browser)
 npm run desktop:pack   # generates release/mac-*/QA Dashboard.app
+npm run desktop:dist   # .dmg and .zip installers for Apple Silicon (arm64) and Intel (x64)
 ```
 
 Shortcuts (also in the app menu):
@@ -39,7 +40,17 @@ Shortcuts (also in the app menu):
 | `⌘K` | Claude assistant |
 | `⌘↵` / `Esc` | Save / cancel the form |
 
-The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. The build is for **Apple Silicon Macs only** (`arm64`, the architecture of the Mac that packs it) and is **not signed**. An app you packed yourself opens directly; one you received (Slack, AirDrop, a download) is blocked the first time: allow it in **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/QA Dashboard.app"`. On current macOS, right-click → Open no longer skips this check. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
+The window remembers its size and position. Drag `QA Dashboard.app` to `/Applications` and open it like any other app. `desktop:pack` builds for the Mac that packs it; the installers for both architectures are built by `npm run desktop:dist` (`release/QA-Dashboard-<version>-{arm64,x64}.{dmg,zip}`). The app is **not signed**. An app you packed yourself opens directly; one you received (Slack, AirDrop, a download) is blocked the first time: allow it in **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/QA Dashboard.app"`. On current macOS, right-click → Open no longer skips this check. Jira links open in the browser. If `npm start` is already running, the desktop app reuses that server.
+
+### Releases and updates
+
+New versions are [GitHub releases](https://github.com/pitermontesc/QADashboardTool/releases). To publish one:
+
+1. Bump the version (`npm version X.Y.Z --no-git-tag-version`) and write its `## [X.Y.Z]` section in `CHANGELOG.md`.
+2. Commit and push, then tag it: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The **Release** workflow (`.github/workflows/release.yml`) checks that the tag is the `package.json` version, runs lint, types and tests, builds the four installers on macOS and creates the release with the CHANGELOG section as notes (`scripts/release-notes.ts`).
+
+The app asks `https://api.github.com/repos/pitermontesc/QADashboardTool/releases/latest` 10 s after it starts and every 6 hours (no token; a generic `User-Agent`). A newer version shows in the header and in **Types & settings → App version** with the installer for the Mac's architecture and the steps to install it; **Help → Check for updates…** checks right away. A failed check (no connection, GitHub's limit) is shown on the card and never stops the app. The demo does not check.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
@@ -144,6 +155,7 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 | POST | `/api/backups/:name/restore` | Restores the runs, reports and settings of a copy (the Jira connection is kept); a copy of the current data is kept first; 409 while a run is in progress or queued |
 | GET | `/api/log` | The last 300 lines of the app log (`{file, lines}`) |
 | POST | `/api/setup/check` | Checks the Mac again (Claude Code, its sign-in, the configured skills, Claude in Chrome, the QA profile, Jira) and returns the state |
+| POST | `/api/updates/check` | Asks GitHub for the latest release now and returns the state (`update`: `{current, arch, latest, available, checkedAt, error}`) |
 | GET / PUT | `/api/profile` | Reads or saves the QA profile the skills read (`~/.config/avm-qa/profile.json`): `{tester, tcExecutor}`, each `{name, accountId}` (`tcExecutor` may be null). Other keys in the file are kept; PUT returns `{profile, setup}` |
 | GET | `/api/jira/myself` | The Jira user of the saved token: `{name, accountId}` |
 | GET | `/api/jira/users` | Active Jira people whose name or email matches `?query=` (2+ characters): `[{name, accountId}]` |

@@ -255,7 +255,7 @@ export class Store {
   getState(): AppState {
     return {
       settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, queue: this.data.queue,
-      translating: 0, demo: false, setup: null,
+      translating: 0, demo: false, setup: null, update: null,
     };
   }
 

@@ -1,9 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import type { Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createApp, type AppOptions } from './app.js';
+import { appVersion } from './updates.js';
+
+export { appVersion };
 import { appLog } from './log.js';
 import { Store } from './store.js';
 
@@ -37,16 +39,6 @@ export interface RunningServer {
   dataFile: string;
   hasClient: boolean;
   server: Server;
-}
-
-/** The app's version, from its package.json (two folders up from dist/server, also inside the packaged app). */
-export function appVersion(): string {
-  try {
-    const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../package.json');
-    return (JSON.parse(readFileSync(file, 'utf8')) as { version?: string }).version ?? '';
-  } catch {
-    return '';
-  }
 }
 
 /** Starts the server; rejects with the `listen` error (e.g. EADDRINUSE). */

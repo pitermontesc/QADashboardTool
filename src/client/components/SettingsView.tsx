@@ -5,6 +5,7 @@ import { BackupsCard } from './BackupsCard';
 import { QaSitesCard } from './QaSitesCard';
 import { ProfileCard } from './ProfileCard';
 import { SetupCard } from './SetupCard';
+import { UpdatesCard } from './UpdatesCard';
 import { LANGUAGES, THEMES, type AppState, type Backup, type JiraConfigInput, type Lang, type SetupState, type Settings, type Theme } from '../../shared/types';
 import { useLang, useText } from '../i18n';
 import { exportBackup, exportCsv } from '../exporters';
@@ -21,6 +22,7 @@ interface SettingsViewProps {
   onCheckSetup: () => Promise<void>;
   /** A new setup check (after saving the QA profile). */
   onSetup: (setup: SetupState | null) => void;
+  onCheckUpdates: () => Promise<void>;
   onNotice: (message: string) => void;
   onError: (message: string) => void;
 }
@@ -84,7 +86,7 @@ const onEnter = (action: () => void) => (event: KeyboardEvent): void => {
   if (event.key === 'Enter') action();
 };
 
-export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onCheckSetup, onSetup, onNotice, onError }: SettingsViewProps) {
+export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, onImport, onRestore, onCheckSetup, onSetup, onCheckUpdates, onNotice, onError }: SettingsViewProps) {
   const { settings, runs, jira } = state;
   const lang = useLang();
   const t = useText(TEXT);
@@ -234,6 +236,12 @@ export function SettingsView({ state, jiraLoading, onSaveSettings, onSaveJira, o
         </div>
 
         <div>
+          <UpdatesCard
+            update={state.update}
+            busy={state.automations.some((a) => a.finishedAt === null) || state.queue.items.length > 0}
+            onCheck={onCheckUpdates}
+            onError={onError}
+          />
           <div className="card" style={{ marginBottom: 12 }}>
             <h3>{t.language}</h3>
             <p className="hint">{t.languageHint}</p>

@@ -25,7 +25,7 @@ export async function startServer(options: AppOptions = {}) {
   // No pause between queued runs unless a test asks for one.
   // The QA profile goes to the test's folder, never to the real ~/.config/avm-qa.
   const profileFile = path.join(path.dirname(file), 'profile.json');
-  const server = createApp(new Store(file), { translateReport, laneGapMs: 0, profileFile, ...options, launchClaude }).listen(0, '127.0.0.1');
+  const server = createApp(new Store(file), { translateReport, laneGapMs: 0, profileFile, latestRelease: async () => null, ...options, launchClaude }).listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const json = { 'Content-Type': 'application/json' };

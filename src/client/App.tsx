@@ -65,6 +65,7 @@ const TEXT = {
     lanePaused: (site: string) => `Cola de ${site} en pausa`,
     batchDone: 'Cola terminada',
     seeProgress: 'Ver el progreso',
+    updateBadge: (v: string) => `Versión ${v} disponible`, updateBadgeTitle: 'Ver cómo actualizar',
     resultSaved: 'Resultado guardado en el dashboard',
     newRun: 'Nuevo registro',
     editRun: 'Editar registro',
@@ -104,6 +105,7 @@ const TEXT = {
     lanePaused: (site: string) => `${site} queue paused`,
     batchDone: 'Queue finished',
     seeProgress: 'See progress',
+    updateBadge: (v: string) => `Version ${v} available`, updateBadgeTitle: 'See how to update',
     resultSaved: 'Result saved to the dashboard',
     newRun: 'New run',
     editRun: 'Edit run',
@@ -228,7 +230,7 @@ export function App() {
   const applyPolled = useEffectEvent((next: AppState) => {
     const before = new Map(state?.automations.map((a) => [a.id, a]));
     const queueBefore = state?.queue;
-    setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating, setup: next.setup ?? s.setup } : s));
+    setState((s) => (s ? { ...s, runs: next.runs, automations: next.automations, queue: next.queue, translating: next.translating, setup: next.setup ?? s.setup, update: next.update ?? s.update } : s));
     const current = state?.settings.language ?? 'es';
     for (const a of next.automations) {
       if (a.finishedAt !== null && before.get(a.id)?.finishedAt === null) {
@@ -287,6 +289,16 @@ export function App() {
     const next = await api.checkSetup();
     setState((s) => (s ? { ...s, setup: next.setup, settings: { ...s.settings, qa: { ...s.settings.qa, skills: next.settings.qa.skills } } } : s));
   }, []);
+
+  const checkUpdates = useCallback(async (): Promise<void> => {
+    const next = await api.checkUpdates();
+    setState((s) => (s ? { ...s, update: next.update } : s));
+  }, []);
+  /** Opens the settings at the version card. */
+  const showUpdates = (): void => {
+    setTab('config');
+    setTimeout(() => document.getElementById('updates')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+  };
 
   useEffect(() => {
     api.getState().then(
@@ -578,6 +590,9 @@ export function App() {
     } else if (command.startsWith('theme:')) {
       const next = command.slice(6);
       if (next === 'system' || next === 'light' || next === 'dark') void saveSettings({ ...state.settings, theme: next });
+    } else if (command === 'check-updates') {
+      showUpdates();
+      void checkUpdates().catch(fail);
     } else if (command.startsWith('tab:')) {
       setTab(command.slice(4) as Tab);
     }
@@ -663,6 +678,11 @@ export function App() {
           ))}
         </nav>
         <div className="spacer" />
+        {state.update?.available && state.update.latest && (
+          <button className="update-badge" onClick={showUpdates} title={t.updateBadgeTitle}>
+            <Icon name="download" size={14} /> {t.updateBadge(state.update.latest.version)}
+          </button>
+        )}
         {(active.length > 0 || queued > 0) && (
           <button className="running-indicator" onClick={() => (active[0] ? setReportId(active[0].id) : setTab('dash'))} title={t.seeProgress}>
             <i className="run-dot" />
@@ -745,6 +765,7 @@ export function App() {
             onRestore={restoreBackup}
             onCheckSetup={checkSetup}
             onSetup={(setup) => patch({ setup })}
+            onCheckUpdates={checkUpdates}
             onNotice={notify}
             onError={notifyError}
           />

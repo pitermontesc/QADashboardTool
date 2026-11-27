@@ -51,7 +51,7 @@ const TEXT = {
     assistant: 'Asistente de Claude',
     portBusy: (port: number) => `El puerto ${port} está ocupado por otro programa. Ciérralo o abre la app con QA_DASH_PORT=8770.`,
     startFailed: 'No se pudo iniciar la app:',
-    help: 'Ayuda', showLog: 'Mostrar el log de la app', openData: 'Abrir la carpeta de datos', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
+    help: 'Ayuda', checkUpdates: 'Buscar actualizaciones…', showLog: 'Mostrar el log de la app', openData: 'Abrir la carpeta de datos', openDemo: 'Abrir demo (datos de ejemplo)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'No se pudo abrir la demo:',
   },
   en: {
     file: 'File', newRun: 'New run', refreshJira: 'Refresh Jira tickets', view: 'View',
@@ -61,7 +61,7 @@ const TEXT = {
     assistant: 'Claude assistant',
     portBusy: (port: number) => `Port ${port} is used by another program. Close it or open the app with QA_DASH_PORT=8770.`,
     startFailed: 'The app could not start:',
-    help: 'Help', showLog: 'Show the app log', openData: 'Open the data folder', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
+    help: 'Help', checkUpdates: 'Check for updates…', showLog: 'Show the app log', openData: 'Open the data folder', openDemo: 'Open demo (sample data)', demoTitle: `${APP_NAME} · Demo`, demoFailed: 'The demo could not open:',
   },
 };
 
@@ -194,6 +194,8 @@ function buildMenu(): void {
       role: 'help',
       label: t.help,
       submenu: [
+        { label: t.checkUpdates, click: () => sendCommand('check-updates') },
+        { type: 'separator' },
         { label: t.showLog, click: () => shell.showItemInFolder(log.file) },
         { label: t.openData, click: () => void shell.openPath(defaultDataDir()) },
         { type: 'separator' },

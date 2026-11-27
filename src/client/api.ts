@@ -61,6 +61,7 @@ export const api = {
   deleteAutomation: (id: string) => request<void>('DELETE', `/api/automation/${encodeURIComponent(id)}`),
   refreshJira: () => request<JiraState>('POST', '/api/jira/refresh', {}),
   checkSetup: () => request<AppState>('POST', '/api/setup/check', {}),
+  checkUpdates: () => request<AppState>('POST', '/api/updates/check', {}),
   getProfile: () => request<QaProfile>('GET', '/api/profile'),
   saveProfile: (profile: { tester: QaPerson; tcExecutor: QaPerson | null }) =>
     request<{ profile: QaProfile; setup: SetupState | null }>('PUT', '/api/profile', profile),

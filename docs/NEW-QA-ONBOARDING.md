@@ -5,7 +5,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
 ## 1. The person inviting
 
 - [ ] **Skills published in the organization.** The `avm-qa-skills` 2.0.0 plugin (it includes the orchestrator) is already in the organization library and is not tied to anyone: each QA uses their own profile. Send them the link: <https://claude.ai/customize/plugins/plugin_01W7CGiL5o3doWhowWcddeqT>.
-- [ ] **App.** Send them `QA Dashboard.app` (Apple Silicon Macs only for now) or access to the repository.
+- [ ] **App.** Send them the [latest release](https://github.com/pitermontesc/QADashboardTool/releases/latest): the `arm64` installer for an Apple Silicon Mac, `x64` for an Intel Mac.
 - [ ] **User guide.** Share the published guide from its **Share** menu. The app and the guide are available in English and Spanish.
 - [ ] **Information they will need:**
   - the link to the team's Jira board;
@@ -16,7 +16,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
 
 ### Installation
 
-- [ ] **App.** Drag `QA Dashboard.app` to **Applications** and open it. It is not signed, so the first time macOS blocks it: in **System Settings → Privacy & Security**, click **Open Anyway**.
+- [ ] **App.** Open the `.dmg` for your Mac (`arm64` for Apple Silicon, `x64` for Intel), drag **QA Dashboard** to **Applications** and open it. It is not signed, so the first time macOS blocks it: in **System Settings → Privacy & Security**, click **Open Anyway**.
 - [ ] **Claude Code.** Install it, run `claude` once in Terminal and sign in with your account. Runs use **your** plan.
 - [ ] **Chrome and Claude in Chrome.** Install the extension, connect it to your Claude account and sign in with **your user** on `qa.alpinevm.com`, `staging.alpinevm.com` and `app.testomat.io`. Without this, runs end in BLOCKED.
 - [ ] **Skills.** Install the `avm-qa-skills` plugin from the organization library in one of these ways:
@@ -54,7 +54,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
   - To pass runs to someone else, use **Export backup (JSON)**. Importing **replaces** the data of the person importing.
   - Never share `qa-tests.json`: it contains your Jira API token.
 - **To practice without risk:** **Help → Open demo (sample data)** has sample data, and Jira and Claude are simulated there.
-- **Updates.** The app does not update itself: when there is a new version, replace the `.app`.
+- **Updates.** When there is a new version, the app says so in its header; **Types & settings → App version** has the installer for your Mac and the steps. Your data is kept.
 
 ## 4. Final check
 

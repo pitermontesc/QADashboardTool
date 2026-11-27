@@ -323,6 +323,31 @@ export interface QaProfile {
   tcExecutor: QaPerson | null;
 }
 
+/** A published version of the app (a GitHub release). */
+export interface ReleaseInfo {
+  version: string;
+  /** The release page. */
+  url: string;
+  publishedAt: number | null;
+  /** What changed, as written in the release (plain text). */
+  notes: string;
+  /** The installers: a .dmg and a .zip per Mac architecture. */
+  downloads: { name: string; url: string; arch: 'arm64' | 'x64'; kind: 'dmg' | 'zip' }[];
+}
+
+/** Whether a newer version of the app is published. */
+export interface UpdateState {
+  current: string;
+  /** This Mac's architecture: which installer to offer. */
+  arch: string;
+  latest: ReleaseInfo | null;
+  /** `latest` is newer than `current`. */
+  available: boolean;
+  checkedAt: number | null;
+  /** The last check failed (no connection, GitHub down); the app keeps working. */
+  error: string | null;
+}
+
 /** Something this Mac needs for runs with Claude. */
 export type SetupCheckId = 'claude' | 'login' | 'skills' | 'chrome' | 'profile' | 'jira';
 /** `invalid`: the QA profile exists but lacks the tester's name or accountId. `unknown`: it could not be checked. */
@@ -368,6 +393,8 @@ export interface AppState {
   demo: boolean;
   /** What this Mac has for runs with Claude; null until the first check finishes. */
   setup: SetupState | null;
+  /** Updates: null in the demo and before the first check is asked for. */
+  update: UpdateState | null;
 }
 
 export interface Backup extends Settings {
