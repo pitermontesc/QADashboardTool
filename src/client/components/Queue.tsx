@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatDmy, toYmd } from '../../shared/dates';
+import { claimText } from '../../shared/claims';
 import { candidateReason, formatMinutes, laneOf, laneSchedule, orderedSites, ticketReason, ticketsToValidate } from '../../shared/queue';
 import type { AppState, QaSite, QueueItem } from '../../shared/types';
 import { useLang, useText } from '../i18n';
@@ -22,6 +23,7 @@ const TEXT = {
     // Validate all
     dialogTitle: 'Validar todos los tickets',
     dialogSub: 'Se encolan en su sitio según su estado de Jira y corren uno a la vez por sitio, del más urgente al más antiguo. Nada empieza hasta que confirmes.',
+    dialogTeam: 'Los tickets que alguien del equipo está validando, tiene en cola o ya validó quedan sin marcar.',
     laneHint: (busy: boolean): string => (busy ? 'El sitio está ocupado: el primero empieza cuando se libere.' : 'El primero empieza ahora.'),
     laneTotal: (total: string, end: string) => `${total} en total · libre ~${end}`,
     startsAt: (time: string) => `empieza ~${time}`,
@@ -46,6 +48,7 @@ const TEXT = {
     remove: (what: string) => `Remove ${what} from the queue`,
     dialogTitle: 'Validate all tickets',
     dialogSub: 'They are queued on their site according to their Jira status and run one at a time per site, most urgent first, then the oldest. Nothing starts until you confirm.',
+    dialogTeam: 'Tickets a teammate is validating, has queued or already validated are left unchecked.',
     laneHint: (busy: boolean): string => (busy ? 'The site is busy: the first one starts when it is free.' : 'The first one starts now.'),
     laneTotal: (total: string, end: string) => `${total} in all · free ~${end}`,
     startsAt: (time: string) => `starts ~${time}`,
@@ -200,7 +203,7 @@ export function ValidateAllDialog({ state, onConfirm, onClose }: ValidateAllProp
         <div className="dialog-head">
           <div>
             <h2 id="validate-all-title">{t.dialogTitle}</h2>
-            <p className="hint wrap">{t.dialogSub}</p>
+            <p className="hint wrap">{t.dialogSub}{candidates.some((c) => c.claim) && ` ${t.dialogTeam}`}</p>
           </div>
           <button type="button" className="icon-btn" aria-label={t.close} onClick={onClose}>
             <Icon name="close" />
@@ -226,6 +229,11 @@ export function ValidateAllDialog({ state, onConfirm, onClose }: ValidateAllProp
                       <span className="queue-what">
                         <b>{ticket.key}</b>
                         <span className="queue-sum">{ticket.summary}</span>
+                        {candidate.claim && (
+                          <span className={`queue-claim claim-${candidate.claim.state}`}>
+                            <Icon name="team" size={13} /> {claimText(candidate.claim, lang, now)}
+                          </span>
+                        )}
                         <span className="hint">
                           {[candidateReason(candidate, lang, now), last?.finishedAt && t.lastRun(formatDmy(toYmd(new Date(last.finishedAt)), lang), last.verdict ?? '')]
                             .filter(Boolean)

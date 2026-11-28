@@ -1,5 +1,6 @@
+import { claimFor, ownLastValidation } from './claims.js';
 import { findSite, siteForStatus } from './orchestrator.js';
-import type { AppState, Automation, JiraTicket, Lang, QaConfig, QaSite, QueueItem } from './types.js';
+import type { AppState, Automation, JiraTicket, Lang, QaConfig, QaSite, QueueItem, TeamState, TicketClaim } from './types.js';
 
 /**
  * Runs that use the browser on a site go one at a time on that site (its "lane"): two runs on the
@@ -113,7 +114,9 @@ export interface TicketCandidate {
   site: QaSite;
   /** Last finished orchestrator run on the ticket, if any. */
   last: Automation | null;
-  /** Selected by default: never validated, or its last run was BLOCKED (nothing was really tested). */
+  /** A teammate validating it now, with it queued, or who validated it on this site after this app's last run. */
+  claim: TicketClaim | null;
+  /** Selected by default: never validated, or its last run was BLOCKED (nothing was really tested), and no teammate claim. */
   suggested: boolean;
   estimate: Estimate;
   /** Priority rank after the age bonus. */
@@ -171,7 +174,10 @@ export function orderLane(candidates: TicketCandidate[]): TicketCandidate[] {
  * Tickets that "Validate all" offers: in a status ready for the orchestrator, not running and not
  * queued already. Grouped by lane (STG first) and ordered within each lane by `orderLane`.
  */
-export function ticketsToValidate(state: Pick<AppState, 'jira' | 'automations' | 'queue' | 'settings'>, now = Date.now()): TicketCandidate[] {
+export function ticketsToValidate(
+  state: Pick<AppState, 'jira' | 'automations' | 'queue' | 'settings'> & { team?: Pick<TeamState, 'claims'> },
+  now = Date.now(),
+): TicketCandidate[] {
   const { qa } = state.settings;
   const busy = new Set([
     ...state.automations.filter((a) => a.kind === 'orchestrator' && a.finishedAt === null).map((a) => a.target),
@@ -185,11 +191,14 @@ export function ticketsToValidate(state: Pick<AppState, 'jira' | 'automations' |
     const last = state.automations
       .filter((a) => a.kind === 'orchestrator' && a.target === ticket.key && a.finishedAt !== null)
       .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0] ?? null;
+    // A BLOCKED run of this app tested nothing: a teammate's earlier validation still stands.
+    const claim = claimFor(state.team?.claims ?? [], ticket.key, site, ownLastValidation(state.automations, ticket.key));
     candidates.push({
       ticket,
       site,
       last,
-      suggested: !last || last.verdict === 'BLOCKED',
+      claim,
+      suggested: (!last || last.verdict === 'BLOCKED') && !claim,
       estimate: estimateMinutes({ kind: 'orchestrator', ticketType: ticket.type }, state.automations, qa, typeOf),
       rank: effectiveRank(ticket, now),
       envBlocked: last !== null && isEnvironmentBlock(last),

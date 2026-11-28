@@ -23,7 +23,7 @@ const ticket = (key: string, over: Partial<JiraTicket> = {}): JiraTicket => ({
   key, summary: key, status: 'On QA', type: 'Story', priority: 'Medium', created: NOW - DAY, epic: '', blockedBy: [], ...over,
 });
 const candidate = (t: JiraTicket, over: Partial<TicketCandidate> = {}): TicketCandidate => ({
-  ticket: t, site, last: null, suggested: true, estimate: { minutes: 30, basis: 'kind' }, rank: effectiveRank(t, NOW), envBlocked: false, waitsFor: [], ...over,
+  ticket: t, site, last: null, claim: null, suggested: true, estimate: { minutes: 30, basis: 'kind' }, rank: effectiveRank(t, NOW), envBlocked: false, waitsFor: [], ...over,
 });
 const keys = (list: TicketCandidate[]) => list.map((c) => c.ticket.key);
 const run = (over: Partial<Automation>): Automation =>

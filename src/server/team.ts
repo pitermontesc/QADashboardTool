@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync,
 import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
-import type { Automation, TeamMember, TestRun, TestType } from '../shared/types.js';
+import type { Automation, QueueItem, TeamMember, TeamQueueItem, TestRun, TestType } from '../shared/types.js';
 import { runSchema, storedAutomationSchema } from './schemas.js';
 
 /**
@@ -35,6 +35,11 @@ const teamFileSchema = z.object({
     .catch([]),
   runs: z.array(runSchema).max(50_000),
   automations: z.array(sharedAutomationSchema).max(10_000),
+  // Added in v1.23.0: what waits in their queue. Files from v1.22.0 have none.
+  queue: z
+    .array(z.object({ kind: z.enum(['orchestrator', 'smoke', 'regression']), target: z.string().trim().min(1).max(500), site: z.string().max(100), addedAt: z.number() }))
+    .max(1_000)
+    .default([]),
 });
 
 export interface TeamFile {
@@ -46,6 +51,7 @@ export interface TeamFile {
   types: TestType[];
   runs: TestRun[];
   automations: Automation[];
+  queue: TeamQueueItem[];
 }
 
 /** `~/Google Drive/QA` → absolute path. */
@@ -66,8 +72,19 @@ export function teamFileName(member: { id: string; name: string }): string {
   return `${slug.slice(0, 40)}--${member.id.slice(0, 8)}${TEAM_SUFFIX}`;
 }
 
-/** What this app shares: its runs and reports; never the Jira connection, the settings or anything about the machine. */
-export function buildTeamFile(member: { id: string; name: string }, app: string, types: TestType[], runs: TestRun[], automations: Automation[], now = Date.now()): TeamFile {
+/**
+ * What this app shares: its runs, reports and what waits in its queue; never the Jira connection,
+ * the settings or anything about the machine.
+ */
+export function buildTeamFile(
+  member: { id: string; name: string },
+  app: string,
+  types: TestType[],
+  runs: TestRun[],
+  automations: Automation[],
+  now = Date.now(),
+  queue: QueueItem[] = [],
+): TeamFile {
   return {
     format: FORMAT,
     version: 1,
@@ -83,6 +100,7 @@ export function buildTeamFile(member: { id: string; name: string }, app: string,
       queued: null,
       details: a.details && { ...a.details, jiraComment: null },
     })),
+    queue: queue.map(({ kind, target, site, addedAt }) => ({ kind, target, site, addedAt })),
   };
 }
 
@@ -148,7 +166,7 @@ export function readTeamFolder(folder: string, ownId: string): { members: TeamMe
           const parsed = teamFileSchema.safeParse(JSON.parse(readFileSync(full, 'utf8')));
           if (parsed.success) {
             const f = parsed.data;
-            entry.member = { id: f.member.id, name: f.member.name, app: f.app, updatedAt: f.updatedAt, file: name, me: false, types: f.types, runs: f.runs, automations: f.automations };
+            entry.member = { id: f.member.id, name: f.member.name, app: f.app, updatedAt: f.updatedAt, file: name, me: false, types: f.types, runs: f.runs, automations: f.automations, queue: f.queue };
           } else {
             const issue = parsed.error.issues[0];
             entry.error = `Not a QA Dashboard team file${issue ? ` (${issue.path.join('.') || 'file'}: ${issue.message})` : ''}`;

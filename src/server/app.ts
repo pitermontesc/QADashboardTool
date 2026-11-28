@@ -18,6 +18,7 @@ import {
 import { ASSISTANT_SCHEMA, assistantContext, assistantPrompt, assistantSystem, parseAssistantReply, type AssistantRunner } from './assistant.js';
 import { findSite, isTicketKey, readyStatuses, siteForStatus } from '../shared/orchestrator.js';
 import { isEnvironmentBlock, isUsageLimit, laneOf, queuePosition, ticketsToValidate } from '../shared/queue.js';
+import { claimFor, teamClaims } from '../shared/claims.js';
 import { VERDICTS_BY_KIND, automationTitle, reportInstruction, runForAutomation } from './automation.js';
 import {
   automationResultSchema, backupSchema, type AutomationResult, jiraConfigSchema, reportBugsEditSchema, reportTranslationSchema, runInputSchema, settingsSchema,
@@ -333,8 +334,8 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
       if (!existsSync(folder)) throw new Error(`The team folder ${displayPath(folder)} is not there (is the sync app running?)`);
       const stamp = `${name}|${store.revision}`;
       if (force || stamp !== teamWritten || Date.now() - (teamWrittenAt ?? 0) > TEAM_HEARTBEAT_MS) {
-        const { settings, runs, automations } = store.getState();
-        teamOwnFile = writeTeamFile(folder, buildTeamFile({ id: memberId, name }, version, settings.types, runs, automations));
+        const { settings, runs, automations, queue } = store.getState();
+        teamOwnFile = writeTeamFile(folder, buildTeamFile({ id: memberId, name }, version, settings.types, runs, automations, Date.now(), queue.items));
         teamWrittenAt = Date.now();
         teamWritten = stamp;
       }
@@ -350,15 +351,19 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
   };
   const teamState = (): TeamState => {
     const { folder, name } = store.getTeamConfig();
-    return { folder: folder ? displayPath(folder) : '', name, ownFile: teamOwnFile, writtenAt: teamWrittenAt, readAt: teamReadAt, error: folder && teamError ? translateError(teamError, lang()) : null };
+    return {
+      folder: folder ? displayPath(folder) : '', name, ownFile: teamOwnFile, writtenAt: teamWrittenAt, readAt: teamReadAt,
+      error: folder && teamError ? translateError(teamError, lang()) : null,
+      claims: folder ? teamClaims(teammates) : [],
+    };
   };
   const teamView = (): TeamView => {
     const { folder, name, memberId } = store.getTeamConfig();
     if (!folder) return { ...teamState(), members: [], problems: [] };
-    const { settings, runs, automations } = store.getState();
+    const { settings, runs, automations, queue } = store.getState();
     const me: TeamMember = {
       id: memberId, name, app: version, updatedAt: teamWrittenAt ?? Date.now(), file: teamOwnFile || teamFileName({ id: memberId, name }), me: true,
-      types: settings.types, runs, automations,
+      types: settings.types, runs, automations, queue: queue.items.map(({ kind, target, site, addedAt }) => ({ kind, target, site, addedAt })),
     };
     return { ...teamState(), members: [me, ...teammates], problems: teamProblems.map((p) => ({ ...p, error: translateError(p.error, lang()) })) };
   };
@@ -801,6 +806,21 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
     return launchAutomation(spec);
   };
 
+  /**
+   * A queued ticket a teammate is validating now, or validated on this site after it was queued, is
+   * not run again here (the team folder is read every minute, so two Macs can still overlap briefly).
+   */
+  const teammateBlocker = (item: QueueItem): void => {
+    if (!store.getTeamConfig().folder) return;
+    syncTeam();
+    const site = findSite(item.site, store.getState().settings.qa) ?? null;
+    const claim = claimFor(teamClaims(teammates), item.target, site);
+    if (claim?.state === 'running') throw new HttpError(409, `${claim.by} is already validating ${item.target}`);
+    if (claim?.state === 'validated' && claim.at > item.addedAt) {
+      throw new HttpError(409, `${claim.by} validated ${item.target} after it was queued: ${claim.verdict}`);
+    }
+  };
+
   /** Starts a queued run. If it no longer applies it is dropped saying why; if Claude cannot start, its lane stops. */
   const startQueued = async (item: QueueItem): Promise<void> => {
     starting.add(item.site);
@@ -813,6 +833,7 @@ export function createApp(store: Store, options: AppOptions = {}): Express {
         if (spec.input.site !== item.site) {
           throw new HttpError(409, `${item.target} moved to another site's status; launch it again from its card`);
         }
+        if (item.kind === 'orchestrator') teammateBlocker(item);
       } catch (err) {
         store.recordSkip(item, message(err));
         log.warn('queue.skip', { kind: item.kind, target: item.target, site: item.site, reason: message(err) });

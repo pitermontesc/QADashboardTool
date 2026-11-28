@@ -43,7 +43,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
     "tcExecutor": { "name": "Paulo Sanchez", "accountId": "712020:7439f202-d2d1-4c3e-ad76-338d4b912816" }
   }
   ```
-- [ ] **Team.** In the **Team** tab (`⌘4`), choose the team's shared folder (the person inviting tells you which one; it must be synced on your Mac) and join. Your runs and reports then show up for the others, and theirs for you.
+- [ ] **Team.** In the **Team** tab (`⌘4`), choose the team's shared folder (the person inviting tells you which one; it must be synced on your Mac) and join. Your runs and reports then show up for the others, and theirs for you. A ticket card says when a teammate is already validating it.
 - [ ] **Sites & skills.** In **Types & settings → Sites & skills**, check:
   - The QA and STG sites, their Jira statuses and the test run domains. The defaults are the AVM ones.
   - The skill names. If you installed the plugin from the organization, Claude Code shows them with their prefix (for example `/avm-qa-skills:avm-qa-orchestrator`); use exactly the name you see in `/skills`.
@@ -52,7 +52,7 @@ For another team member to use QA Dashboard and the AVM QA skills with their own
 ## 3. Good to know before you start
 
 - **The app does not ask you anything.** Runs execute on their own in `auto` mode: Claude creates bugs, comments and moves tickets **on your behalf**, following each skill's criteria. Review its decisions in the notes of each report.
-- **Your data is yours.** It stays only on your Mac (`~/Library/Application Support/QA Dashboard/`). There is no team view.
+- **Your data is yours.** It stays on your Mac (`~/Library/Application Support/QA Dashboard/`). Only if you join a team, your runs, reports and queue go to the team folder (never your Jira token or settings), and the dashboard tells you which tickets the others are validating, so nobody runs one twice.
   - To pass runs to someone else, use **Export backup (JSON)**. Importing **replaces** the data of the person importing.
   - Never share `qa-tests.json`: it contains your Jira API token.
 - **To practice without risk:** **Help → Open demo (sample data)** has sample data, and Jira and Claude are simulated there.

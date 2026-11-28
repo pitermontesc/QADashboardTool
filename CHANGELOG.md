@@ -2,6 +2,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] - 2026-11-27
+
+### Added
+- **No ticket validated twice in a team.** Through the team folder, a ticket card says when a teammate is validating it (**Luis Torres is validating it · 12 min**), has it queued, or validated it on the site it would run on (**Marta Gómez validated it on 11/25/2026: PASSED**). Launching one a teammate is running or has queued takes a second click (**Run anyway?**). **Validate all** leaves those tickets unchecked and says who has them. When a queued ticket's turn comes, it is skipped, saying why, if a teammate is validating it or validated it on that site after it was queued.
+- A teammate's running and queued runs count while their file is less than 2 hours old; a validation counts until this app validates the ticket again. BLOCKED and test-mode runs validate nothing.
+- The team file also carries what waits in the queue (kind, ticket, site and when it was queued). Files from 1.22.0 are still read.
+- `state.team.claims`.
+
+### Changed
+- In the demo, Marta's validation of AVM-7064 is on STG, the site of its status.
+
 ## [1.22.0] - 2026-11-27
 
 ### Added

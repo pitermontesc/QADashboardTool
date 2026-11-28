@@ -1,12 +1,13 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RESULT_META, resultLabel } from '../../shared/defaults';
 import { formatDmy, greeting, longDate, parseYmd, relativeDay, relativeTime, toYmd } from '../../shared/dates';
 import {
   bugKeysByRun, countedRuns, buildBuckets, countByTicket, countByType, filterByPeriod, lastRunByType, sortRuns, summarize,
   type Bucket, type Period, type ResultCounts,
 } from '../../shared/stats';
-import { ORCHESTRATOR_FULL_COVERAGE, canOrchestrate, isRegressionType, isSmokeType } from '../../shared/orchestrator';
-import { RESULTS, type AppState, type Automation, type JiraTicket, type QueueItem } from '../../shared/types';
+import { ORCHESTRATOR_FULL_COVERAGE, canOrchestrate, isRegressionType, isSmokeType, siteForStatus } from '../../shared/orchestrator';
+import { claimFor, claimText, ownLastValidation } from '../../shared/claims';
+import { RESULTS, type AppState, type Automation, type JiraTicket, type QueueItem, type TicketClaim } from '../../shared/types';
 import { queuePosition, queuedOf, ticketsToValidate } from '../../shared/queue';
 import { QueuePanel } from './Queue';
 import { SetupBanner } from './SetupCard';
@@ -86,6 +87,8 @@ const TEXT = {
     smokeOn: (site: string) => `Smoke en ${site}`,
     queuedAt: (n: number) => `En cola · #${n}`,
     queuedTitle: 'Espera en la cola de su sitio: empieza cuando el sitio se libere',
+    runAnyway: '¿Lanzar igual?',
+    claimTitle: 'Según la carpeta del equipo (se lee cada minuto)',
     validateAll: (n: number) => `Validar todos (${n})`,
     validateAllTitle: 'Encola los tickets listos y los corre uno a la vez por sitio',
     activity: (daily: boolean, weeks: number) => `Actividad ${daily ? 'por día' : `por semana (últimas ${weeks})`}`,
@@ -160,6 +163,8 @@ const TEXT = {
     smokeOn: (site: string) => `Smoke on ${site}`,
     queuedAt: (n: number) => `Queued · #${n}`,
     queuedTitle: 'Waiting in its site queue: it starts when the site is free',
+    runAnyway: 'Run anyway?',
+    claimTitle: 'From the team folder (read every minute)',
     validateAll: (n: number) => `Validate all (${n})`,
     validateAllTitle: 'Queues the ready tickets and runs them one at a time per site',
     activity: (daily: boolean, weeks: number) => `Activity ${daily ? 'per day' : `per week (last ${weeks})`}`,
@@ -255,6 +260,8 @@ interface TicketsProps {
   onOpenReport: (automation: Automation) => void;
   qa: AppState['settings']['qa'];
   queue: QueueItem[];
+  /** What teammates are doing on tickets (team folder). */
+  claims: TicketClaim[];
   /** Tickets "Validate all" would offer (0 hides the button). */
   validateCount: number;
   onValidateAll: () => void;
@@ -263,11 +270,18 @@ interface TicketsProps {
 
 /** Jira tickets as cards: the usual starting point for logging a test. */
 function JiraTickets({
-  jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, queue, validateCount, onValidateAll, t,
+  jira, loading, ticketBase, perTicket, onRefresh, onTicket, onOrchestrate, launching, onOpenSettings, automations, onOpenReport, qa, queue, claims, validateCount, onValidateAll, t,
 }: TicketsProps) {
   const lang = useLang();
   const now = useNow();
   const [query, setQuery] = useState('');
+  // A ticket a teammate is validating or has queued needs a second click ("key" or "full:key").
+  const [armed, setArmed] = useState<string | null>(null);
+  useEffect(() => {
+    if (armed === null) return;
+    const timer = setTimeout(() => setArmed(null), 4000);
+    return () => clearTimeout(timer);
+  }, [armed]);
   const q = query.trim().toLowerCase();
   const tickets = q
     ? jira.tickets.filter((t) => `${t.key} ${t.summary} ${t.status}`.toLowerCase().includes(q))
@@ -345,6 +359,13 @@ function JiraTickets({
             const ready = canOrchestrate(ticket.status, qa);
             const active = runningOf(automations, 'orchestrator', ticket.key);
             const waiting = queuedOf(queue, 'orchestrator', ticket.key);
+            const claim = ready && !active && !waiting ? claimFor(claims, ticket.key, siteForStatus(ticket.status, qa) ?? null, ownLastValidation(automations, ticket.key)) : null;
+            const launch = (full: boolean): void => {
+              const id = `${full ? 'full:' : ''}${ticket.key}`;
+              if (claim && claim.state !== 'validated' && armed !== id) return setArmed(id);
+              setArmed(null);
+              onOrchestrate(ticket, full || undefined);
+            };
             return (
               <div key={ticket.key} className={`tk${ready || active ? ' has-run' : ''}${active ? ' is-running' : ''}`}>
                 <button
@@ -389,26 +410,34 @@ function JiraTickets({
                     {t.queuedAt(queuePosition(queue, waiting))}
                   </span>
                 ) : ready && (
+                  <>
+                  {claim && (
+                    <span className={`tk-claim claim-${claim.state}`} title={t.claimTitle}>
+                      <Icon name="team" size={13} />
+                      <span className="tk-run-label">{claimText(claim, lang, now)}</span>
+                    </span>
+                  )}
                   <div className="tk-runs">
                     <button
-                      className="tk-run"
-                      onClick={() => onOrchestrate(ticket)}
+                      className={`tk-run${armed === ticket.key ? ' armed' : ''}`}
+                      onClick={() => launch(false)}
                       disabled={launching !== null}
                       title={t.orchestratorTitle(`${qa.skills.orchestrator} ${ticket.key}`)}
                     >
                       <Icon name="play" size={13} />
-                      <span className="tk-run-label">{launching === ticket.key ? t.openingTerminal : t.runOrchestrator}</span>
+                      <span className="tk-run-label">{launching === ticket.key ? t.openingTerminal : armed === ticket.key ? t.runAnyway : t.runOrchestrator}</span>
                     </button>
                     <button
-                      className="tk-run tk-full"
-                      onClick={() => onOrchestrate(ticket, true)}
+                      className={`tk-run tk-full${armed === `full:${ticket.key}` ? ' armed' : ''}`}
+                      onClick={() => launch(true)}
                       disabled={launching !== null}
                       aria-label={t.fullCoverageLabel(ticket.key)}
                       title={t.fullCoverageTitle(`${qa.skills.orchestrator} ${ticket.key}${ORCHESTRATOR_FULL_COVERAGE}`)}
                     >
-                      {launching === `full:${ticket.key}` ? t.openingTerminal : t.fullCoverage}
+                      {launching === `full:${ticket.key}` ? t.openingTerminal : armed === `full:${ticket.key}` ? t.runAnyway : t.fullCoverage}
                     </button>
                   </div>
+                  </>
                 )}
               </div>
             );
@@ -534,6 +563,7 @@ export function Dashboard({
         onOpenReport={onOpenReport}
         qa={settings.qa}
         queue={state.queue.items}
+        claims={state.team.claims}
         validateCount={ticketsToValidate(state).length}
         onValidateAll={onValidateAll}
         t={t}

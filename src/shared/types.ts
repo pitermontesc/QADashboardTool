@@ -339,6 +339,29 @@ export interface TeamMember {
   types: TestType[];
   runs: TestRun[];
   automations: Automation[];
+  /** Runs waiting in their queue (files from before v1.23.0 have none). */
+  queue: TeamQueueItem[];
+}
+
+/** What the team sees of a queued run: what and where, not the batch or retries. */
+export type TeamQueueItem = Pick<QueueItem, 'kind' | 'target' | 'site' | 'addedAt'>;
+
+/**
+ * A teammate's work on a ticket: they are validating it now, it waits in their queue, or their
+ * last run on a site tested it (a BLOCKED one tested nothing and is not a claim).
+ */
+export interface TicketClaim {
+  key: string;
+  state: 'running' | 'queued' | 'validated';
+  /** The teammate's name. */
+  by: string;
+  /** Started (running), queued (queued) or finished (validated). */
+  at: number;
+  /** Validated only. */
+  verdict: Verdict | null;
+  /** Site id and environment of the run on the teammate's Mac (empty for runs from before v1.15.0). */
+  site: string;
+  env: string;
 }
 
 /** The team view: where it is shared, and what this app sees there. */
@@ -355,6 +378,8 @@ export interface TeamState {
   readAt: number | null;
   /** The folder could not be read or written (missing, not synced, no permission). */
   error: string | null;
+  /** What teammates are doing on tickets, to avoid validating one twice (empty when not in a team). */
+  claims: TicketClaim[];
 }
 
 /** GET /api/team: the state, everyone's data (this Mac's first) and files that could not be read. */

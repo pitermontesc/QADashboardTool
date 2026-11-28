@@ -34,6 +34,8 @@ const ES: ReadonlyArray<[RegExp, (...groups: string[]) => string]> = [
   [/^The folder (.+) does not exist$/, (f) => `La carpeta ${f} no existe`],
   [/^(.+) is not a folder$/, (f) => `${f} no es una carpeta`],
   [/^Your name in the team is needed$/, () => 'Falta tu nombre en el equipo'],
+  [/^(.+) is already validating (.+)$/, (who, key) => `${who} ya está validando ${key}`],
+  [/^(.+) validated (.+) after it was queued: (.+)$/, (who, key, verdict) => `${who} validó ${key} después de que entró en la cola: ${verdict}`],
   [/^The team folder (.+) is not there \(is the sync app running\?\)$/, (f) => `La carpeta del equipo ${f} no está (¿está abierta la app que la sincroniza?)`],
   [/^The file is too big$/, () => 'El archivo es demasiado grande'],
   [/^Not valid JSON \(it may still be syncing\)$/, () => 'No es JSON válido (puede que todavía se esté sincronizando)'],

@@ -280,14 +280,14 @@ To validate every ticket that is ready, click **▷ Validate all (N)** next to *
    - **A ticket "blocked by" another one in the list goes after it** (**after AVM-7057 (blocked by it)**).
    
    Each site shows the estimated total and when it would be free (**~1 h 36 min in all · free ~15:47**).
-2. **Checked by default**: tickets never validated, and those whose last run was **BLOCKED** (nothing was really tested). A ticket already validated shows its last verdict (**Validated on 20/11/2026: PASSED**) and is unchecked; check it to run it again.
+2. **Checked by default**: tickets never validated, and those whose last run was **BLOCKED** (nothing was really tested). A ticket already validated shows its last verdict (**Validated on 20/11/2026: PASSED**) and is unchecked; check it to run it again. If you are in a [team](#team-view), a ticket a teammate is validating, has queued or validated on that site is unchecked too, and says who (**Luis Torres is validating it · 12 min**).
 3. Click **Queue N tickets**. Nothing starts before this. The first ticket of each free site starts at once; the rest wait their turn.
 
 The **Run queue** card on the dashboard shows each site with what is running there and what is waiting, in order, with the estimated start of each one (**starts ~14:43**) and when the site would be free. Use **↑ ↓** to change the order within a site and **✕** to take a run out of the queue. The header shows how many are queued (**Running · AVM-7057 · 12 min · 3 queued**).
 
 - **Between runs on a site the app waits 30 seconds**, so Chrome and the site settle before the next one.
 - **The queue survives closing the app.** When you open it again, it goes on where it left off.
-- **When its turn comes, a ticket is checked again.** If it left its Jira status (for example, someone moved it to Passed QA), it is taken out of the queue and the app says why.
+- **When its turn comes, a ticket is checked again.** If it left its Jira status (for example, someone moved it to Passed QA), it is taken out of the queue and the app says why. In a team, it is also taken out if a teammate is validating it now, or validated it on that site after you queued it.
 - **A queued ticket BLOCKED by the environment is retried once**, at the end of its site's queue (the problem may have been passing). A second BLOCKED is left as it is.
 - **The queue pauses instead of burning through the tickets** (and says why), with a **Resume** button on the Run queue card:
   - **two runs in a row on a site BLOCKED by the environment** pause that site (it is probably down or the login is failing). Runs BLOCKED before you click Resume no longer count;
@@ -455,7 +455,7 @@ The **Team** tab (`⌘4`, also under **View → Team**) puts your runs and repor
 2. In **Team**, choose that folder. The app lists the synced folders it finds on your Mac; click one and add the team folder's name (`…/QA Team`), or type the full path.
 3. Check **Your name in the team** (it comes from your QA profile) and click **Join the team**.
 
-**What is shared:** your runs (title, ticket, type, environment, cases, bugs, minutes, result and notes) and the QA reports of your Claude runs. **Never shared:** your Jira token or email, your settings or anything about your Mac.
+**What is shared:** your runs (title, ticket, type, environment, cases, bugs, minutes, result and notes), the QA reports of your Claude runs and the tickets waiting in your queue. **Never shared:** your Jira token or email, your settings or anything about your Mac.
 
 **What you see**
 
@@ -463,6 +463,16 @@ The **Team** tab (`⌘4`, also under **View → Team**) puts your runs and repor
 - **Per person:** each QA's numbers, what they are running right now, and how long ago their file was updated. A file not updated for days is marked: their app may be closed or not syncing.
 - **Validated tickets:** the orchestrator runs of the period and who ran them. Click one to open its report; a teammate's report is read only (**Shared by…**).
 - **Latest team runs**, with who logged each one.
+
+**No ticket validated twice.** The team folder also tells the dashboard what the others are doing, so two QAs do not validate the same ticket:
+
+- A **ticket card** says when a teammate is validating it (**Luis Torres is validating it · 12 min**), has it in their queue (**In Marta Gómez's queue**) or validated it on the site it would run on (**Marta Gómez validated it on 11/25/2026: PASSED**). If you validate it again afterwards, theirs is no longer shown.
+- **Run QA orchestrator** or **Full** on a ticket a teammate is running or has queued asks again: the button says **Run anyway?** for 4 seconds; click it again to launch. A ticket a teammate already validated launches with one click, as always.
+- **Validate all** leaves those tickets unchecked, and **the queue skips** a ticket a teammate started, or validated on that site, while it waited.
+
+A teammate's running and queued runs count while their file is less than 2 hours old (their app writes it at least every hour); after that their app is probably closed. BLOCKED and test-mode runs validate nothing. The folder is read every minute, so two QAs who start the same ticket within the same minute can still overlap.
+
+![Ticket cards: Marta Gómez validated AVM-7064 on STG, and Luis Torres is validating AVM-7068](img/22-team-claims.png)
 
 The view refreshes every minute and with **Refresh**. **Change folder or name** moves your file to another folder; **Leave the team** takes it out of the folder (your data on this Mac does not change). A file that cannot be read (for example, one still syncing) is listed under **Files that could not be read**.
 
@@ -602,6 +612,7 @@ Single keys (`N`, `/`) do nothing while you are typing in a field.
 | **A report is still in its original language** | The translation failed (for example, with no connection). Open the report and click **Retry**. |
 | **"Post on AVM-…" fails** | Check in **Types & settings** that Jira is connected: the comment is posted with the same email and API token. |
 | **macOS says the app cannot be opened** | It is not signed: in **System Settings → Privacy & Security**, click **Open Anyway** next to the message about "QA Dashboard". Right-click → Open no longer skips this on current macOS. If it still does not open, check that you downloaded the installer for your Mac: `arm64` for Apple Silicon, `x64` for Intel. |
+| **A queued ticket was taken out: "… is already validating …"** | A teammate started that ticket while it waited in your queue (or validated it on that site). Their report shows in **Team → Validated tickets** when it ends; queue it again only if it needs another run. |
 | **A teammate is missing from Team** | They must choose the same folder, and their sync app must be open. Their row says how long ago their file was updated; **Files that could not be read** lists a file still syncing. |
 | **"Could not check (GitHub responded 403)"** in App version | GitHub limits how often it answers without an account; the app keeps working and checks again later. You can always look at the [releases page](https://github.com/pitermontesc/QADashboardTool/releases). |
 | **Runs or settings disappeared, or an import went wrong** | **Types & settings → Data backup → Automatic copies**: restore the copy from before the problem (the one **Before import** if it was an import). |

@@ -46,11 +46,12 @@ The window remembers its size and position. Drag `QA Dashboard.app` to `/Applica
 
 The **Team** tab (`⌘4`) brings every QA's runs and reports together with no server. Each one chooses the same folder that the team syncs (Google Drive, Dropbox, iCloud, OneDrive…). Each app writes only its own file there, `<name>--<id>.qa-team.json`, and reads everyone else's:
 
-- **What goes in the file:** the app's runs, its QA reports (no process, log path, queue or Jira comment draft) and its test types' names and colors. Never the Jira connection, the settings or the QA profile.
+- **What goes in the file:** the app's runs, its QA reports (no process, log path, queue state or Jira comment draft), what waits in its queue (kind, ticket, site and when it was queued) and its test types' names and colors. Never the Jira connection, the settings or the QA profile.
 - **When it is written:** when the data or the name changes, at most once a minute, and at least once an hour so the others see the app is active. It is written to a hidden temporary file and renamed, so a sync app never uploads half of it.
 - **Reading the others:** every file is checked like an import (the same limits and link rules). One that cannot be read is listed under **Files that could not be read**, never fatal. If two files claim the same app, the newest wins.
 - **Identity:** the app's team id is made once and kept. Importing a backup does not bring someone else's.
 - **What the tab shows:** the team's totals for the period (a Jira bug found by two people counts once), a row per person (with what they are running and how long ago their file was updated), the tickets validated with the orchestrator and by whom, and the latest runs. A teammate's report opens read only.
+- **No ticket validated twice:** a ticket card says when a teammate is validating it (**Luis Torres is validating it · 12 min**), has it queued, or validated it on that site (**Marta Gómez validated it on 11/25/2026: PASSED**). Launching one a teammate is running or has queued takes a second click (**Run anyway?**). **Validate all** leaves those tickets unchecked and says who has them. When a queued ticket's turn comes, it is skipped if a teammate is validating it, or validated it on that site after it was queued. A teammate's running and queued runs count while their file is less than 2 hours old (a live app writes it every hour); a validation counts until this app validates the ticket again. BLOCKED and test-mode runs validate nothing. The folder is read every minute, so two Macs that start the same ticket within that minute can still overlap.
 - **Leaving the team** takes this app's file out of the folder. The demo has a team folder of its own with two sample teammates.
 
 ### Releases and updates
@@ -157,7 +158,7 @@ tests/       Statistics, API (real server on a temporary port) and UI (jsdom)
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/state` | Settings, runs and Jira status, and `setup`: what this Mac has for runs with Claude (null until the first check ends) |
+| GET | `/api/state` | Settings, runs and Jira status, `setup`: what this Mac has for runs with Claude (null until the first check ends), and `team.claims`: the tickets teammates are validating, have queued or validated |
 | POST | `/api/runs` | Creates a run (`testMode: true` marks a rehearsal: listed, but left out of the dashboard's numbers) |
 | PUT / DELETE | `/api/runs/:id` | Edits or deletes a run |
 | PUT | `/api/settings` | Saves the settings: types, environments, ticket URL, language, theme, and sites & skills |

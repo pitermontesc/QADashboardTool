@@ -268,7 +268,7 @@ export class Store {
     return {
       settings: this.data.settings, runs: this.data.runs, jira: this.getJiraState(), automations: this.data.automations, queue: this.data.queue,
       translating: 0, demo: false, setup: null, update: null,
-      team: { folder: this.data.team.folder, name: this.data.team.name, ownFile: '', writtenAt: null, readAt: null, error: null },
+      team: { folder: this.data.team.folder, name: this.data.team.name, ownFile: '', writtenAt: null, readAt: null, error: null, claims: [] },
     };
   }
 
